@@ -70,7 +70,7 @@ typedef enum
 
 typedef struct {
     bool levels[ImapLogoff+1];
-    IMAP_RESULTS (ImapSession::*handler)(uint8_t *pData, const size_t dwDataLen, size_t &r_dwParsingAt);
+    IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 } symbol;
 
 // SYZYGY This should actually be defined like this:
@@ -193,8 +193,8 @@ private:
     IMAP_RESULTS UnsubscribeHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
 #endif // 0
     IMAP_RESULTS ListHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS LsubHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
-    IMAP_RESULTS LsubHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS StatusHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS AppendHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
 

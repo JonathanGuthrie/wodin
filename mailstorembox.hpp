@@ -30,7 +30,10 @@ private:
     unsigned firstUnseen;
     unsigned uidValidity;
     void ListAll(const char *pattern, MAILBOX_LIST *result);
+    void ListSubscribed(const char *pattern, MAILBOX_LIST *result);
     bool isInboxInteresting(void);
+    bool isMailboxInteresting(std::string mailbox);
+    bool ListAllHelper(const regex_t *compiled_regex, const char *home_directory, const char *working_dir, MAILBOX_LIST *result, int maxdepth);
 };
 
 #endif // _MAILSTOREMBOX_HPP_INCLUDED_

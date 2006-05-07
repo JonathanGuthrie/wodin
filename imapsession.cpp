@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-// IMapClient.cpp : Implementation of CEIMapClient
+// imapsession.cpp : Implementation of ImapSession
 //
 // SimDesk, Inc. © 2002-2004
 // Author: 
@@ -182,9 +182,9 @@ void ImapSession::BuildSymbolTables()
 #endif // 0
     symbolToInsert.handler = &ImapSession::ListHandler;
     symbols.insert(IMAPSYMBOLS::value_type("LIST", symbolToInsert));
-#if 0
     symbolToInsert.handler = &ImapSession::LsubHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("LSUB"), symbolToInsert));
+    symbols.insert(IMAPSYMBOLS::value_type("LSUB", symbolToInsert));
+#if 0
     symbolToInsert.handler = &ImapSession::StatusHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("STATUS"), symbolToInsert));
     symbolToInsert.handler = &ImapSession::AppendHandler;
@@ -2422,7 +2422,7 @@ static std::string GenMailboxFlags(const uint32_t attr)
 	{
 	    if (0 != (attr & MailStore::IMAP_MBOX_UNMARKED))
 	    {
-		result += "(\\Unmarked ";
+		result += "(\\UnMarked ";
 	    }
 	    else
 	    {
@@ -2430,13 +2430,20 @@ static std::string GenMailboxFlags(const uint32_t attr)
 	    }
 	}
     }
-    if (0 != (attr & MailStore::IMAP_MBOX_HASCHILDREN))
+    if (0 != (attr & MailStore::IMAP_MBOX_NOINFERIORS))
     {
-	result += "\\HasChildren)";
+	result += "\\NoInferiors)";
     }
     else
     {
-	result += "\\HasNoChildren)";
+	if (0 != (attr & MailStore::IMAP_MBOX_HASCHILDREN))
+	{
+	    result += "\\HasChildren)";
+	}
+	else
+	{
+	    result += "\\HasNoChildren)";
+	}
     }
     return result;
 }
@@ -2553,29 +2560,28 @@ IMAP_RESULTS ImapSession::ListHandler(uint8_t *data, const size_t dataLen, size_
     return result;
 }
 
-#if 0
-IMAP_RESULTS ImapSession::LsubHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt)
+IMAP_RESULTS ImapSession::LsubHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt)
 {
     IMAP_RESULTS result = IMAP_OK;
-    m_dwParseStage = 0;
+    parseStage = 0;
     do
     {
 	enum ImapStringState state;
-	if (0 == m_dwParseStage)
+	if (0 == parseStage)
 	{
-	    state = astring(pData, dwDataLen, r_dwParsingAt, false, NULL);
+	    state = astring(data, dataLen, parsingAt, false, NULL);
 	}
 	else
 	{
-	    state = astring(pData, dwDataLen, r_dwParsingAt, false, _T("%*"));
+	    state = astring(data, dataLen, parsingAt, false, "%*");
 	}
-	switch (state) 
+	switch (state)
 	{
 	case ImapStringGood:
-	    ++m_dwParseStage;
-	    if ((r_dwParsingAt < dwDataLen) && (' ' == pData[r_dwParsingAt]))
+	    ++parseStage;
+	    if ((parsingAt < dataLen) && (' ' == data[parsingAt]))
 	    {
-		++r_dwParsingAt;
+		++parsingAt;
 	    }
 	    break;
 
@@ -2587,37 +2593,38 @@ IMAP_RESULTS ImapSession::LsubHandler(byte *pData, const DWORD dwDataLen, DWORD 
 	    result = IMAP_NOTDONE;
 	    break;
 	}
-    } while((IMAP_OK == result) && (r_dwParsingAt < dwDataLen));
+    } while((IMAP_OK == result) && (parsingAt < dataLen));
     switch(result)
     {
     case IMAP_OK:
-	if (2 == m_dwParseStage)
+	if (2 == parseStage)
 	{
 	    result = ListHandlerExecute(false);
 	}
 	else
 	{
-	    strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+	    strncpy(responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	    result = IMAP_BAD;
 	}
 	break;
 
     case IMAP_NOTDONE:
-	m_eInProgress = ImapCommandLsub;
-	strncpy(m_pResponseText, _T("Ready for Literal"), MAX_RESPONSE_STRING_LENGTH);
+	inProgress = ImapCommandLsub;
+	strncpy(responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
 	break;
 
     case IMAP_BAD:
-	strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+	strncpy(responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	break;
 
     default:
-	strncpy(m_pResponseText, _T("Failed"), MAX_RESPONSE_STRING_LENGTH);
+	strncpy(responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
 	break;
     }
     return result;
 }
 
+#if 0
 IMAP_RESULTS ImapSession::StatusHandlerExecute(byte *pData, const DWORD dwDataLen, DWORD dwParsingAt)
 {
     IMAP_RESULTS result = IMAP_OK;
