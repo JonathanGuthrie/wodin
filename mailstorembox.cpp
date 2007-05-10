@@ -4,7 +4,6 @@
 
 #include <dirent.h>
 #include <unistd.h>
-#include <regex.h>
 #include <sys/stat.h>
 
 #include "mailstorembox.hpp"
@@ -16,8 +15,23 @@ MailStoreMbox::MailStoreMbox(const char *usersHomeDirectory) : MailStore()
     homeDirectory = strdup(usersHomeDirectory);
 }
 
+// The CreateMailbox method deals with two cases.  Either the mailbox name is "inbox" which
+// is considered special, or the mailbox name is a path relative to the user's home directory.
+// If the mail box name ends in a slash, which is what I'm using as a "path seperator", then
+// I create a mail directory, otherwise I create a mail file.
 MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &MailboxName)
 {
+    if ((('i' == cstr_line[0]) || ('I' == cstr_line[0])) &&
+	(('n' == cstr_line[1]) || ('N' == cstr_line[1])) &&
+	(('b' == cstr_line[2]) || ('B' == cstr_line[2])) &&
+	(('o' == cstr_line[3]) || ('O' == cstr_line[3])) &&
+	(('x' == cstr_line[4]) || ('X' == cstr_line[4])) &&
+	('\0' == cstr_line[5])) {
+    }
+    else {
+	// SYZYGY -- working here!
+    }
+
     return MailStore::SUCCESS;
 }
 
@@ -246,10 +260,6 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
     // The matching is done by converting
     // the pattern into a regular expression and then seeing if that regular
     // expression matches the strings
-
-    // recursing down the directory tree depending on the pattern in "pattern".
-    // The first thing to do is to find the end of the span of characters that
-    // does not include wildcards.
     if (0 == regcomp(&compiled_regex, regex, REG_EXTENDED | REG_NOSUB))
     {
 	char base_path[PATH_MAX];
@@ -459,6 +469,13 @@ void MailStoreMbox::BuildMailboxList(const char *ref, const char *pattern, MAILB
     }
 }
 
+
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &MailboxName, bool isSubscribe)
+{
+    // SYZYGY
+    return MailStore::SUCCESS;
+}
 
 
 MailStoreMbox::~MailStoreMbox()

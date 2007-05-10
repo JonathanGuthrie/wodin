@@ -1,6 +1,8 @@
 #if !defined(_MAILSTOREMBOX_HPP_INCLUDED_)
 #define _MAILSTOREMBOX_HPP_INCLUDED_
 
+#include <regex.h>
+
 #include "mailstore.hpp"
 
 class MailStoreMbox : public MailStore
@@ -9,6 +11,7 @@ public:
     MailStoreMbox(const char *usersHomeDirectory);
     virtual MailStore::MAIL_STORE_RESULT CreateMailbox(const std::string &MailboxName);
     virtual MailStore::MAIL_STORE_RESULT MailboxClose();
+    virtual MailStore::MAIL_STORE_RESULT SubscribeMailbox(const std::string &MailboxName, bool isSubscribe);
     virtual unsigned GetSerialNumber();
     virtual unsigned GetNextSerialNumber();
     virtual unsigned GetUidValidityNumber() { return uidValidity; }

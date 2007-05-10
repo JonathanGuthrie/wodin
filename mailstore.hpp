@@ -59,6 +59,9 @@ public:
     MailStore();
     virtual MAIL_STORE_RESULT CreateMailbox(const std::string &MailboxName) = 0;
     virtual MAIL_STORE_RESULT MailboxClose() = 0;
+    // This function subscribes to the specified mailbox if isSubscribe is true, otherwise it 
+    // unsubscribes from the mailbox
+    virtual MAIL_STORE_RESULT SubscribeMailbox(const std::string &MailboxName, bool isSubscribe) = 0;
     virtual unsigned GetSerialNumber() = 0;
     virtual unsigned GetNextSerialNumber() = 0;
     virtual unsigned GetUidValidityNumber() = 0;
