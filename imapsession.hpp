@@ -152,9 +152,9 @@ private:
     IMAP_RESULTS CreateHandlerExecute();
     IMAP_RESULTS DeleteHandlerExecute();
     IMAP_RESULTS RenameHandlerExecute();
-    IMAP_RESULTS SubscribeHandlerExecute(bool bIsSubscribe);
 #endif // 0
-    IMAP_RESULTS ListHandlerExecute(bool bListAll);
+    IMAP_RESULTS SubscribeHandlerExecute(bool isSubscribe);
+    IMAP_RESULTS ListHandlerExecute(bool listAll);
 #if 0
     IMAP_RESULTS StatusHandlerExecute(byte *pData, const DWORD dwDataLen, DWORD dwParsingAt);
     IMAP_RESULTS AppendHandlerExecute(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
@@ -189,9 +189,9 @@ private:
     IMAP_RESULTS CreateHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS DeleteHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS RenameHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-    IMAP_RESULTS SubscribeHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-    IMAP_RESULTS UnsubscribeHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
 #endif // 0
+    IMAP_RESULTS SubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS UnsubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS ListHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS LsubHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
