@@ -1,3 +1,5 @@
+// SYZYGY -- I need to determine if I need three states, Marked, Unmarked, and Can't Tell.
+
 #include <iostream>
 #include <vector>
 #include <fstream>
@@ -10,8 +12,9 @@
 
 #define MAILBOX_LIST_FILE_NAME ".mailboxlist"
 
-MailStoreMbox::MailStoreMbox(const char *usersHomeDirectory) : MailStore()
+MailStoreMbox::MailStoreMbox(const char *usersInboxPath, const char *usersHomeDirectory) : MailStore()
 {
+    inboxPath = strdup(usersInboxPath);
     homeDirectory = strdup(usersHomeDirectory);
 }
 
@@ -21,12 +24,12 @@ MailStoreMbox::MailStoreMbox(const char *usersHomeDirectory) : MailStore()
 // I create a mail directory, otherwise I create a mail file.
 MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &MailboxName)
 {
-    if ((('i' == cstr_line[0]) || ('I' == cstr_line[0])) &&
-	(('n' == cstr_line[1]) || ('N' == cstr_line[1])) &&
-	(('b' == cstr_line[2]) || ('B' == cstr_line[2])) &&
-	(('o' == cstr_line[3]) || ('O' == cstr_line[3])) &&
-	(('x' == cstr_line[4]) || ('X' == cstr_line[4])) &&
-	('\0' == cstr_line[5])) {
+    if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
+	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
+	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
+	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
+	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
+	('\0' == MailboxName[5])) {
     }
     else {
 	// SYZYGY -- working here!
@@ -139,14 +142,18 @@ bool MailStoreMbox::ListAllHelper(const regex_t *compiled_regex, const char *hom
     return returnValue;
 }
 
-bool MailStoreMbox::isInboxInteresting(void)
+// c-client checks the ctime against the atime of the file in question and returns
+// true if access time is after create or modify, else false
+bool MailStoreMbox::isMailboxInteresting(const std::string path)
 {
-    return false;  // SYZYGY -- need to find out how c-client defines "interesting"
-}
+    int result = false;
+    struct stat stat_buf;
 
-bool MailStoreMbox::isMailboxInteresting(std::string mailbox)
-{
-    return false; // SYZYGY -- need to find out how c-client defines "interesting"
+    if (0 == lstat(path.c_str(), &stat_buf))
+    {
+	result = (stat_buf.st_atime < stat_buf.st_ctime) || (stat_buf.st_atime < stat_buf.st_mtime);
+    }
+    return result;
 }
 
 // If pattern is n characters long, then the "regex" destination buffer must be
@@ -228,7 +235,7 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
 
 	    name.name = "INBOX";
 	    name.attributes = MailStore::IMAP_MBOX_NOINFERIORS;
-	    if (isInboxInteresting())
+	    if (isMailboxInteresting(inboxPath))
 	    {
 		name.attributes |= MailStore::IMAP_MBOX_MARKED;
 	    }
@@ -412,7 +419,7 @@ void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
 
 		    name.name = "INBOX";
 		    name.attributes = MailStore::IMAP_MBOX_NOINFERIORS;
-		    if (isInboxInteresting())
+		    if (isMailboxInteresting(inboxPath))
 		    {
 			name.attributes |= MailStore::IMAP_MBOX_MARKED;
 		    }
@@ -434,6 +441,8 @@ void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
 			// SYZYGY -- I need to determine whether or not the line names
 			// SYZYGY -- a folder or a mailbox and handle accordingly
 			// SYZYGY -- to check for children so I can set the flags
+
+			// SYZYGY -- the first step of this is to build the full path from the name
 			if (isMailboxInteresting(name.name))
 			{
 			    name.attributes |= MailStore::IMAP_MBOX_MARKED;

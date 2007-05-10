@@ -191,5 +191,5 @@ ImapUser *ImapServer::GetUserInfo(const char *userid)
 
 MailStore *ImapServer::GetMailStore(void)
 {
-    return (MailStore *) new MailStoreMbox("/home/jguthrie");  // SYZYGY -- set the home directory
+    return (MailStore *) new MailStoreMbox("/var/mail/jguthrie", "/home/jguthrie");  // SYZYGY -- set the home directory
 }

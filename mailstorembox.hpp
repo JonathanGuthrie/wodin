@@ -8,7 +8,7 @@
 class MailStoreMbox : public MailStore
 {
 public:
-    MailStoreMbox(const char *usersHomeDirectory);
+    MailStoreMbox(const char *usersInboxPath, const char *usersHomeDirectory);
     virtual MailStore::MAIL_STORE_RESULT CreateMailbox(const std::string &MailboxName);
     virtual MailStore::MAIL_STORE_RESULT MailboxClose();
     virtual MailStore::MAIL_STORE_RESULT SubscribeMailbox(const std::string &MailboxName, bool isSubscribe);
@@ -28,14 +28,14 @@ public:
 
 private:
     const char *homeDirectory;
+    const char *inboxPath;
     unsigned mailboxMessageCount;
     unsigned recentCount;
     unsigned firstUnseen;
     unsigned uidValidity;
     void ListAll(const char *pattern, MAILBOX_LIST *result);
     void ListSubscribed(const char *pattern, MAILBOX_LIST *result);
-    bool isInboxInteresting(void);
-    bool isMailboxInteresting(std::string mailbox);
+    bool isMailboxInteresting(const std::string path);
     bool ListAllHelper(const regex_t *compiled_regex, const char *home_directory, const char *working_dir, MAILBOX_LIST *result, int maxdepth);
 };
 
