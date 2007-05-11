@@ -3,9 +3,21 @@
 // imapsession.cpp : Implementation of ImapSession
 //
 // SimDesk, Inc. © 2002-2004
-// Author: 
+// Author: Jonathan Guthrie
 //
 ///////////////////////////////////////////////////////////////////////////////
+
+
+// SYZYGY -- I need to have some sort of timer that can fire and handle several
+// different cases:
+//   Look for updated data for asynchronous notifies
+//   ***DONE*** Delay for failed LOGIN's or AUTHENTICATIONS
+//   ***DONE*** Handle idle timeouts, both for IDLE mode and inactivity in other modes.
+
+
+// SYZYGY -- I should allow the setting of the keepalive socket option
+
+#include <time.h>
 
 #include "imapsession.hpp"
 #include "imapserver.hpp"
@@ -283,12 +295,10 @@ void ImapSession::BuildSymbolTables()
     sFetchSymbolTable.insert(FETCH_NAME_T::value_type("UID",           FETCH_UID));
 }
 
-ImapSession::ImapSession(Socket *sock, ImapServer *server)
+ImapSession::ImapSession(Socket *sock, ImapServer *server, unsigned failedLoginPause) : s(sock), server(server), failedLoginPause(failedLoginPause)
 {
     state = ImapNotAuthenticated;
     userData = NULL;
-    this->s = sock;
-    this->server = server;
     m_LoginDisabled = false;
     lineBuffer = NULL;	// going with a static allocation for now
     lineBuffPtr = 0;
@@ -299,6 +309,7 @@ ImapSession::ImapSession(Socket *sock, ImapServer *server)
     std::string response("* OK [");
     response += BuildCapabilityString() + "] IMAP4rev1 server ready\r\n";
     s->Send((uint8_t *) response.c_str(), response.size());
+    lastCommandTime = time(NULL);
 }
 
 ImapSession::~ImapSession()
@@ -525,10 +536,12 @@ void ImapSession::AddToParseBuffer(const uint8_t *data, size_t length, bool bNul
 /*--------------------------------------------------------------------------------------*/
 /* ReceiveData										*/
 /*--------------------------------------------------------------------------------------*/
-bool ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
+int ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
 {
+    lastCommandTime = time(NULL);
+
     uint32_t dwNewDataBase = 0;
-    bool expectingMoreData = true;
+    int result = 0;
     // Okay, I need to organize the data into lines.  Each line is however much data ended by a
     // CRLF.  In order to support this, I need a buffer to put data into.
 
@@ -571,7 +584,7 @@ bool ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
 	    lineBuffer[lineBuffPtr++] = pData[dwNewDataBase];
 	    if (crFlag && ('\n' == pData[dwNewDataBase]))
 	    {
-		expectingMoreData = HandleOneLine(lineBuffer, lineBuffPtr);
+		result = HandleOneLine(lineBuffer, lineBuffPtr);
 		lineBuffPtr = 0;
 		delete lineBuffer;
 		lineBuffer = NULL;
@@ -599,7 +612,7 @@ bool ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
 	    {
 		dwBytesToFeed = dwDataLen - dwCurrentCommandStart;
 		bNotDone = false;
-		expectingMoreData = HandleOneLine(&pData[dwCurrentCommandStart], dwBytesToFeed);
+		result = HandleOneLine(&pData[dwCurrentCommandStart], dwBytesToFeed);
 		dwCurrentCommandStart += dwBytesToFeed;
 		dwNewDataBase = dwCurrentCommandStart;
 	    }
@@ -621,7 +634,7 @@ bool ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
 		    {
 			// The "+1"s here are due to the fact that I want to include the current character in the 
 			// line to be handled
-			expectingMoreData = HandleOneLine(&pData[dwCurrentCommandStart], dwNewDataBase - dwCurrentCommandStart + 1);
+			result = HandleOneLine(&pData[dwCurrentCommandStart], dwNewDataBase - dwCurrentCommandStart + 1);
 			dwCurrentCommandStart = dwNewDataBase + 1;
 			crFlag = false;
 			break;
@@ -639,7 +652,7 @@ bool ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
 		{
 		    // The "+1"s here are due to the fact that I want to include the current character in the 
 		    // line to be handled
-		    expectingMoreData = HandleOneLine(&pData[dwCurrentCommandStart], dwNewDataBase - dwCurrentCommandStart + 1);
+		    result = HandleOneLine(&pData[dwCurrentCommandStart], dwNewDataBase - dwCurrentCommandStart + 1);
 		    dwCurrentCommandStart = dwNewDataBase + 1;
 		    crFlag = false;
 		    break;
@@ -660,7 +673,7 @@ bool ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
 	lineBuffer = new uint8_t[lineBuffLen];
 	memcpy(lineBuffer, &pData[dwCurrentCommandStart], lineBuffPtr);
     }
-    return expectingMoreData;
+    return result;
 }
 
 std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status)
@@ -688,6 +701,7 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status)
 	break;
  
     case IMAP_NO:
+    case IMAP_NO_WITH_PAUSE:
 	response = (char *)parseBuffer;
 	response += " NO";
 	response += responseCode[0] == '\0' ? "" : " ";
@@ -727,10 +741,10 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status)
 
 // This function assumes that it is passed a single entire line each time.
 // It returns true if it's expecting more data, and false otherwise
-bool ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
+int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 {
     std::string response;
-    bool expectingMoreData = true;
+    int result = 0;
 
     // Some commands accumulate data over multiple lines.  Since the system
     // gives us data one line at a time, I have to put a state here for each
@@ -785,9 +799,20 @@ bool ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 	    IMAPSYMBOLS::iterator found = symbols.find((char *)&parseBuffer[commandString]);
 	    if ((found != symbols.end()) && found->second.levels[state])
 	    {
+		IMAP_RESULTS status;
 		responseCode[0] = '\0';
 		strncpy(responseText, "Completed", MAX_RESPONSE_STRING_LENGTH);
-		response = FormatTaggedResponse((this->*found->second.handler)(data, dataLen, i));
+		status = (this->*found->second.handler)(data, dataLen, i);
+		response = FormatTaggedResponse(status);
+		if (IMAP_NO_WITH_PAUSE == status)
+		{
+		    result = 1;
+		    GetServer()->DelaySend(this, failedLoginPause, response);
+		}
+		else
+		{
+		    s->Send((uint8_t *)response.data(), response.size());
+		}
 	    }
 	    else
 	    {
@@ -795,12 +820,12 @@ bool ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 		response += " BAD ";
 		response += (char *)&parseBuffer[commandString];
 		response += " Unrecognized Command\r\n";
+		s->Send((uint8_t *)response.data(), response.size());
 	    }
-	    s->Send((uint8_t *)response.data(), response.size());
 	    if (ImapLogoff <= state)
 	    {
 		// If I'm logged off, I'm obviously not expecting any more data
-		expectingMoreData = false;
+		result = -1;
 	    }
 	}
 	else
@@ -836,7 +861,7 @@ bool ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 	    break;
 
 	case CSasl::no:
-	    result = IMAP_NO;
+	    result = IMAP_NO_WITH_PAUSE;
 	    m_eState = ImapNotAuthenticated;
 	    strncpy(m_pResponseText, _T("Authentication Failed"), MAX_RESPONSE_STRING_LENGTH);
 	    break;
@@ -1675,7 +1700,7 @@ bool ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 	    parseBuffLen = 0;
 	}
     }
-    return expectingMoreData;
+    return result;
 }
 
 
@@ -1861,7 +1886,7 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute()
 	// Log("Client %u logged-in user %s %lu\n", m_dwClientNumber, m_pUser->m_szUsername.c_str(), m_pUser->m_nUserID);
 	if (NULL == store)
 	{
-	    store = server->GetMailStore();
+	    store = server->GetMailStore(userData);
 	}
 	store->CreateMailbox("INBOX");
 	// store->FixMailstore(); // I only un-comment this, if I have reason to believe that mailboxes are broken
@@ -1876,7 +1901,7 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute()
 	delete userData;
 	userData = NULL;
 	strncpy(responseText, "Authentication Failed", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_NO;
+	result = IMAP_NO_WITH_PAUSE;
     }
     return result;
 }

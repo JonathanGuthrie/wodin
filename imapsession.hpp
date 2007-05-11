@@ -62,7 +62,8 @@ typedef enum
     IMAP_OK,
     IMAP_NO,
     IMAP_BAD,
-    IMAP_NOTDONE
+    IMAP_NOTDONE,
+    IMAP_NO_WITH_PAUSE
 } IMAP_RESULTS;
 
 #define MAX_RESPONSE_STRING_LENGTH	40
@@ -81,16 +82,20 @@ typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
 class ImapSession
 {
 public:
-    ImapSession(Socket *sock, ImapServer *server);
+    ImapSession(Socket *sock, ImapServer *server, unsigned failedLoginPause = 5);
     ~ImapSession();
     static void BuildSymbolTables(void);
-    bool ReceiveData(uint8_t* pData, size_t dwDataLen );
+    int ReceiveData(uint8_t* pData, size_t dwDataLen );
     ImapServer *GetServer(void) const { return server; }
+    time_t GetLastCommandTime() const { return lastCommandTime; }
+    Socket *GetSocket(void) const { return s; }
+    ImapState GetState(void) const { return state; }
 
 private:
     // These are configuration items
     bool m_LoginDisabled;
     static bool anonymousEnabled;
+    unsigned failedLoginPause;
 
     Socket *s;
     // These constitute the session's state
@@ -125,7 +130,7 @@ private:
 
     // ReceiveData processes data as it comes it.  It's primary job is to chop the incoming data into
     // lines and to pass each line to HandleOneLine, which is the core command processor for the system
-    bool HandleOneLine(uint8_t *pData, size_t dwDataLen);
+    int HandleOneLine(uint8_t *pData, size_t dwDataLen);
     // This creates a properly formatted capability string based on the current state and configuration
     // of the IMAP server 
     std::string BuildCapabilityString(void);
@@ -223,6 +228,7 @@ private:
     ImapUser *userData;
     ImapServer *server;
     Sasl *auth;
+    time_t lastCommandTime;
 };
 
 #endif //_IMAPSESSION_HPP_INCLUDED_

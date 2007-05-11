@@ -7,18 +7,78 @@
 #include "ThreadPool.hpp"
 
 class SessionDriver;
+class ImapSession;
 typedef ThreadPool<SessionDriver *> ImapWorkerPool;
+
+class DeltaQueueAction
+{
+public:
+    DeltaQueueAction(int delta);
+    class DeltaQueueAction *next;
+    virtual void HandleTimeout(bool isPurge) = 0;
+    unsigned delta;
+};
+
+
+// SYZYGY -- the idle timer shouldn't be reset.  Instead, I should keep the time the last command
+// SYZYGY -- was executed and then check for the timeout period elapsing when the timer expires
+// SYZYGY -- and set the timeout for the time since that command happened.
+class DeltaQueueIdleTimer : DeltaQueueAction
+{
+public:
+    DeltaQueueIdleTimer(int delta, const ImapSession *session);
+    virtual void HandleTimeout(bool isPurge);
+
+private:
+    const ImapSession *session;
+};
+
+
+class DeltaQueueDelayedMessage : DeltaQueueAction
+{
+public:
+    DeltaQueueDelayedMessage(int delta, const ImapSession *session, const std::string message); // Note:  Calling copy constructor on the message
+    virtual void HandleTimeout(bool isPurge);
+
+private:
+    const ImapSession *session;
+    const std::string message;
+};
+
+
+class DeltaQueue
+{
+public:
+    void Tick(void);
+    void AddSend(const ImapSession *session, unsigned seconds, const std::string &message);
+    void AddTimeout(const ImapSession *session, time_t timeout);
+    DeltaQueue();
+    void InsertNewAction(DeltaQueueAction *action);
+
+private:
+    pthread_mutex_t queueMutex;
+    DeltaQueueAction *queueHead;
+};
+
 
 class ImapServer {
 public:
-    ImapServer(uint32_t bind_address, short bind_port);
+    ImapServer(uint32_t bind_address, short bind_port, unsigned login_timeout = 60, unsigned idle_timeout = 1800);
     ~ImapServer();
     void Run();
     void Shutdown();
     void WantsToReceive(int which);
     ImapUser *GetUserInfo(const char *userid);
-    MailStore *GetMailStore(void);
+    MailStore *GetMailStore(const ImapUser *user);
     bool IsAnonymousEnabled() { return false; } // SYZYGY ANONYMOUS
+    // This will send the specified message out the specified socket
+    // after the specified number of seconds and then set that session
+    // up to receive again
+    void DelaySend(const ImapSession *session, unsigned seconds, const std::string &message);
+    time_t GetIdleTimeout(void) { return idleTimeout; /* seconds */ }
+    time_t GetLoginTimeout(void) { return loginTimeout; /* seconds */ }
+    void SetIdleTimer(const ImapSession *session, unsigned seconds);
+    void KillSession(const ImapSession *session);
 
 private:
     bool isRunning;
@@ -26,12 +86,17 @@ private:
     // static void *SelectThreadFunction(void *);
     static void *ListenerThreadFunction(void *);
     static void *ReceiverThreadFunction(void *);
+    static void *TimerQueueFunction(void *);
+    
     ImapWorkerPool *pool;
-    pthread_t listenerThread, receiverThread;
+    pthread_t listenerThread, receiverThread, timerQueueThread;
     SessionDriver *sessions[FD_SETSIZE];
     fd_set masterFdList;
     pthread_mutex_t masterFdMutex;
     int pipeFd[2];
+    class DeltaQueue timerQueue;
+    unsigned idleTimeout;
+    unsigned loginTimeout;
 };
 
 #endif // _IMAPSERVER_HPP_INCLUDED_
