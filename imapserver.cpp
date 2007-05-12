@@ -304,24 +304,52 @@ DeltaQueue::DeltaQueue() : queueHead(NULL) {
 }
 
 
-void DeltaQueue::Tick()
-{
-    DeltaQueueAction *temp;
+// This function is structured kind of strangely, so a word of explanation is in
+// order.  This program has multiple threads doing all kinds of things at the same
+// time.  In order to prevent race conditions, delta queues are protected by
+// a queueMutex.  However, that means that we have to be careful about taking stuff
+// out of the queue whether by the timer expiring or by an as yet unsupported
+// cancellation.  The obvious way of doing this is to call HandleTimeout in the 
+// while loop that checks for those items that have timed out, however this is also
+// a wrong way of doing it because HandleTimeout can (and often does) call InsertNewAction
+// which also locks queueMutex, leading to deadlock.  One could put an unlock and a lock
+// around the call to HandleTimeout in the while loop, but that would be another wrong
+// way to do it because the queue might be (and often is) updated during the call to
+// HandleTimeout, and the copy used by DeltaQueue might, as a result could be broken.
+
+// The correct way is the way that I do it.  I collect all expired timers into a list and
+// then run through the list calling HandleTimeout in a separate while loop after the exit
+// from the critical section.  Since this list is local to this function and, therefore, to
+// this thread, I don't have to protect it with a mutex, and since I've unlocked the mutex,
+// the call to HandleTimeout can do anything it damn well pleases and there won't be a
+// deadlock due to the code here.
+void DeltaQueue::Tick() {
+    DeltaQueueAction *temp = NULL;
 
     pthread_mutex_lock(&queueMutex);
     // decrement head
     if (NULL != queueHead) {
 	--queueHead->delta;
-	temp = queueHead;
-	while ((NULL != temp) && (0 == temp->delta))
-	{
-	    queueHead = queueHead->next;
-	    temp->HandleTimeout(false);
-	    delete temp;
+	if (0 == queueHead->delta) {
+	    DeltaQueueAction *endMarker;
+
 	    temp = queueHead;
+	    while ((NULL != queueHead) && (0 == queueHead->delta))
+	    {
+		endMarker = queueHead;
+		queueHead = queueHead->next;
+	    }
+	    endMarker->next = NULL;
 	}
     }
     pthread_mutex_unlock(&queueMutex);
+    while (NULL != temp) {
+	DeltaQueueAction *next = temp->next;
+
+	temp->HandleTimeout(false);
+	delete temp;
+	temp = next;
+    }
 }
 
 
@@ -345,7 +373,7 @@ void DeltaQueue::AddTimeout(const ImapSession *session, time_t timeout)
 
 void DeltaQueue::InsertNewAction(DeltaQueueAction *action)
 {
-
+    pthread_mutex_lock(&queueMutex);
     if ((NULL == queueHead) || (queueHead->delta > action->delta))
     {
 	if (NULL != queueHead)
@@ -373,4 +401,5 @@ void DeltaQueue::InsertNewAction(DeltaQueueAction *action)
 	action->next = item->next;
 	item->next = action;
     }
+    pthread_mutex_unlock(&queueMutex);
 }
