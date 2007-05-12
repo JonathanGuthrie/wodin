@@ -17,6 +17,13 @@
 
 // SYZYGY -- I should allow the setting of the keepalive socket option
 
+// SYZYGY -- find out how come it's
+// SYZYGY -- 8 NO unsubscribe Not Subscribed to MailboxMail/personal
+// SYZYGY -- but it's 
+// SYZYGY -- 5 NO  Already Subscribed to MailboxMail/personal
+// SYZYGY -- instead of 
+// SYZYGY -- 5 NO subscribe Already Subscribed to MailboxMail/personal
+
 #include <time.h>
 #include <sys/fsuid.h>
 

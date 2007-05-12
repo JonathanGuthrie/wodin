@@ -1,5 +1,3 @@
-// SYZYGY -- I need to determine if I need three states, Marked, Unmarked, and Can't Tell.
-
 #include <iostream>
 #include <vector>
 #include <fstream>
@@ -20,7 +18,7 @@ MailStoreMbox::MailStoreMbox(const char *usersInboxPath, const char *usersHomeDi
 
 // The CreateMailbox method deals with two cases.  Either the mailbox name is "inbox" which
 // is considered special, or the mailbox name is a path relative to the user's home directory.
-// If the mail box name ends in a slash, which is what I'm using as a "path seperator", then
+// If the mail box name ends in a slash, which is what I'm using as a "path separator", then
 // I create a mail directory, otherwise I create a mail file.
 MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &MailboxName)
 {
