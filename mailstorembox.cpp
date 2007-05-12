@@ -157,13 +157,16 @@ bool MailStoreMbox::isMailboxInteresting(const std::string path)
 
 // If pattern is n characters long, then the "regex" destination buffer must be
 // 5n+3 characters long to be assured of being long enough.
-static void ConvertPatternToRegex(const char *pattern, char *regex)
-{
+static void ConvertPatternToRegex(const char *pattern, char *regex, char isForLsub = false) {
+    char lastchar;
+
     *regex++ = '^';
-    while('\0' != *pattern)
-    {
-	switch(*pattern)
-	{
+    if (isForLsub) {
+	*regex++ = '(';
+    }
+    while('\0' != *pattern) {
+	lastchar = *pattern;
+	switch(*pattern) {
 	case '^':
 	case ',':
 	case '.':
@@ -199,7 +202,15 @@ static void ConvertPatternToRegex(const char *pattern, char *regex)
 	}
 	++pattern;
     }
-    *regex++ = '$';
+    if (isForLsub) {
+	*regex++ = ')';
+	if ('%' != lastchar) {
+	    *regex++ = '$';
+	}
+    }
+    else {
+	*regex++ = '$';
+    }
     *regex = '\0';
 }
 
@@ -371,9 +382,11 @@ void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
 
     // First, convert the pattern to a regex and compile the regex
     regex_t compiled_regex;
-    char *regex = new char[3+5*strlen(pattern)];
+    // 3+5*strlen(pattern) works for list, but I'm going to be putting the 
+    // pattern in parentheses so I need 5+5*strlen for lsub
+    char *regex = new char[5+5*strlen(pattern)];
 
-    ConvertPatternToRegex(pattern, regex);
+    ConvertPatternToRegex(pattern, regex, true);
 
     // The regex must be compiled twice.  For matching "inbox", I enable ignoring 
     // case.  For the regular matches, I'll use case-specific matching.
@@ -393,7 +406,7 @@ void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
     std::string file_name = homeDirectory;
     file_name += "/" MAILBOX_LIST_FILE_NAME;
     std::ifstream inFile(file_name.c_str());
-    if (0 == regcomp(&compiled_regex, regex, REG_EXTENDED | REG_NOSUB))
+    if (0 == regcomp(&compiled_regex, regex, REG_EXTENDED))
     {
 	while (!inFile.eof())
 	{
@@ -430,27 +443,26 @@ void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
 		}
 		else
 		{
-		    if (0 == regexec(&compiled_regex, cstr_line, 0, NULL, 0))
+		    regmatch_t match;
+
+		    if (0 == regexec(&compiled_regex, cstr_line, 1, &match, 0))
 		    {
 			MAILBOX_NAME name;
 
-			name.name = line;
-			name.attributes = 0;
-			// SYZYGY WORKING HERE
-			// SYZYGY -- I need to determine whether or not the line names
-			// SYZYGY -- a folder or a mailbox and handle accordingly
-			// SYZYGY -- to check for children so I can set the flags
-
-			// SYZYGY -- the first step of this is to build the full path from the name
-			if (isMailboxInteresting(name.name))
-			{
-			    name.attributes |= MailStore::IMAP_MBOX_MARKED;
+			// With list, I need to set the flags correctly, with LSUB, I don't.
+			// So says RFC 3501 section 6.3.9
+			// I do have to handle the weirdness associated with the trailing % flag, though
+			// which is what all the "match" stuff is about
+			if (match.rm_so != -1) {
+			    name.name = line;
+			    name.name.erase(match.rm_eo);
+			    name.attributes = 0;
+			    if (name.name != line) {
+				name.attributes |= IMAP_MBOX_NOSELECT;
+				name.attributes |= IMAP_MBOX_HASCHILDREN;
+			    }
+			    result->push_back(name);
 			}
-			else
-			{
-			    name.attributes |= MailStore::IMAP_MBOX_UNMARKED;
-			}
-			result->push_back(name);
 		    }
 		}
 	    }
