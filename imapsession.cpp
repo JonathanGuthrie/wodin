@@ -18,6 +18,7 @@
 // SYZYGY -- I should allow the setting of the keepalive socket option
 
 #include <time.h>
+#include <sys/fsuid.h>
 
 #include "imapsession.hpp"
 #include "imapserver.hpp"
@@ -539,6 +540,9 @@ void ImapSession::AddToParseBuffer(const uint8_t *data, size_t length, bool bNul
 int ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
 {
     lastCommandTime = time(NULL);
+    if (NULL != userData) {
+	setfsuid(1000); // SYZYGY -- how do I set the privileges I need to access the files?
+    }
 
     uint32_t dwNewDataBase = 0;
     int result = 0;
