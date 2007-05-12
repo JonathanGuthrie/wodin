@@ -18,6 +18,8 @@ public:
     virtual bool HavePlaintextPassword() = 0;
     virtual bool CheckCredentials(const char *password) = 0;
     virtual char *GetPassword(void) const = 0;
+    virtual char *GetHomeDir(void) const = 0;
+    char *GetName(void) const { return name; }
 
 protected:
     char *name;

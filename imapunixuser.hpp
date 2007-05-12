@@ -11,7 +11,8 @@ public:
     virtual ~ImapUnixUser();
     virtual bool HavePlaintextPassword();
     virtual bool CheckCredentials(const char *password);
-    virtual char * GetPassword(void) const;
+    virtual char *GetPassword(void) const;
+    virtual char *GetHomeDir(void) const { return home; };
 
 private:
     uid_t uid;
