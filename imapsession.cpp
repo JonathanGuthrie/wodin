@@ -336,19 +336,6 @@ ImapSession::~ImapSession()
     s->Send((uint8_t *)bye.data(), bye.size());
 }
 
-#if 0
-void	ImapSession::OnIocpTimeOut()
-{
-    if (ImapSelected == m_eState)
-    {
-	m_msStore->MailboxClose();
-    }
-    CStdString bye = _T("* BYE Idle timeout disconnect\r\n");
-    Send((void *)bye.data(), (int)bye.size());
-    m_eClientStage = TCPClientDisconnecting;
-    Initialize(m_hMainCP, m_hLSocket, m_Timeout, m_dosTimeout);
-}
-#endif // 0
 
 void ImapSession::atom(uint8_t *data, const size_t dataLen, size_t &parsingAt)
 {
@@ -476,47 +463,6 @@ enum ImapStringState ImapSession::astring(uint8_t *data, const size_t dataLen, s
     return result;
 }
 
-#if 0
-void ImapSession::ClientInit()
-{
-    m_dwLiteralLength = 0;
-    m_dwLineBuffPtr = 0;
-    m_eState = ImapNotAuthenticated;
-    m_eInProgress = ImapCommandNone;
-    m_cAuth = NULL;
-    if (NULL != m_pLineBuffer)
-    {
-	delete[] m_pLineBuffer;
-	m_pLineBuffer = NULL;
-    }
-    m_dwLineBuffLen = 0;
-    if (NULL != m_pParseBuffer)
-    {
-	delete[] m_pParseBuffer;
-	m_pParseBuffer = NULL;
-    }
-    if (NULL != m_msStore)
-    {
-	delete m_msStore;
-	m_msStore = NULL;
-    }
-    m_dwParseBuffLen = 0;
-    if (0 != m_dwOctetsOut)
-    {
-	Log("Client %u disconnected after sending %u bytes\n", m_dwClientNumber, m_dwOctetsOut);
-	m_dwOctetsOut = 0;
-    }
-}
-
-void ImapSession::ConnectionArrived()
-{
-    m_dwClientNumber = FindClientNumber();
-    Log("Client %u connected from %s\n", m_dwClientNumber, m_csUserIP.c_str());
-    CStdString response(_T("* OK ["));
-    response += BuildCapabilityString() + _T("] SimDesk IMAP4rev1 server ready\r\n");
-    Send((void *) response.c_str(), response.GetLength());
-}
-#endif // 0
 
 void ImapSession::AddToParseBuffer(const uint8_t *data, size_t length, bool bNulTerminate)
 {
@@ -705,12 +651,6 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status)
 	response += " ";
 	response += (char *)responseText;
 	response += "\r\n";
-#if 0
-	response.Format(_T("%s OK%s%s %s %s\r\n"), parseBuffer,
-			m_pResponseCode[0] == '\0' ? _T("") : _T(" "), m_pResponseCode,
-			&m_pParseBuffer[m_dwCommandString],
-			m_pResponseText);
-#endif // 0
 	break;
  
     case IMAP_NO:
