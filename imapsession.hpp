@@ -154,7 +154,9 @@ private:
     bool UidSequenceSet(SEARCH_RESULT &r_srVector, DWORD &r_dwTokenPointer);
     bool UpdateSearchTerm(CMailSearch &searchTerm, DWORD &r_dwTokenPointer);
     IMAP_RESULTS SelectHandlerExecute(bool isReadWrite = true);
+#endif // 0
     IMAP_RESULTS CreateHandlerExecute();
+#if 0
     IMAP_RESULTS DeleteHandlerExecute();
     IMAP_RESULTS RenameHandlerExecute();
 #endif // 0
@@ -191,7 +193,9 @@ private:
     IMAP_RESULTS NamespaceHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS SelectHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS ExamineHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-    IMAP_RESULTS CreateHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
+#endif // 0
+    IMAP_RESULTS CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+#if 0
     IMAP_RESULTS DeleteHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS RenameHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
 #endif // 0

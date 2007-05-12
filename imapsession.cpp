@@ -182,8 +182,10 @@ void ImapSession::BuildSymbolTables()
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("SELECT"), symbolToInsert));
     symbolToInsert.handler = &ImapSession::ExamineHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("EXAMINE"), symbolToInsert));
+#endif // 0
     symbolToInsert.handler = &ImapSession::CreateHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("CREATE"), symbolToInsert));
+    symbols.insert(IMAPSYMBOLS::value_type("CREATE", symbolToInsert));
+#if 0
     symbolToInsert.handler = &ImapSession::DeleteHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("DELETE"), symbolToInsert));
     symbolToInsert.handler = &ImapSession::RenameHandler;
@@ -1104,36 +1106,38 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 	    m_dwLiteralLength -= dwDataLen;
 	}
 	break;
+#endif // 0
 
     case ImapCommandCreate:
-	m_eInProgress = ImapCommandNone;
-	if (dwDataLen >= m_dwLiteralLength)
+	inProgress = ImapCommandNone;
+	if (dataLen >= literalLength)
 	{
-	    ++m_dwParseStage;
-	    AddToParseBuffer(pData, m_dwLiteralLength);
-	    DWORD i = m_dwLiteralLength;
-	    m_dwLiteralLength = 0;
-	    if ((i < dwDataLen) && (' ' == pData[i]))
+	    ++parseStage;
+	    AddToParseBuffer(data, literalLength);
+	    size_t i = literalLength;
+	    literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i]))
 	    {
 		++i;
 	    }
-	    if (2 < dwDataLen)
+	    if (2 < dataLen)
 	    {
 		// Get rid of the CRLF if I have it
-		dwDataLen -= 2;
-		pData[dwDataLen] = '\0';  // Make sure it's terminated so strchr et al work
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
-	    m_pResponseText[0] = '\0';
-	    CStdString response = FormatTaggedResponse(CreateHandlerExecute());
-	    Send((void *)response.data(), (int)response.size());
+	    responseText[0] = '\0';
+	    std::string response = FormatTaggedResponse(CreateHandlerExecute());
+	    s->Send((uint8_t *)response.data(), (int)response.size());
 	}
 	else
 	{
-	    AddToParseBuffer(pData, dwDataLen, false);
-	    m_dwLiteralLength -= dwDataLen;
+	    AddToParseBuffer(data, dataLen, false);
+	    literalLength -= dataLen;
 	}
 	break;
 
+#if 0
     case ImapCommandDelete:
 	m_eInProgress = ImapCommandNone;
 	if (dwDataLen >= m_dwLiteralLength)
@@ -2134,58 +2138,59 @@ IMAP_RESULTS ImapSession::ExamineHandler(byte *pData, const DWORD dwDataLen, DWO
     }
     return result;
 }
+#endif // 0
 
 IMAP_RESULTS ImapSession::CreateHandlerExecute()
 {
     IMAP_RESULTS result = IMAP_OK;
-    CStdString mailbox((char *)&m_pParseBuffer[m_dwArguments]);
-    mailbox.Replace('.', '\\');
-    CMailStore::MAIL_STORE_RESULT r = m_msStore->CreateMailbox(mailbox);
+    std::string mailbox((char *)&parseBuffer[arguments]);
+    MailStore::MAIL_STORE_RESULT r = store->CreateMailbox(mailbox);
     switch(r)
     {
-    case CMailStore::SUCCESS:
+    case MailStore::SUCCESS:
 	break;
 
-    case CMailStore::MAILBOX_ALREADY_EXISTS:
-	strncpy(m_pResponseText, _T("Mailbox already exists"), MAX_RESPONSE_STRING_LENGTH);
+    case MailStore::MAILBOX_ALREADY_EXISTS:
+	strncpy(responseText, "Mailbox already exists", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_NO;
 	break;
 
     default:
-	strncpy(m_pResponseText, _T("General Error Creating Mailbox"), MAX_RESPONSE_STRING_LENGTH);
+	strncpy(responseText, "General Error Creating Mailbox", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_NO;
 	break;
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::CreateHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt) {
+IMAP_RESULTS ImapSession::CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    switch (astring(pData, dwDataLen, r_dwParsingAt, false, NULL))
+    switch (astring(data, dataLen, parsingAt, false, NULL))
     {
     case ImapStringGood:
 	result = CreateHandlerExecute();
 	break;
 
     case ImapStringBad:
-	strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+	strncpy(responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_BAD;
 	break;
 
     case ImapStringPending:
 	result = IMAP_NOTDONE;
-	m_eInProgress = ImapCommandCreate;
-	strncpy(m_pResponseText, _T("Ready for Literal"), MAX_RESPONSE_STRING_LENGTH);
+	inProgress = ImapCommandCreate;
+	strncpy(responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
 	break;
 
     default:
-	strncpy(m_pResponseText, _T("Failed"), MAX_RESPONSE_STRING_LENGTH);
+	strncpy(responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
 	break;
     }
     return result;
 }
 
+#if 0
 IMAP_RESULTS ImapSession::DeleteHandlerExecute()
 {
     IMAP_RESULTS result = IMAP_OK;
