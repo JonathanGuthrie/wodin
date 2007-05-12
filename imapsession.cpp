@@ -2306,6 +2306,18 @@ IMAP_RESULTS ImapSession::SubscribeHandlerExecute(bool isSubscribe)
 	result = IMAP_NO;
 	break;
 
+    case MailStore::MAILBOX_ALREADY_SUBSCRIBED:
+	strncpy(responseText, "Already Subscribed to Mailbox ", MAX_RESPONSE_STRING_LENGTH);
+	strncat(responseText, mailbox.c_str(), MAX_RESPONSE_STRING_LENGTH);
+	result = IMAP_NO;
+	break;
+
+    case MailStore::MAILBOX_NOT_SUBSCRIBED:
+	strncpy(responseText, "Not Subscribed to Mailbox ", MAX_RESPONSE_STRING_LENGTH);
+	strncat(responseText, mailbox.c_str(), MAX_RESPONSE_STRING_LENGTH);
+	result = IMAP_NO;
+	break;
+
     default:
 	strncpy(responseText, "General Error Subscribing Mailbox", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_NO;
