@@ -485,14 +485,14 @@ void ImapSession::AddToParseBuffer(const uint8_t *data, size_t length, bool bNul
 /*--------------------------------------------------------------------------------------*/
 /* ReceiveData										*/
 /*--------------------------------------------------------------------------------------*/
-int ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
+int ImapSession::ReceiveData(uint8_t *data, size_t dataLen)
 {
     lastCommandTime = time(NULL);
     if (NULL != userData) {
 	setfsuid(1000); // SYZYGY -- how do I set the privileges I need to access the files?
     }
 
-    uint32_t dwNewDataBase = 0;
+    uint32_t newDataBase = 0;
     int result = 0;
     // Okay, I need to organize the data into lines.  Each line is however much data ended by a
     // CRLF.  In order to support this, I need a buffer to put data into.
@@ -502,7 +502,7 @@ int ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
     {
 	bool crFlag = ('\r' == lineBuffer[lineBuffPtr]); 
 
-	for(; dwNewDataBase<dwDataLen; ++dwNewDataBase)
+	for(; newDataBase<dataLen; ++newDataBase)
 	{
 	    // check lineBuffPtr against its current size
 	    if (lineBuffPtr >= lineBuffLen)
@@ -533,40 +533,40 @@ int ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
 
 		// Eventually, I'll make the buffer bigger up to a point
 	    }
-	    lineBuffer[lineBuffPtr++] = pData[dwNewDataBase];
-	    if (crFlag && ('\n' == pData[dwNewDataBase]))
+	    lineBuffer[lineBuffPtr++] = data[newDataBase];
+	    if (crFlag && ('\n' == data[newDataBase]))
 	    {
 		result = HandleOneLine(lineBuffer, lineBuffPtr);
 		lineBuffPtr = 0;
 		delete lineBuffer;
 		lineBuffer = NULL;
 		lineBuffLen = 0;
-		++dwNewDataBase;  // This handles the increment to skip over the character that we would be doing,
+		++newDataBase;  // This handles the increment to skip over the character that we would be doing,
 		// in the for header, but we're breaking out of the loop so it has to be done
 		// explicitly 
 		break;
 	    }
-	    crFlag = ('\r' == pData[dwNewDataBase]);
+	    crFlag = ('\r' == data[newDataBase]);
 	}
     }
 
     // Next, deal with all the whole lines that have arrived in the current call to Receive Data
     // I also deal with literal strings here, because I don't have to break them into lines
     bool crFlag = false;
-    bool bNotDone = true;
-    uint32_t dwCurrentCommandStart = dwNewDataBase;
+    bool notDone = true;
+    uint32_t currentCommandStart = newDataBase;
     do
     {
 	if (0 < literalLength)
 	{
-	    size_t dwBytesToFeed = literalLength;
-	    if (dwBytesToFeed >= (dwDataLen - dwCurrentCommandStart))
+	    size_t bytesToFeed = literalLength;
+	    if (bytesToFeed >= (dataLen - currentCommandStart))
 	    {
-		dwBytesToFeed = dwDataLen - dwCurrentCommandStart;
-		bNotDone = false;
-		result = HandleOneLine(&pData[dwCurrentCommandStart], dwBytesToFeed);
-		dwCurrentCommandStart += dwBytesToFeed;
-		dwNewDataBase = dwCurrentCommandStart;
+		bytesToFeed = dataLen - currentCommandStart;
+		notDone = false;
+		result = HandleOneLine(&data[currentCommandStart], bytesToFeed);
+		currentCommandStart += bytesToFeed;
+		newDataBase = currentCommandStart;
 	    }
 	    else
 	    {
@@ -575,55 +575,55 @@ int ImapSession::ReceiveData(uint8_t *pData, size_t dwDataLen)
 		// can't just pass that many characters to HandleOneLine because it may not
 		// be the end of a line.  I deal with this by using the usual end-of-line logic
 		// starting with the beginning of the string or two bytes before the end.
-		if (dwBytesToFeed > 2)
+		if (bytesToFeed > 2)
 		{
-		    dwNewDataBase += dwBytesToFeed - 2;
+		    newDataBase += bytesToFeed - 2;
 		}
 		crFlag = false;
-		for(; dwNewDataBase<dwDataLen; ++dwNewDataBase)
+		for(; newDataBase<dataLen; ++newDataBase)
 		{
-		    if (crFlag && ('\n' == pData[dwNewDataBase]))
+		    if (crFlag && ('\n' == data[newDataBase]))
 		    {
 			// The "+1"s here are due to the fact that I want to include the current character in the 
 			// line to be handled
-			result = HandleOneLine(&pData[dwCurrentCommandStart], dwNewDataBase - dwCurrentCommandStart + 1);
-			dwCurrentCommandStart = dwNewDataBase + 1;
+			result = HandleOneLine(&data[currentCommandStart], newDataBase - currentCommandStart + 1);
+			currentCommandStart = newDataBase + 1;
 			crFlag = false;
 			break;
 		    }
-		    crFlag = ('\r' == pData[dwNewDataBase]);
+		    crFlag = ('\r' == data[newDataBase]);
 		}
-		bNotDone = (dwCurrentCommandStart < dwDataLen) && (dwNewDataBase < dwDataLen);
+		notDone = (currentCommandStart < dataLen) && (newDataBase < dataLen);
 	    }
 	}
 	else
 	{
-	    for(; dwNewDataBase<dwDataLen; ++dwNewDataBase)
+	    for(; newDataBase<dataLen; ++newDataBase)
 	    {
-		if (crFlag && ('\n' == pData[dwNewDataBase]))
+		if (crFlag && ('\n' == data[newDataBase]))
 		{
 		    // The "+1"s here are due to the fact that I want to include the current character in the 
 		    // line to be handled
-		    result = HandleOneLine(&pData[dwCurrentCommandStart], dwNewDataBase - dwCurrentCommandStart + 1);
-		    dwCurrentCommandStart = dwNewDataBase + 1;
+		    result = HandleOneLine(&data[currentCommandStart], newDataBase - currentCommandStart + 1);
+		    currentCommandStart = newDataBase + 1;
 		    crFlag = false;
 		    break;
 		}
-		crFlag = ('\r' == pData[dwNewDataBase]);
+		crFlag = ('\r' == data[newDataBase]);
 	    }
-	    bNotDone = (dwCurrentCommandStart < dwDataLen) && (dwNewDataBase < dwDataLen);
+	    notDone = (currentCommandStart < dataLen) && (newDataBase < dataLen);
 	}
-    } while (bNotDone);
+    } while (notDone);
 
     // Lastly, save any leftover data from the current call to ReceiveData
     // Eventually, I'll size the buffer for this result
     // for now, assume the message is garbage if it's too big
-    if ((0 < (dwNewDataBase - dwCurrentCommandStart)) && (IMAP_BUFFER_LEN > (dwNewDataBase - dwCurrentCommandStart)))
+    if ((0 < (newDataBase - currentCommandStart)) && (IMAP_BUFFER_LEN > (newDataBase - currentCommandStart)))
     {
-	lineBuffPtr = dwNewDataBase - dwCurrentCommandStart;
+	lineBuffPtr = newDataBase - currentCommandStart;
 	lineBuffLen = 2 * lineBuffPtr;
 	lineBuffer = new uint8_t[lineBuffLen];
-	memcpy(lineBuffer, &pData[dwCurrentCommandStart], lineBuffPtr);
+	memcpy(lineBuffer, &data[currentCommandStart], lineBuffPtr);
     }
     return result;
 }
@@ -1700,7 +1700,7 @@ IMAP_RESULTS ImapSession::CapabilityHandler(uint8_t *pData, size_t dwDataLen, si
  * new messages although the server doesn't have to wait for this to do
  * things like that
  */
-IMAP_RESULTS ImapSession::NoopHandler(uint8_t *pData, size_t dwDataLen, size_t &r_dwParsingAt)
+IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt)
 {
     // I want to re-read the cached data if I'm in the selected state and
     // either the number of messages or the UIDNEXT value changes
