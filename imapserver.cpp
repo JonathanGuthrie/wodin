@@ -110,7 +110,7 @@ void ImapServer::Run()
 	{
 	    if (0 == pthread_create(&timerQueueThread, NULL, TimerQueueFunction, this))
 	    {
-		pool = new ImapWorkerPool();
+		pool = new ImapWorkerPool(1);
 	    }
 	}
     }
