@@ -480,8 +480,50 @@ void MailStoreMbox::BuildMailboxList(const char *ref, const char *pattern, MAILB
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &MailboxName, bool isSubscribe)
 {
-    // SYZYGY
-    return MailStore::SUCCESS;
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+    bool foundLine = false;
+    std::string in_file_name = homeDirectory;
+    in_file_name += "/" MAILBOX_LIST_FILE_NAME;
+    std::string out_file_name = homeDirectory;
+    out_file_name += "/" MAILBOX_LIST_FILE_NAME;
+    out_file_name += ".new";
+    std::ifstream inFile(in_file_name.c_str());
+    std::ofstream outFile(out_file_name.c_str());
+    while (!inFile.eof())
+    {
+	std::string line;
+	inFile >> line;
+	// I have to check this here, because it's only set when attempting
+	// to read past the end of the file
+	if (!inFile.eof())
+	{
+	    if (MailboxName == line) {
+		foundLine = true;
+		if (isSubscribe) {
+		    outFile << line << std::endl;
+		}
+	    }
+	    else {
+		outFile << line << std::endl;
+	    }
+	}
+    }
+    if (isSubscribe) {
+	if (foundLine) {
+	    result = MailStore::MAILBOX_ALREADY_SUBSCRIBED;
+	}
+	else {
+	    outFile << MailboxName << std::endl;
+	}
+    }
+    else {
+	if (!foundLine) {
+	    result = MailStore::MAILBOX_NOT_SUBSCRIBED;
+	}
+    }
+
+    ::rename(out_file_name.c_str(), in_file_name.c_str());
+    return result;
 }
 
 
