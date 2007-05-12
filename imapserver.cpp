@@ -75,7 +75,7 @@ void SessionDriver::DestroySession(void)
 void SessionDriver::NewSession(Socket *s)
 {
     sock = s;
-    session = new ImapSession(s, server, 1);
+    session = new ImapSession(s, server, 5);
 }
 
 
