@@ -2,7 +2,7 @@
 //
 // imapsession.cpp : Implementation of ImapSession
 //
-// SimDesk, Inc. © 2002-2004
+// Simdesk, Inc. © 2002-2004
 // Author: Jonathan Guthrie
 //
 ///////////////////////////////////////////////////////////////////////////////

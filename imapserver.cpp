@@ -291,8 +291,7 @@ DeltaQueueDelayedMessage::DeltaQueueDelayedMessage(int delta, const ImapSession 
 }
 
 
-void DeltaQueueDelayedMessage::HandleTimeout(bool isPurge)
-{
+void DeltaQueueDelayedMessage::HandleTimeout(bool isPurge) {
     Socket *sock = session->GetSocket();
 
     sock->Send((uint8_t *)message.data(), message.size());
@@ -300,8 +299,7 @@ void DeltaQueueDelayedMessage::HandleTimeout(bool isPurge)
 }
 
 
-DeltaQueue::DeltaQueue() : queueHead(NULL)
-{
+DeltaQueue::DeltaQueue() : queueHead(NULL) {
     pthread_mutex_init(&queueMutex, NULL);
 }
 
