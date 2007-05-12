@@ -17,13 +17,6 @@
 
 // SYZYGY -- I should allow the setting of the keepalive socket option
 
-// SYZYGY -- find out how come it's
-// SYZYGY -- 8 NO unsubscribe Not Subscribed to MailboxMail/personal
-// SYZYGY -- but it's 
-// SYZYGY -- 5 NO  Already Subscribed to MailboxMail/personal
-// SYZYGY -- instead of 
-// SYZYGY -- 5 NO subscribe Already Subscribed to MailboxMail/personal
-
 #include <time.h>
 #include <sys/fsuid.h>
 
@@ -2308,12 +2301,12 @@ IMAP_RESULTS ImapSession::SubscribeHandlerExecute(bool isSubscribe)
 
     case MailStore::MAILBOX_ALREADY_SUBSCRIBED:
 	strncpy(responseText, "Already Subscribed to Mailbox ", MAX_RESPONSE_STRING_LENGTH);
-	strncat(responseText, mailbox.c_str(), MAX_RESPONSE_STRING_LENGTH);
+	strncat(responseText, mailbox.c_str(), MAX_RESPONSE_STRING_LENGTH - strlen(responseText));
 	result = IMAP_NO;
 	break;
 
     case MailStore::MAILBOX_NOT_SUBSCRIBED:
-	strncpy(responseText, "Not Subscribed to Mailbox ", MAX_RESPONSE_STRING_LENGTH);
+	strncpy(responseText, "Not Subscribed to Mailbox ", MAX_RESPONSE_STRING_LENGTH - strlen(responseText));
 	strncat(responseText, mailbox.c_str(), MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_NO;
 	break;

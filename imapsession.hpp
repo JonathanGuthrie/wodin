@@ -66,7 +66,7 @@ typedef enum
     IMAP_NO_WITH_PAUSE
 } IMAP_RESULTS;
 
-#define MAX_RESPONSE_STRING_LENGTH	40
+#define MAX_RESPONSE_STRING_LENGTH	80
 #define IMAP_BUFFER_LEN			8192
 
 typedef struct {
@@ -115,8 +115,8 @@ private:
     // This is associated with handling appends
     uint32_t m_dwAppendingUid;
     MailStore *store;
-    char responseCode[MAX_RESPONSE_STRING_LENGTH];
-    char responseText[MAX_RESPONSE_STRING_LENGTH];
+    char responseCode[MAX_RESPONSE_STRING_LENGTH+1];
+    char responseText[MAX_RESPONSE_STRING_LENGTH+1];
     uint32_t commandString, arguments;
     uint32_t parseStage;
     uint32_t literalLength;
