@@ -73,7 +73,6 @@ void SessionDriver::DoWork(void)
 
 
 void SessionDriver::DestroySession(void) {
-    // SYZYGY -- need to purge the timer queue of this session
     delete sock;
     sock = NULL;
     delete session;
