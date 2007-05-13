@@ -55,7 +55,7 @@ void SessionDriver::DoWork(void)
 	int result = session->ReceiveData(recvBuffer, numOctets);
 	if (0 > result)
 	{
-	    DestroySession();
+	    server->KillSession(this);
 	}
 	else
 	{
@@ -224,6 +224,7 @@ void ImapServer::WantsToReceive(int which)
 
 void ImapServer::KillSession(SessionDriver *driver)
 {
+    timerQueue.PurgeSession(driver);
     pthread_mutex_lock(&masterFdMutex);
     FD_CLR(driver->GetSocket()->SockNum(), &masterFdList);
     pthread_mutex_unlock(&masterFdMutex);
@@ -260,49 +261,48 @@ void ImapServer::SetIdleTimer(SessionDriver *driver, unsigned seconds)
 }
 
 
-DeltaQueueAction::DeltaQueueAction(int delta) : delta(delta), next(NULL)
+DeltaQueueAction::DeltaQueueAction(int delta, SessionDriver *driver) : delta(delta), driver(driver), next(NULL)
 {
 }
 
 
-DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, SessionDriver *driver) : DeltaQueueAction(delta), driver(driver)
-{
-}
+DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) {}
 
 
 void DeltaQueueIdleTimer::HandleTimeout(bool isPurge)
 {
-    time_t now = time(NULL);
-    unsigned timeout = (ImapNotAuthenticated == driver->GetSession()->GetState()) ?
-	driver->GetServer()->GetLoginTimeout() :
-	driver->GetServer()->GetIdleTimeout();
+    if (!isPurge) {
+	time_t now = time(NULL);
+	unsigned timeout = (ImapNotAuthenticated == driver->GetSession()->GetState()) ?
+	    driver->GetServer()->GetLoginTimeout() :
+	    driver->GetServer()->GetIdleTimeout();
 
-    if ((now - timeout) > driver->GetSession()->GetLastCommandTime())
-    {
-	// SYZYGY -- tell the system "bye" and hang up
-	std::string bye = "* BYE Idle timeout disconnect\r\n";
-	driver->GetSocket()->Send((uint8_t *)bye.data(), bye.size());
-	driver->DestroySession();
-    }
-    else
-    {
-	driver->GetServer()->SetIdleTimer(driver, (time_t) driver->GetSession()->GetLastCommandTime() + timeout + 1 - now);
+	if ((now - timeout) > driver->GetSession()->GetLastCommandTime())
+	{
+	    std::string bye = "* BYE Idle timeout disconnect\r\n";
+	    driver->GetSocket()->Send((uint8_t *)bye.data(), bye.size());
+	    driver->GetServer()->KillSession(driver);
+	}
+	else
+	{
+	    driver->GetServer()->SetIdleTimer(driver, (time_t) driver->GetSession()->GetLastCommandTime() + timeout + 1 - now);
+	}
     }
 }
 
 
 
 
-DeltaQueueDelayedMessage::DeltaQueueDelayedMessage(int delta, SessionDriver *driver, const std::string message) : DeltaQueueAction(delta), driver(driver), message(message)
-{
-}
+DeltaQueueDelayedMessage::DeltaQueueDelayedMessage(int delta, SessionDriver *driver, const std::string message) : DeltaQueueAction(delta, driver), message(message) {}
 
 
 void DeltaQueueDelayedMessage::HandleTimeout(bool isPurge) {
-    Socket *sock = driver->GetSocket();
+    if (!isPurge) {
+	Socket *sock = driver->GetSocket();
 
-    sock->Send((uint8_t *)message.data(), message.size());
-    driver->GetServer()->WantsToReceive(sock->SockNum());
+	sock->Send((uint8_t *)message.data(), message.size());
+	driver->GetServer()->WantsToReceive(sock->SockNum());
+    }
 }
 
 
@@ -409,4 +409,37 @@ void DeltaQueue::InsertNewAction(DeltaQueueAction *action)
 	item->next = action;
     }
     pthread_mutex_unlock(&queueMutex);
+}
+
+
+void DeltaQueue::PurgeSession(const SessionDriver *driver) {
+    DeltaQueueAction *temp, *next;
+    DeltaQueueAction *prev = NULL;
+    DeltaQueueAction *purgeList = NULL;
+
+    pthread_mutex_lock(&queueMutex);
+    for(temp = queueHead; NULL != temp; temp=next) {
+	next = temp->next;
+	if (driver == temp->driver) {
+	    if (NULL != next) {
+		next->delta += temp->delta;
+	    }
+	    if (NULL != prev) {
+		prev->next = temp->next;
+	    }
+	    temp->next = purgeList;
+	    purgeList = temp;
+	}
+	else {
+	    prev = temp;
+	}
+    }
+    pthread_mutex_unlock(&queueMutex);
+    while (NULL != purgeList) {
+	DeltaQueueAction *next = purgeList->next;
+
+	purgeList->HandleTimeout(true);
+	delete purgeList;
+	purgeList = next;
+    }
 }

@@ -13,10 +13,11 @@ typedef ThreadPool<SessionDriver *> ImapWorkerPool;
 class DeltaQueueAction
 {
 public:
-    DeltaQueueAction(int delta);
+    DeltaQueueAction(int delta, SessionDriver *driver);
     class DeltaQueueAction *next;
     virtual void HandleTimeout(bool isPurge) = 0;
     unsigned delta;
+    SessionDriver *driver;
 };
 
 
@@ -28,9 +29,6 @@ class DeltaQueueIdleTimer : DeltaQueueAction
 public:
     DeltaQueueIdleTimer(int delta, SessionDriver *driver);
     virtual void HandleTimeout(bool isPurge);
-
-private:
-    SessionDriver *driver;
 };
 
 
@@ -41,7 +39,6 @@ public:
     virtual void HandleTimeout(bool isPurge);
 
 private:
-    SessionDriver *driver;
     const std::string message;
 };
 
@@ -54,6 +51,7 @@ public:
     void AddTimeout(SessionDriver *driver, time_t timeout);
     DeltaQueue();
     void InsertNewAction(DeltaQueueAction *action);
+    void PurgeSession(const SessionDriver *driver);
 
 private:
     pthread_mutex_t queueMutex;
@@ -94,7 +92,7 @@ private:
     fd_set masterFdList;
     pthread_mutex_t masterFdMutex;
     int pipeFd[2];
-    class DeltaQueue timerQueue;
+    DeltaQueue timerQueue;
     unsigned idleTimeout;
     unsigned loginTimeout;
 };
