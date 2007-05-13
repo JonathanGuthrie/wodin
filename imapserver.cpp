@@ -21,6 +21,8 @@ public:
     void NewSession(Socket *s);
     const ImapSession *GetSession(void) const { return session; }
     void DestroySession(void);
+    Socket *GetSocket(void) const { return sock; }
+    ImapServer *GetServer(void) const { return server; }
 
 private:
     ImapSession *session;
@@ -33,6 +35,8 @@ SessionDriver::SessionDriver(ImapServer *s, int pipe)
 {
     this->pipe = pipe;
     server = s;
+    sock = NULL;
+    session = NULL;
 }
 
 SessionDriver::~SessionDriver()
@@ -64,18 +68,19 @@ void SessionDriver::DoWork(void)
 }
 
 
-void SessionDriver::DestroySession(void)
-{
+void SessionDriver::DestroySession(void) {
+    // SYZYGY -- need to purge the timer queue of this session
     delete sock;
     sock = NULL;
     delete session;
+    session = NULL;
 }
 
 
 void SessionDriver::NewSession(Socket *s)
 {
     sock = s;
-    session = new ImapSession(s, server, 5);
+    session = new ImapSession(s, server, this, 5); // SYZYGY -- What if I want something other than a five-second delay on invalid logins?
 }
 
 
@@ -141,7 +146,7 @@ void *ImapServer::ListenerThreadFunction(void *d)
 	{
 	    t->WantsToReceive(worker->SockNum());
 	    t->sessions[worker->SockNum()]->NewSession(worker);
-	    t->SetIdleTimer(t->sessions[worker->SockNum()]->GetSession(), t->loginTimeout);
+	    t->SetIdleTimer(t->sessions[worker->SockNum()], t->loginTimeout);
 	}
 	else
 	{
@@ -217,12 +222,12 @@ void ImapServer::WantsToReceive(int which)
 }
 
 
-void ImapServer::KillSession(const ImapSession *session)
+void ImapServer::KillSession(SessionDriver *driver)
 {
     pthread_mutex_lock(&masterFdMutex);
-    FD_SET(session->GetSocket()->SockNum(), &masterFdList);
+    FD_SET(driver->GetSocket()->SockNum(), &masterFdList);
     pthread_mutex_unlock(&masterFdMutex);
-    sessions[session->GetSocket()->SockNum()]->DestroySession();
+    driver->DestroySession();
     ::write(pipeFd[1], "r", 1);
 }
 
@@ -243,15 +248,15 @@ MailStore *ImapServer::GetMailStore(const ImapUser *user)
 }
 
 
-void ImapServer::DelaySend(const ImapSession *session, unsigned seconds, const std::string &message)
+void ImapServer::DelaySend(SessionDriver *driver, unsigned seconds, const std::string &message)
 {
-    timerQueue.AddSend(session, seconds, message);
+    timerQueue.AddSend(driver, seconds, message);
 }
 
 
-void ImapServer::SetIdleTimer(const ImapSession *session, unsigned seconds)
+void ImapServer::SetIdleTimer(SessionDriver *driver, unsigned seconds)
 {
-    timerQueue.AddTimeout(session, seconds);
+    timerQueue.AddTimeout(driver, seconds);
 }
 
 
@@ -260,7 +265,7 @@ DeltaQueueAction::DeltaQueueAction(int delta) : delta(delta), next(NULL)
 }
 
 
-DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, const ImapSession *session) : DeltaQueueAction(delta), session(session)
+DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, SessionDriver *driver) : DeltaQueueAction(delta), driver(driver)
 {
 }
 
@@ -268,34 +273,36 @@ DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, const ImapSession *session) 
 void DeltaQueueIdleTimer::HandleTimeout(bool isPurge)
 {
     time_t now = time(NULL);
-    unsigned timeout = (ImapNotAuthenticated == session->GetState()) ? session->GetServer()->GetLoginTimeout() : session->GetServer()->GetIdleTimeout();
+    unsigned timeout = (ImapNotAuthenticated == driver->GetSession()->GetState()) ?
+	driver->GetServer()->GetLoginTimeout() :
+	driver->GetServer()->GetIdleTimeout();
 
-    if ((now - timeout) > session->GetLastCommandTime())
+    if ((now - timeout) > driver->GetSession()->GetLastCommandTime())
     {
 	// SYZYGY -- tell the system "bye" and hang up
 	std::string bye = "* BYE Idle timeout disconnect\r\n";
-	session->GetSocket()->Send((uint8_t *)bye.data(), bye.size());
-	session->GetServer()->KillSession(session);
+	driver->GetSocket()->Send((uint8_t *)bye.data(), bye.size());
+	driver->DestroySession();
     }
     else
     {
-	session->GetServer()->SetIdleTimer(session, (time_t) session->GetLastCommandTime() + timeout + 1 - now);
+	driver->GetServer()->SetIdleTimer(driver, (time_t) driver->GetSession()->GetLastCommandTime() + timeout + 1 - now);
     }
 }
 
 
 
 
-DeltaQueueDelayedMessage::DeltaQueueDelayedMessage(int delta, const ImapSession *session, const std::string message) : DeltaQueueAction(delta), session(session), message(message)
+DeltaQueueDelayedMessage::DeltaQueueDelayedMessage(int delta, SessionDriver *driver, const std::string message) : DeltaQueueAction(delta), driver(driver), message(message)
 {
 }
 
 
 void DeltaQueueDelayedMessage::HandleTimeout(bool isPurge) {
-    Socket *sock = session->GetSocket();
+    Socket *sock = driver->GetSocket();
 
     sock->Send((uint8_t *)message.data(), message.size());
-    session->GetServer()->WantsToReceive(sock->SockNum());
+    driver->GetServer()->WantsToReceive(sock->SockNum());
 }
 
 
@@ -353,20 +360,20 @@ void DeltaQueue::Tick() {
 }
 
 
-void DeltaQueue::AddSend(const ImapSession *session, unsigned seconds, const std::string &message)
+void DeltaQueue::AddSend(SessionDriver *driver, unsigned seconds, const std::string &message)
 {
     DeltaQueueDelayedMessage *action;
 
-    action = new DeltaQueueDelayedMessage(seconds, session, message);
+    action = new DeltaQueueDelayedMessage(seconds, driver, message);
     InsertNewAction((DeltaQueueAction *)action);
 }
 
 
-void DeltaQueue::AddTimeout(const ImapSession *session, time_t timeout)
+void DeltaQueue::AddTimeout(SessionDriver *driver, time_t timeout)
 {
     DeltaQueueIdleTimer *action;
 
-    action = new DeltaQueueIdleTimer(timeout, session);
+    action = new DeltaQueueIdleTimer(timeout, driver);
     InsertNewAction((DeltaQueueAction *)action);
 }
 

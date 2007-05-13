@@ -15,6 +15,7 @@
 #include "insensitive.hpp"
 
 class ImapServer;
+class SessionDriver;
 
 enum ImapState
 {
@@ -82,7 +83,7 @@ typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
 class ImapSession
 {
 public:
-    ImapSession(Socket *sock, ImapServer *server, unsigned failedLoginPause = 5);
+    ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause = 5);
     ~ImapSession();
     static void BuildSymbolTables(void);
     int ReceiveData(uint8_t* pData, size_t dwDataLen );
@@ -96,6 +97,7 @@ private:
     bool m_LoginDisabled;
     static bool anonymousEnabled;
     unsigned failedLoginPause;
+    SessionDriver *driver;
 
     Socket *s;
     // These constitute the session's state

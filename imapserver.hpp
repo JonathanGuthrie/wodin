@@ -26,22 +26,22 @@ public:
 class DeltaQueueIdleTimer : DeltaQueueAction
 {
 public:
-    DeltaQueueIdleTimer(int delta, const ImapSession *session);
+    DeltaQueueIdleTimer(int delta, SessionDriver *driver);
     virtual void HandleTimeout(bool isPurge);
 
 private:
-    const ImapSession *session;
+    SessionDriver *driver;
 };
 
 
 class DeltaQueueDelayedMessage : DeltaQueueAction
 {
 public:
-    DeltaQueueDelayedMessage(int delta, const ImapSession *session, const std::string message); // Note:  Calling copy constructor on the message
+    DeltaQueueDelayedMessage(int delta, SessionDriver *driver, const std::string message); // Note:  Calling copy constructor on the message
     virtual void HandleTimeout(bool isPurge);
 
 private:
-    const ImapSession *session;
+    SessionDriver *driver;
     const std::string message;
 };
 
@@ -50,8 +50,8 @@ class DeltaQueue
 {
 public:
     void Tick(void);
-    void AddSend(const ImapSession *session, unsigned seconds, const std::string &message);
-    void AddTimeout(const ImapSession *session, time_t timeout);
+    void AddSend(SessionDriver *driver, unsigned seconds, const std::string &message);
+    void AddTimeout(SessionDriver *driver, time_t timeout);
     DeltaQueue();
     void InsertNewAction(DeltaQueueAction *action);
 
@@ -74,11 +74,11 @@ public:
     // This will send the specified message out the specified socket
     // after the specified number of seconds and then set that session
     // up to receive again
-    void DelaySend(const ImapSession *session, unsigned seconds, const std::string &message);
-    time_t GetIdleTimeout(void) { return idleTimeout; /* seconds */ }
-    time_t GetLoginTimeout(void) { return loginTimeout; /* seconds */ }
-    void SetIdleTimer(const ImapSession *session, unsigned seconds);
-    void KillSession(const ImapSession *session);
+    void DelaySend(SessionDriver *driver, unsigned seconds, const std::string &message);
+    time_t GetIdleTimeout(void) const { return idleTimeout; /* seconds */ }
+    time_t GetLoginTimeout(void) const { return loginTimeout; /* seconds */ }
+    void SetIdleTimer(SessionDriver *driver, unsigned seconds);
+    void KillSession(SessionDriver *driver);
 
 private:
     bool isRunning;

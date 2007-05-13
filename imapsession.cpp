@@ -298,7 +298,7 @@ void ImapSession::BuildSymbolTables()
     sFetchSymbolTable.insert(FETCH_NAME_T::value_type("UID",           FETCH_UID));
 }
 
-ImapSession::ImapSession(Socket *sock, ImapServer *server, unsigned failedLoginPause) : s(sock), server(server), failedLoginPause(failedLoginPause)
+ImapSession::ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause) : s(sock), server(server), driver(driver), failedLoginPause(failedLoginPause)
 {
     state = ImapNotAuthenticated;
     userData = NULL;
@@ -753,7 +753,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 		if (IMAP_NO_WITH_PAUSE == status)
 		{
 		    result = 1;
-		    GetServer()->DelaySend(this, failedLoginPause, response);
+		    GetServer()->DelaySend(driver, failedLoginPause, response);
 		}
 		else
 		{
