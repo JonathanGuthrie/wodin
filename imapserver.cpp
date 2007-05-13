@@ -127,7 +127,6 @@ void ImapServer::Run()
 
 void ImapServer::Shutdown()
 {
-    // SYZYGY -- shutdown should send a "BYE" message to all attached clients
     isRunning = false;
     pthread_cancel(listenerThread);
     pthread_join(listenerThread, NULL);
@@ -136,6 +135,16 @@ void ImapServer::Shutdown()
     ::write(pipeFd[1], "q", 1);
     pthread_join(receiverThread, NULL);
     pthread_join(timerQueueThread, NULL);
+
+    std::string bye = "* BYE Server Shutting Down\r\n";
+    for (int i=0; i<FD_SETSIZE; ++i)
+    {
+	Socket *s;
+	if (NULL != (s = sessions[i]->GetSocket())) {
+	    s->Send((uint8_t*)bye.data(), bye.size());
+	}
+	delete sessions[i];
+    }
 }
 
 
