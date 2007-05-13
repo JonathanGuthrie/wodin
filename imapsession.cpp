@@ -515,7 +515,7 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen)
 		    // is likely to be wrong, so doing something simple and wrong is slightly better than
 		    // doing something complicated and wrong.
 		    lineBuffPtr = 0;
-		    delete lineBuffer;
+		    delete[] lineBuffer;
 		    lineBuffer = NULL;
 		    lineBuffLen = 0;
 		    break;
@@ -526,7 +526,7 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen)
 		    uint8_t *temp;
 		    temp = new uint8_t[2 * lineBuffLen];
 		    memcpy(temp, lineBuffer, lineBuffPtr);
-		    delete lineBuffer;
+		    delete[] lineBuffer;
 		    lineBuffer = temp;
 		    lineBuffLen *= 2;
 		}
@@ -538,7 +538,7 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen)
 	    {
 		result = HandleOneLine(lineBuffer, lineBuffPtr);
 		lineBuffPtr = 0;
-		delete lineBuffer;
+		delete[] lineBuffer;
 		lineBuffer = NULL;
 		lineBuffLen = 0;
 		++newDataBase;  // This handles the increment to skip over the character that we would be doing,
