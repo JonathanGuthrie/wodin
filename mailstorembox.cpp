@@ -23,18 +23,60 @@ MailStoreMbox::MailStoreMbox(const char *usersInboxPath, const char *usersHomeDi
 // I create a mail directory, otherwise I create a mail file.
 MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &MailboxName)
 {
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+
     if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
 	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
 	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
 	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
 	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
 	('\0' == MailboxName[5])) {
+	result = MailStore::CANNOT_CREATE_INBOX;
     }
     else {
+	std::string fullPath = homeDirectory;
+	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
+
+	while ('/' == MailboxName.at(MailboxName.size()-1)) {
+	}
+	fullPath += "/";
+	fullPath += MailboxName;
+	
 	// SYZYGY -- working here!
     }
 
-    return MailStore::SUCCESS;
+    return result;
+}
+
+// The DeleteMailbox method deals with two cases.  Either the mailbox name is "inbox" which
+// is considered special, or the mailbox name is a path relative to the user's home directory.
+// If the mail box name ends in a slash, which is what I'm using as a "path separator", then
+// I create a mail directory, otherwise I create a mail file.
+MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &MailboxName)
+{
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+
+    if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
+	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
+	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
+	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
+	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
+	('\0' == MailboxName[5])) {
+	result = MailStore::CANNOT_DELETE_INBOX;
+    }
+    else {
+	std::string fullPath = homeDirectory;
+	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
+
+	while ('/' == MailboxName.at(MailboxName.size()-1)) {
+	}
+	fullPath += "/";
+	fullPath += MailboxName;
+	
+	// SYZYGY -- working here!
+    }
+
+    return result;
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()

@@ -21,6 +21,8 @@ public:
     typedef enum {
 	SUCCESS = 0,
 	GENERAL_FAILURE,
+	CANNOT_CREATE_INBOX,
+	CANNOT_DELETE_INBOX,
 	MAILBOX_ALREADY_EXISTS,
 	MAILBOX_DOES_NOT_EXIST,
 	MAILBOX_ALREADY_SUBSCRIBED,
@@ -60,6 +62,7 @@ public:
 
     MailStore();
     virtual MAIL_STORE_RESULT CreateMailbox(const std::string &MailboxName) = 0;
+    virtual MAIL_STORE_RESULT DeleteMailbox(const std::string &MailboxName) = 0;
     virtual MAIL_STORE_RESULT MailboxClose() = 0;
     // This function subscribes to the specified mailbox if isSubscribe is true, otherwise it 
     // unsubscribes from the mailbox

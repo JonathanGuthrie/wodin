@@ -10,6 +10,7 @@ class MailStoreMbox : public MailStore
 public:
     MailStoreMbox(const char *usersInboxPath, const char *usersHomeDirectory);
     virtual MailStore::MAIL_STORE_RESULT CreateMailbox(const std::string &MailboxName);
+    virtual MailStore::MAIL_STORE_RESULT DeleteMailbox(const std::string &MailboxName);
     virtual MailStore::MAIL_STORE_RESULT MailboxClose();
     virtual MailStore::MAIL_STORE_RESULT SubscribeMailbox(const std::string &MailboxName, bool isSubscribe);
     virtual unsigned GetSerialNumber();
