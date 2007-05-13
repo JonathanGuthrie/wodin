@@ -41,8 +41,12 @@ SessionDriver::SessionDriver(ImapServer *s, int pipe)
 
 SessionDriver::~SessionDriver()
 {
-    delete sock;
-    delete session;
+    if (NULL != sock) {
+	delete sock;
+    }
+    if (NULL != session) {
+	delete session;
+    }
 }
 
 void SessionDriver::DoWork(void)
