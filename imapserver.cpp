@@ -225,7 +225,7 @@ void ImapServer::WantsToReceive(int which)
 void ImapServer::KillSession(SessionDriver *driver)
 {
     pthread_mutex_lock(&masterFdMutex);
-    FD_SET(driver->GetSocket()->SockNum(), &masterFdList);
+    FD_CLR(driver->GetSocket()->SockNum(), &masterFdList);
     pthread_mutex_unlock(&masterFdMutex);
     driver->DestroySession();
     ::write(pipeFd[1], "r", 1);
