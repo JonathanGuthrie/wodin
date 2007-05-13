@@ -721,9 +721,11 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 	    i = dataLen;
 	}
 	AddToParseBuffer(data, i);
+	while ((i < dataLen) && (' ' == data[i])) {
+	    ++i;  // Lose the space separating the tag from the command
+	}
 	if (i < dataLen)
 	{
-	    ++i;  // Lose the space separating the tag from the command
 	    commandString = parsePointer;
 	    tagEnd = strchr((char *)&data[i], ' ');
 	    if (NULL != tagEnd)
@@ -738,8 +740,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 	    }
 
 	    arguments = parsePointer;
-	    if (i < dataLen)
-	    {
+	    while ((i < dataLen) && (' ' == data[i])) {
 		++i;  // Lose the space between the command and the arguments
 	    }
 	    IMAPSYMBOLS::iterator found = symbols.find((char *)&parseBuffer[commandString]);
