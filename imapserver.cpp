@@ -439,6 +439,9 @@ void DeltaQueue::PurgeSession(const SessionDriver *driver) {
 	    if (NULL != prev) {
 		prev->next = temp->next;
 	    }
+	    else {
+		queueHead = temp->next;
+	    }
 	    temp->next = purgeList;
 	    purgeList = temp;
 	}
