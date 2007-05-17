@@ -458,3 +458,9 @@ void DeltaQueue::PurgeSession(const SessionDriver *driver) {
 	purgeList = next;
     }
 }
+
+
+const std::string ImapServer::GetFQDN(void) {
+    // SYZYGY -- obviously, this can't last, but it'll do while I get the other parts up and working
+    return "husky.brokersys.com";
+}

@@ -9,6 +9,7 @@
 #include <errno.h>
 
 #include "mailstorembox.hpp"
+#include "imapserver.hpp"
 
 #define MAILBOX_LIST_FILE_NAME ".mailboxlist"
 
