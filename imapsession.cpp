@@ -2107,6 +2107,7 @@ IMAP_RESULTS ImapSession::CreateHandlerExecute()
 IMAP_RESULTS ImapSession::CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
+    // SYZYGY -- check to make sure that the argument list has just the one argument
     switch (astring(data, dataLen, parsingAt, false, NULL))
     {
     case ImapStringGood:
