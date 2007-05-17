@@ -96,10 +96,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			}
 		    }
 		    else {
-			// SYZYGY -- working here!
-			// SYZYGY -- the message needs the mail host name
-			// SYZYGY -- that means a whole mechanism for determining the host name
-			// SYZYGY -- gethostname/getdomainname doesn't work
 			struct tm *tm_now;
 			time_t now;
 			char timestring[1024];
@@ -131,11 +127,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			else {
 			    strcpy(hoststring, "localhost");
 			}
-			outFile << "From: Mail Daemon <MAILER-DAEMON@" << hoststring;
-			if (0 == getdomainname(hoststring, 1023)) {
-			    outFile << "." << hoststring;
-			}
-			outFile << ">" << std::endl;
+			outFile << "From: Mail Daemon <MAILER-DAEMON@" << ImapServer::GetFQDN() << ">" << std::endl;
 			outFile << "Subject: DO NOT DELETE THIS MESSAGE -- IT CONTAINS INTERNAL FOLDER DATA" << std::endl;
 			sprintf(timestring, "%010u %010u", now, 0);
 			outFile << "X-IMAP: " << timestring << std::endl;
