@@ -20,7 +20,7 @@ sasl.o:  sasl.cpp sasl.hpp imapsession.hpp imapserver.hpp base64.hpp Makefile
 
 base64.o: base64.cpp base64.hpp Makefile
 
-mailstorembox.o:  mailstorembox.cpp mailstorembox.hpp mailstore.hpp Makefile
+mailstorembox.o:  mailstorembox.cpp mailstorembox.hpp mailstore.hpp imapsession.hpp imapserver.hpp Makefile
 
 mailstore.o:  mailstore.cpp mailstore.hpp Makefile
 

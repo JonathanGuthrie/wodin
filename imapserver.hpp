@@ -77,7 +77,7 @@ public:
     time_t GetLoginTimeout(void) const { return loginTimeout; /* seconds */ }
     void SetIdleTimer(SessionDriver *driver, unsigned seconds);
     void KillSession(SessionDriver *driver);
-    static const std::string GetFQDN(void);
+    const std::string GetFQDN(void);
 
 private:
     bool isRunning;

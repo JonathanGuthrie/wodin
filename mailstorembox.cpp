@@ -10,6 +10,7 @@
 
 #include "mailstorembox.hpp"
 #include "imapserver.hpp"
+#include "imapsession.hpp"
 
 #define MAILBOX_LIST_FILE_NAME ".mailboxlist"
 
@@ -127,7 +128,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			else {
 			    strcpy(hoststring, "localhost");
 			}
-			outFile << "From: Mail Daemon <MAILER-DAEMON@" << ImapServer::GetFQDN() << ">" << std::endl;
+			outFile << "From: Mail Daemon <MAILER-DAEMON@" << session->GetServer()->GetFQDN() << ">" << std::endl;
 			outFile << "Subject: DO NOT DELETE THIS MESSAGE -- IT CONTAINS INTERNAL FOLDER DATA" << std::endl;
 			sprintf(timestring, "%010u %010u", now, 0);
 			outFile << "X-IMAP: " << timestring << std::endl;
