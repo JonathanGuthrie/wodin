@@ -8,7 +8,7 @@
 class MailStoreMbox : public MailStore
 {
 public:
-    MailStoreMbox(const char *usersInboxPath, const char *usersHomeDirectory);
+    MailStoreMbox(ImapSession *session, const char *usersInboxPath, const char *usersHomeDirectory);
     virtual MailStore::MAIL_STORE_RESULT CreateMailbox(const std::string &MailboxName);
     virtual MailStore::MAIL_STORE_RESULT DeleteMailbox(const std::string &MailboxName);
     virtual MailStore::MAIL_STORE_RESULT MailboxClose();

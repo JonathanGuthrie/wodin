@@ -250,14 +250,15 @@ ImapUser *ImapServer::GetUserInfo(const char *userid)
     return (ImapUser *) new ImapUnixUser(userid);
 }
 
-MailStore *ImapServer::GetMailStore(const ImapUser *user)
+MailStore *ImapServer::GetMailStore(ImapSession *session)
 {
+    const ImapUser *user = session->GetUser();
     std::string inbox_dir = "/var/mail/";
     inbox_dir += user->GetName();
     // std::cout << "The user's home directory is \"" << user->GetHomeDir() << "\"" << std::endl;
     // std::cout << "The user's mail directory is \"" << inbox_dir << "\"" << std::endl;
-    // return (MailStore *) new MailStoreMbox(inbox_dir.c_str(), user->GetHomeDir());  // SYZYGY -- set the INBOX directory based on some default value
-    return (MailStore *) new MailStoreMbox("/var/mail/jguthrie", user->GetHomeDir());  // SYZYGY -- set the INBOX directory based on some default value
+    return (MailStore *) new MailStoreMbox(session, inbox_dir.c_str(), user->GetHomeDir());  // SYZYGY -- set the INBOX directory based on some default value
+    // return (MailStore *) new MailStoreMbox(session, "/var/mail/jguthrie", user->GetHomeDir());  // SYZYGY -- set the INBOX directory based on some default value
 }
 
 

@@ -1835,7 +1835,7 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute()
 	// Log("Client %u logged-in user %s %lu\n", m_dwClientNumber, m_pUser->m_szUsername.c_str(), m_pUser->m_nUserID);
 	if (NULL == store)
 	{
-	    store = server->GetMailStore(userData);
+	    store = server->GetMailStore(this);
 	}
 	store->CreateMailbox("INBOX");
 	// store->FixMailstore(); // I only un-comment this, if I have reason to believe that mailboxes are broken

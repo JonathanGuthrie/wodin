@@ -13,7 +13,7 @@
 
 #define MAILBOX_LIST_FILE_NAME ".mailboxlist"
 
-MailStoreMbox::MailStoreMbox(const char *usersInboxPath, const char *usersHomeDirectory) : MailStore()
+MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, const char *usersHomeDirectory) : MailStore(session)
 {
     inboxPath = strdup(usersInboxPath);
     homeDirectory = strdup(usersHomeDirectory);

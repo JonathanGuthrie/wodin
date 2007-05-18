@@ -1,9 +1,7 @@
 #include "mailstore.hpp"
 
-MailStore::MailStore()
-{
-}
+MailStore::MailStore(ImapSession *session) : session(session)
+{}
 
 MailStore::~MailStore()
-{
-}
+{}

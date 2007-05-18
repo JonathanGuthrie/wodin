@@ -67,7 +67,7 @@ public:
     void Shutdown();
     void WantsToReceive(int which);
     ImapUser *GetUserInfo(const char *userid);
-    MailStore *GetMailStore(const ImapUser *user);
+    MailStore *GetMailStore(ImapSession *session);
     bool IsAnonymousEnabled() { return false; } // SYZYGY ANONYMOUS
     // This will send the specified message out the specified socket
     // after the specified number of seconds and then set that session

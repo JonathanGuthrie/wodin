@@ -91,6 +91,7 @@ public:
     time_t GetLastCommandTime() const { return lastCommandTime; }
     Socket *GetSocket(void) const { return s; }
     ImapState GetState(void) const { return state; }
+    const ImapUser *GetUser(void) const { return userData; }
 
 private:
     // These are configuration items

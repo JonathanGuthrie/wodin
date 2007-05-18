@@ -16,6 +16,8 @@ typedef std::list<unsigned> NUMBER_LIST;
 typedef std::vector<unsigned> MSN_TO_UID;
 typedef std::vector<unsigned> SEARCH_RESULT;
 
+class ImapSession;
+
 class MailStore {
 public:
     typedef enum {
@@ -61,7 +63,7 @@ public:
 	IMAP_MBOX_NOINFERIORS = 0x10
     } MAIL_BOX_FLAGS;
 
-    MailStore();
+    MailStore(ImapSession *session);
     virtual MAIL_STORE_RESULT CreateMailbox(const std::string &MailboxName) = 0;
     virtual MAIL_STORE_RESULT DeleteMailbox(const std::string &MailboxName) = 0;
     virtual MAIL_STORE_RESULT MailboxClose() = 0;
@@ -85,6 +87,9 @@ public:
     // You have been warned.
     virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll) = 0;
     virtual ~MailStore();
+
+protected:
+    ImapSession *session;
 };
 
 #endif // _MAILSTORE_HPP_INCLUDED_
