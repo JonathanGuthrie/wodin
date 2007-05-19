@@ -159,8 +159,8 @@ private:
     IMAP_RESULTS SelectHandlerExecute(bool isReadWrite = true);
 #endif // 0
     IMAP_RESULTS CreateHandlerExecute();
-#if 0
     IMAP_RESULTS DeleteHandlerExecute();
+#if 0
     IMAP_RESULTS RenameHandlerExecute();
 #endif // 0
     IMAP_RESULTS SubscribeHandlerExecute(bool isSubscribe);
@@ -198,8 +198,8 @@ private:
     IMAP_RESULTS ExamineHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
 #endif // 0
     IMAP_RESULTS CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS DeleteHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
-    IMAP_RESULTS DeleteHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS RenameHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
 #endif // 0
     IMAP_RESULTS SubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);

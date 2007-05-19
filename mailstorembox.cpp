@@ -170,6 +170,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Mai
 	result = MailStore::CANNOT_DELETE_INBOX;
     }
     else {
+	struct stat sb;
+
 	std::string fullPath = homeDirectory;
 	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
 
@@ -179,6 +181,31 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Mai
 	fullPath += MailboxName;
 	
 	// SYZYGY -- working here!
+	if (-1 == lstat(fullPath.c_str(), &sb)) {
+	    if (ENOENT == errno) {
+		result = MAILBOX_DOES_NOT_EXIST;
+	    }
+	    else {
+		result = GENERAL_FAILURE;
+	    }
+	}
+	else {
+	    if (!S_ISDIR(sb.st_mode)) {
+		if (0 != unlink(fullPath.c_str())) {
+		    result = GENERAL_FAILURE;
+		}
+	    }
+	    else {
+		if (0 != rmdir(fullPath.c_str())) {
+		    if (ENOTEMPTY == errno) {
+			result = MAILBOX_IS_NOT_LEAF;
+		    }
+		    else {
+			result = GENERAL_FAILURE;
+		    }
+		}
+	    }
+	}
     }
 
     return result;

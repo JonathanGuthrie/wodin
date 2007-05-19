@@ -185,9 +185,9 @@ void ImapSession::BuildSymbolTables()
 #endif // 0
     symbolToInsert.handler = &ImapSession::CreateHandler;
     symbols.insert(IMAPSYMBOLS::value_type("CREATE", symbolToInsert));
-#if 0
     symbolToInsert.handler = &ImapSession::DeleteHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("DELETE"), symbolToInsert));
+    symbols.insert(IMAPSYMBOLS::value_type("DELETE", symbolToInsert));
+#if 0
     symbolToInsert.handler = &ImapSession::RenameHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("RENAME"), symbolToInsert));
 #endif // 0
@@ -1078,36 +1078,36 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 	}
 	break;
 
-#if 0
     case ImapCommandDelete:
-	m_eInProgress = ImapCommandNone;
-	if (dwDataLen >= m_dwLiteralLength)
+	inProgress = ImapCommandNone;
+	if (dataLen >= literalLength)
 	{
-	    ++m_dwParseStage;
-	    AddToParseBuffer(pData, m_dwLiteralLength);
-	    DWORD i = m_dwLiteralLength;
-	    m_dwLiteralLength = 0;
-	    if ((i < dwDataLen) && (' ' == pData[i]))
+	    ++parseStage;
+	    AddToParseBuffer(data, literalLength);
+	    size_t i = literalLength;
+	    literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i]))
 	    {
 		++i;
 	    }
-	    if (2 < dwDataLen)
+	    if (2 < dataLen)
 	    {
 		// Get rid of the CRLF if I have it
-		dwDataLen -= 2;
-		pData[dwDataLen] = '\0';  // Make sure it's terminated so strchr et al work
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
-	    m_pResponseText[0] = '\0';
-	    CStdString response = FormatTaggedResponse(DeleteHandlerExecute());
-	    Send((void *)response.data(), (int)response.size());
+	    responseText[0] = '\0';
+	    std::string response = FormatTaggedResponse(DeleteHandlerExecute());
+	    s->Send((uint8_t *)response.data(), (int)response.size());
 	}
 	else
 	{
-	    AddToParseBuffer(pData, dwDataLen, false);
-	    m_dwLiteralLength -= dwDataLen;
+	    AddToParseBuffer(data, dataLen, false);
+	    literalLength -= dataLen;
 	}
 	break;
 
+#if 0
     case ImapCommandRename:
 	m_eInProgress = ImapCommandNone;
 	if (dwDataLen >= m_dwLiteralLength)
@@ -2132,71 +2132,72 @@ IMAP_RESULTS ImapSession::CreateHandler(uint8_t *data, const size_t dataLen, siz
     return result;
 }
 
-#if 0
 IMAP_RESULTS ImapSession::DeleteHandlerExecute()
 {
     IMAP_RESULTS result = IMAP_OK;
-    CStdString mailbox((char *)&m_pParseBuffer[m_dwArguments]);
-    mailbox.Replace('.', '\\');
-    if(!mailbox.Equals(_T("INBOX")))
-    {
-	CMailStore::MAIL_STORE_RESULT r = m_msStore->DeleteMailbox(mailbox);
-	switch(r)
-	{
-	case CMailStore::SUCCESS:
-	    break;
+    std::string mailbox((char *)&parseBuffer[arguments]);
+    MailStore::MAIL_STORE_RESULT r = store->DeleteMailbox(mailbox);
+    switch(r) {
+    case MailStore::SUCCESS:
+	break;
 
-	case CMailStore::MAILBOX_UNABLE_TO_UPDATE_CATALOG:
-	    result = IMAP_NO;
-	    strncpy(m_pResponseText, _T("Database Error Deleting Mailbox"), MAX_RESPONSE_STRING_LENGTH);
-	    break;
-
-	case CMailStore::MAILBOX_DOES_NOT_EXIST:
-	    result = IMAP_NO;
-	    strncpy(m_pResponseText, _T("Mailbox Does Not Exist"), MAX_RESPONSE_STRING_LENGTH);
-	    break;
-
-	default:
-	    result = IMAP_NO;
-	    strncpy(m_pResponseText, _T("General Error Deleting Mailbox"), MAX_RESPONSE_STRING_LENGTH);
-	    break;
-	}
-    }
-    else
-    {
+    case MailStore::MAILBOX_UNABLE_TO_UPDATE_CATALOG:
 	result = IMAP_NO;
-	strncpy(m_pResponseText, _T("Cannot Delete INBOX"), MAX_RESPONSE_STRING_LENGTH);
+	strncpy(responseText, "Database Error Deleting Mailbox", MAX_RESPONSE_STRING_LENGTH);
+	break;
+
+    case MailStore::MAILBOX_DOES_NOT_EXIST:
+	result = IMAP_NO;
+	strncpy(responseText, "Mailbox Does Not Exist", MAX_RESPONSE_STRING_LENGTH);
+	break;
+
+    case MailStore::CANNOT_DELETE_INBOX:
+	result = IMAP_NO;
+	strncpy(responseText, "Cannot Delete INBOX", MAX_RESPONSE_STRING_LENGTH);
+	break;
+
+    case MailStore::MAILBOX_IS_NOT_LEAF:
+	result = IMAP_NO;
+	strncpy(responseText, "Mail folder not empty", MAX_RESPONSE_STRING_LENGTH);
+	break;
+
+    default:
+	result = IMAP_NO;
+	strncpy(responseText, "General Error Deleting Mailbox", MAX_RESPONSE_STRING_LENGTH);
+	break;
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::DeleteHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt) {
+IMAP_RESULTS ImapSession::DeleteHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    switch (astring(pData, dwDataLen, r_dwParsingAt, true, NULL))
+    // SYZYGY -- check to make sure that the argument list has just the one argument
+    switch (astring(data, dataLen, parsingAt, false, NULL))
     {
     case ImapStringGood:
 	result = DeleteHandlerExecute();
 	break;
 
     case ImapStringBad:
-	strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+	strncpy(responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_BAD;
 	break;
 
     case ImapStringPending:
 	result = IMAP_NOTDONE;
-	m_eInProgress = ImapCommandDelete;
-	strncpy(m_pResponseText, _T("Ready for Literal"), MAX_RESPONSE_STRING_LENGTH);
+	inProgress = ImapCommandDelete;
+	strncpy(responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
 	break;
 
     default:
-	strncpy(m_pResponseText, _T("Failed"), MAX_RESPONSE_STRING_LENGTH);
+	strncpy(responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
 	break;
     }
     return result;
 }
 
+#if 0
 IMAP_RESULTS ImapSession::RenameHandlerExecute()
 {
     IMAP_RESULTS result = IMAP_OK;
