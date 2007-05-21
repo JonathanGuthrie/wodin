@@ -160,9 +160,7 @@ private:
 #endif // 0
     IMAP_RESULTS CreateHandlerExecute();
     IMAP_RESULTS DeleteHandlerExecute();
-#if 0
     IMAP_RESULTS RenameHandlerExecute();
-#endif // 0
     IMAP_RESULTS SubscribeHandlerExecute(bool isSubscribe);
     IMAP_RESULTS ListHandlerExecute(bool listAll);
 #if 0
@@ -199,9 +197,7 @@ private:
 #endif // 0
     IMAP_RESULTS CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS DeleteHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-#if 0
-    IMAP_RESULTS RenameHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-#endif // 0
+    IMAP_RESULTS RenameHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS SubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS UnsubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS ListHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);

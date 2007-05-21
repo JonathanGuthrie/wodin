@@ -66,6 +66,7 @@ public:
     MailStore(ImapSession *session);
     virtual MAIL_STORE_RESULT CreateMailbox(const std::string &MailboxName) = 0;
     virtual MAIL_STORE_RESULT DeleteMailbox(const std::string &MailboxName) = 0;
+    virtual MAIL_STORE_RESULT RenameMailbox(const std::string &SourceName, const std::string &DestinationName) = 0;
     virtual MAIL_STORE_RESULT MailboxClose() = 0;
     // This function subscribes to the specified mailbox if isSubscribe is true, otherwise it 
     // unsubscribes from the mailbox

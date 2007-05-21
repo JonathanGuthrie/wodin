@@ -14,6 +14,9 @@
 
 #define MAILBOX_LIST_FILE_NAME ".mailboxlist"
 
+// SYZYGY -- factor out the internal metadata message creation to a separate function so I can
+// SYZYGY -- properly do locking, in the fullness of time
+
 MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, const char *usersHomeDirectory) : MailStore(session)
 {
     inboxPath = strdup(usersInboxPath);
@@ -41,7 +44,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 	std::string fullPath = homeDirectory;
 	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
 
-	while ('/' == MailboxName.at(MailboxName.size()-1)) {
+	while ('/' == MailboxName[MailboxName.size()-1]) {
 	    MailboxName.erase(MailboxName.size()-1);
 	}
 
@@ -100,7 +103,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			struct tm *tm_now;
 			time_t now;
 			char timestring[1024];
-			char hoststring[1024];
 			char tz_string[10];
 			long zone_east;
 
@@ -123,11 +125,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			strftime(timestring, 1023, "%d %b %Y %X ", tm_now);
 			sprintf(tz_string, "% 03d%02d", zone_east / 60, zone_east % 60);
 			outFile << "Date: " << timestring << tz_string << std::endl;
-			if (0 == gethostname(hoststring, 1023)) {
-			}
-			else {
-			    strcpy(hoststring, "localhost");
-			}
 			outFile << "From: Mail Daemon <MAILER-DAEMON@" << session->GetServer()->GetFQDN() << ">" << std::endl;
 			outFile << "Subject: DO NOT DELETE THIS MESSAGE -- IT CONTAINS INTERNAL FOLDER DATA" << std::endl;
 			sprintf(timestring, "%010u %010u", now, 0);
@@ -157,8 +154,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 // is considered special, or the mailbox name is a path relative to the user's home directory.
 // If the mail box name ends in a slash, which is what I'm using as a "path separator", then
 // I create a mail directory, otherwise I create a mail file.
-MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &MailboxName)
+MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &FullName)
 {
+    std::string MailboxName = FullName;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
     if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
@@ -176,11 +174,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Mai
 	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
 
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
+	    MailboxName.erase(MailboxName.size()-1);
 	}
 	fullPath += "/";
 	fullPath += MailboxName;
 	
-	// SYZYGY -- working here!
 	if (-1 == lstat(fullPath.c_str(), &sb)) {
 	    if (ENOENT == errno) {
 		result = MAILBOX_DOES_NOT_EXIST;
@@ -205,6 +203,146 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Mai
 		    }
 		}
 	    }
+	}
+    }
+
+    return result;
+}
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &SourceName, const std::string &DestinationName) {
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+    std::string sourcePath, destPath;
+    bool isInbox = false;
+
+    if ((('i' == SourceName[0]) || ('I' == SourceName[0])) &&
+	(('n' == SourceName[1]) || ('N' == SourceName[1])) &&
+	(('b' == SourceName[2]) || ('B' == SourceName[2])) &&
+	(('o' == SourceName[3]) || ('O' == SourceName[3])) &&
+	(('x' == SourceName[4]) || ('X' == SourceName[4])) &&
+	('\0' == SourceName[5])) {
+	sourcePath = inboxPath;
+	isInbox = true;
+    }
+    else {
+	struct stat sb;
+
+	sourcePath = homeDirectory;
+	sourcePath += "/";
+	sourcePath += SourceName;
+
+	if (-1 == lstat(sourcePath.c_str(), &sb)) {
+	    if (ENOENT == errno) {
+		result = MAILBOX_DOES_NOT_EXIST;
+	    }
+	    else {
+		result = GENERAL_FAILURE;
+	    }
+	}
+    }
+
+    if (MailStore::SUCCESS == result) {
+	if ((('i' == DestinationName[0]) || ('I' == DestinationName[0])) &&
+	    (('n' == DestinationName[1]) || ('N' == DestinationName[1])) &&
+	    (('b' == DestinationName[2]) || ('B' == DestinationName[2])) &&
+	    (('o' == DestinationName[3]) || ('O' == DestinationName[3])) &&
+	    (('x' == DestinationName[4]) || ('X' == DestinationName[4])) &&
+	    ('\0' == DestinationName[5])) {
+	    result = MailStore::MAILBOX_ALREADY_EXISTS;
+	}
+	else {
+	    destPath = homeDirectory;
+
+	    if ('/' == DestinationName[DestinationName.size()-1]) {
+		result = MailStore::MAILBOX_PATH_BAD;
+	    }
+	    else {
+		std::string::size_type offset = 0;
+		std::string::size_type old_offset = 0;
+		while ((MailStore::SUCCESS == result) && (std::string::npos != (offset = DestinationName.find("/", offset)))) {
+		    // std::cout << "The offset is " << offset << " and the old offset is " << old_offset << std::endl;
+		    if (0 != (offset - old_offset)) {
+			struct stat sb;
+
+			std::string component = DestinationName.substr(old_offset, offset - old_offset);
+			// std::cout << "This component of the path is:  \"" << component << "\"" << std::endl;
+			destPath += "/";
+			destPath += component;
+
+			// std::cout << "The destpath is \"" << destPath << "\"" << std::endl;
+			if (-1 == lstat(destPath.c_str(), &sb)) {
+			    if (ENOENT == errno) {
+				// Nothing with that name
+				if (0 != mkdir(destPath.c_str(), 0700)) {
+				    // std::cout << "The mkdir failed" << std::endl;
+				    result = MAILBOX_PATH_BAD;
+				}
+			    }
+			    else {
+				// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
+				result = MAILBOX_PATH_BAD;
+			    }
+			}
+			else {
+			    if (!S_ISDIR(sb.st_mode)) {
+				// std::cout << "it appears as if \"" << fullPath << "\" is not a directory" << std::endl;
+				result = MAILBOX_PATH_BAD;
+			    }
+			}
+		    }
+		    ++offset;
+		    old_offset = offset;
+		}
+		std::string lastPart = DestinationName.substr(old_offset);
+		destPath += "/";
+		destPath += lastPart;
+	    }
+	}
+    }
+
+    if (MailStore::SUCCESS == result) {
+	// std::cout << "Attempting to rename \"" << sourcePath << "\" to \"" << destPath << "\"" << std::endl;
+	if (0 == rename(sourcePath.c_str(), destPath.c_str())) {
+	    if (isInbox) {
+		struct tm *tm_now;
+		time_t now;
+		char timestring[1024];
+		char tz_string[10];
+		long zone_east;
+
+		now = time(NULL);
+		tm_now = localtime(&now);
+		zone_east = -1 * timezone / 60 + (daylight ? 60 : 0);
+
+		// The X-IMAP line contains the uidvalidity and uidnext values and the user-defined flags,
+		// and is only present in pseudo messages generated by the library used by uw-imap and pine
+		// and such.  There is a similar mechanism used to store the data in ordinary messages, which
+		// uses an X-IMAPbase header with the same information.
+
+		// That means that the precise format of this message doesn't matter, only the content of the
+		// header fields matters.  In particular, I need a "From" line, and the RFC-2822 header lines
+		// "From:", "Date:", "Subject:", "X-IMAP:", and "STATUS:" fields and a body with an explanation
+		// that is meaningful to humans in case they see it.
+		std::ofstream outFile(sourcePath.c_str());
+		strftime(timestring, 1023, "%c", tm_now);
+		outFile << "From MAILER-DAEMON " << timestring << std::endl;
+		strftime(timestring, 1023, "%d %b %Y %X ", tm_now);
+		sprintf(tz_string, "% 03d%02d", zone_east / 60, zone_east % 60);
+		outFile << "Date: " << timestring << tz_string << std::endl;
+		outFile << "From: Mail Daemon <MAILER-DAEMON@" << session->GetServer()->GetFQDN() << ">" << std::endl;
+		outFile << "Subject: DO NOT DELETE THIS MESSAGE -- IT CONTAINS INTERNAL FOLDER DATA" << std::endl;
+		sprintf(timestring, "%010u %010u", now, 0);
+		outFile << "X-IMAP: " << timestring << std::endl;
+		outFile << "Status: RO" << std::endl << std::endl;
+		outFile << "This message contains metadata for this mail box and is not a real" << std::endl;
+		outFile << "message.  It is created automatically by the mail server software and" << std::endl;
+		outFile << "if deleted, important information about this mail box will be lost," << std::endl;
+		outFile << "don't delete it.  If you do happen to delete it by mistake, it will be" << std::endl;
+		outFile << "recreated with default data." << std::endl << std::endl;
+		outFile.close();
+	    }
+	}
+	else {
+	    result = GENERAL_FAILURE;
 	}
     }
 
