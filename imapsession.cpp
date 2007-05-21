@@ -666,6 +666,15 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status)
 	response += "\r\n";
 	break;
 
+    case IMAP_MBOX_ERROR:
+	response = (char *)parseBuffer;
+	response += " NO ";
+	response += (char *)&parseBuffer[commandString];
+	response += " \"";
+	response += store->TurnErrorCodeIntoString(mboxErrorCode);
+	response += "\"\r\n";
+	break;
+
     default:
     case IMAP_BAD:
 	response = (char *)parseBuffer;
@@ -2080,22 +2089,11 @@ IMAP_RESULTS ImapSession::ExamineHandler(byte *pData, const DWORD dwDataLen, DWO
 IMAP_RESULTS ImapSession::CreateHandlerExecute()
 {
     IMAP_RESULTS result = IMAP_OK;
+    // SYZYGY -- check to make sure that the argument list has just the one argument
+    // SYZYGY -- parsingAt should point to '\0'
     std::string mailbox((char *)&parseBuffer[arguments]);
-    MailStore::MAIL_STORE_RESULT r = store->CreateMailbox(mailbox);
-    switch(r)
-    {
-    case MailStore::SUCCESS:
-	break;
-
-    case MailStore::MAILBOX_ALREADY_EXISTS:
-	strncpy(responseText, "Mailbox already exists", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_NO;
-	break;
-
-    default:
-	strncpy(responseText, "General Error Creating Mailbox", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_NO;
-	break;
+    if (MailStore::SUCCESS != (mboxErrorCode = store->CreateMailbox(mailbox))) {
+	result = IMAP_MBOX_ERROR;
     }
     return result;
 }
@@ -2103,7 +2101,6 @@ IMAP_RESULTS ImapSession::CreateHandlerExecute()
 IMAP_RESULTS ImapSession::CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    // SYZYGY -- check to make sure that the argument list has just the one argument
     switch (astring(data, dataLen, parsingAt, false, NULL))
     {
     case ImapStringGood:
@@ -2131,36 +2128,11 @@ IMAP_RESULTS ImapSession::CreateHandler(uint8_t *data, const size_t dataLen, siz
 IMAP_RESULTS ImapSession::DeleteHandlerExecute()
 {
     IMAP_RESULTS result = IMAP_OK;
+    // SYZYGY -- check to make sure that the argument list has just the one argument
+    // SYZYGY -- parsingAt should point to '\0'
     std::string mailbox((char *)&parseBuffer[arguments]);
-    MailStore::MAIL_STORE_RESULT r = store->DeleteMailbox(mailbox);
-    switch(r) {
-    case MailStore::SUCCESS:
-	break;
-
-    case MailStore::MAILBOX_UNABLE_TO_UPDATE_CATALOG:
-	result = IMAP_NO;
-	strncpy(responseText, "Database Error Deleting Mailbox", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    case MailStore::MAILBOX_DOES_NOT_EXIST:
-	result = IMAP_NO;
-	strncpy(responseText, "Mailbox Does Not Exist", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    case MailStore::CANNOT_DELETE_INBOX:
-	result = IMAP_NO;
-	strncpy(responseText, "Cannot Delete INBOX", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    case MailStore::MAILBOX_IS_NOT_LEAF:
-	result = IMAP_NO;
-	strncpy(responseText, "Mail folder not empty", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    default:
-	result = IMAP_NO;
-	strncpy(responseText, "General Error Deleting Mailbox", MAX_RESPONSE_STRING_LENGTH);
-	break;
+    if (MailStore::SUCCESS != (mboxErrorCode = store->DeleteMailbox(mailbox))) {
+	result = IMAP_MBOX_ERROR;
     }
     return result;
 }
@@ -2196,27 +2168,13 @@ IMAP_RESULTS ImapSession::DeleteHandler(uint8_t *data, const size_t dataLen, siz
 IMAP_RESULTS ImapSession::RenameHandlerExecute() {
     IMAP_RESULTS result = IMAP_OK;
 
+    // SYZYGY -- check to make sure that the argument list has just the one argument
+    // SYZYGY -- parsingAt should point to '\0'
     std::string source((char *)&parseBuffer[arguments]);
     std::string destination((char *)&parseBuffer[arguments+(strlen((char *)&parseBuffer[arguments])+1)]);
 
-    switch(store->RenameMailbox(source, destination)) {
-    case MailStore::SUCCESS:
-	break;
-
-    case MailStore::MAILBOX_DOES_NOT_EXIST:
-	result = IMAP_NO;
-	strncpy(responseText, "Source Mailbox Does Not Exist", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    case MailStore::MAILBOX_ALREADY_EXISTS:
-	result = IMAP_NO;
-	strncpy(responseText, "Destination Mailbox Already Exists", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    default:
-	result = IMAP_NO;
-	strncpy(responseText, "General Error Renaming Mailbox", MAX_RESPONSE_STRING_LENGTH);
-	break;
+    if (MailStore::SUCCESS != (mboxErrorCode = store->RenameMailbox(source, destination))) {
+	result = IMAP_MBOX_ERROR;
     }
     return result;
 }
@@ -2273,35 +2231,11 @@ IMAP_RESULTS ImapSession::RenameHandler(uint8_t *data, const size_t dataLen, siz
 IMAP_RESULTS ImapSession::SubscribeHandlerExecute(bool isSubscribe)
 {
     IMAP_RESULTS result = IMAP_OK;
+    // SYZYGY -- check to make sure that the argument list has just the one argument
+    // SYZYGY -- parsingAt should point to '\0'
     std::string mailbox((char *)&parseBuffer[arguments]);
-    MailStore::MAIL_STORE_RESULT r = store->SubscribeMailbox(mailbox, isSubscribe);
-    switch(r)
-    {
-    case MailStore::SUCCESS:
-	break;
-
-    case MailStore::MAILBOX_DOES_NOT_EXIST:
-	strncpy(responseText, "Mailbox Does Not Exist", MAX_RESPONSE_STRING_LENGTH);
-	strncpy(responseCode, "[TRYCREATE]", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_NO;
-	break;
-
-    case MailStore::MAILBOX_ALREADY_SUBSCRIBED:
-	strncpy(responseText, "Already Subscribed to Mailbox ", MAX_RESPONSE_STRING_LENGTH);
-	strncat(responseText, mailbox.c_str(), MAX_RESPONSE_STRING_LENGTH - strlen(responseText));
-	result = IMAP_NO;
-	break;
-
-    case MailStore::MAILBOX_NOT_SUBSCRIBED:
-	strncpy(responseText, "Not Subscribed to Mailbox ", MAX_RESPONSE_STRING_LENGTH - strlen(responseText));
-	strncat(responseText, mailbox.c_str(), MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_NO;
-	break;
-
-    default:
-	strncpy(responseText, "General Error Subscribing Mailbox", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_NO;
-	break;
+    if (MailStore::SUCCESS != (mboxErrorCode = store->SubscribeMailbox(mailbox, isSubscribe))) {
+	result = IMAP_MBOX_ERROR;
     }
     return result;
 }

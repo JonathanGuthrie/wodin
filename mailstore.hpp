@@ -32,11 +32,9 @@ public:
 	MAILBOX_NOT_SUBSCRIBED,
 	MAILBOX_IS_ACTIVE,
 	MAILBOX_IS_NOT_LEAF,
-	MAILBOX_UNABLE_TO_UPDATE_CATALOG,
 	MAILBOX_NOT_SELECTABLE,
 	MAILBOX_READ_ONLY,
 	MAILBOX_NOT_OPEN,
-	MESSAGE_UNABLE_TO_UPDATE_CATALOG,
 	MESSAGE_FILE_OPEN_FAILED,
 	MESSAGE_FILE_WRITE_FAILED,
 	MESSAGE_NOT_FOUND
@@ -88,9 +86,11 @@ public:
     // You have been warned.
     virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll) = 0;
     virtual ~MailStore();
+    std::string TurnErrorCodeIntoString(MAIL_STORE_RESULT code);
 
 protected:
     ImapSession *session;
+    int errnoFromLibrary;
 };
 
 #endif // _MAILSTORE_HPP_INCLUDED_

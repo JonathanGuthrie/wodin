@@ -64,7 +64,8 @@ typedef enum
     IMAP_NO,
     IMAP_BAD,
     IMAP_NOTDONE,
-    IMAP_NO_WITH_PAUSE
+    IMAP_NO_WITH_PAUSE,
+    IMAP_MBOX_ERROR
 } IMAP_RESULTS;
 
 #define MAX_RESPONSE_STRING_LENGTH	80
@@ -99,6 +100,7 @@ private:
     static bool anonymousEnabled;
     unsigned failedLoginPause;
     SessionDriver *driver;
+    MailStore::MAIL_STORE_RESULT mboxErrorCode;
 
     Socket *s;
     // These constitute the session's state

@@ -67,11 +67,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			if (0 != mkdir(fullPath.c_str(), 0700)) {
 			    // std::cout << "The mkdir failed" << std::endl;
 			    result = MAILBOX_PATH_BAD;
+			    errnoFromLibrary = errno;
 			}
 		    }
 		    else {
 			// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
 			result = MAILBOX_PATH_BAD;
+			errnoFromLibrary = errno;
 		    }
 		}
 		else {
@@ -97,6 +99,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 		    if (isDirectory) {
 			if (0 != mkdir(fullPath.c_str(), 0700)) {
 			    result = MAILBOX_PATH_BAD;
+			    errnoFromLibrary = errno;
 			}
 		    }
 		    else {
@@ -119,27 +122,35 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			// header fields matters.  In particular, I need a "From" line, and the RFC-2822 header lines
 			// "From:", "Date:", "Subject:", "X-IMAP:", and "STATUS:" fields and a body with an explanation
 			// that is meaningful to humans in case they see it.
+			errno = 0;
 			std::ofstream outFile(fullPath.c_str());
-			strftime(timestring, 1023, "%c", tm_now);
-			outFile << "From MAILER-DAEMON " << timestring << std::endl;
-			strftime(timestring, 1023, "%d %b %Y %X ", tm_now);
-			sprintf(tz_string, "% 03d%02d", zone_east / 60, zone_east % 60);
-			outFile << "Date: " << timestring << tz_string << std::endl;
-			outFile << "From: Mail Daemon <MAILER-DAEMON@" << session->GetServer()->GetFQDN() << ">" << std::endl;
-			outFile << "Subject: DO NOT DELETE THIS MESSAGE -- IT CONTAINS INTERNAL FOLDER DATA" << std::endl;
-			sprintf(timestring, "%010u %010u", now, 0);
-			outFile << "X-IMAP: " << timestring << std::endl;
-			outFile << "Status: RO" << std::endl << std::endl;
-			outFile << "This message contains metadata for this mail box and is not a real" << std::endl;
-			outFile << "message.  It is created automatically by the mail server software and" << std::endl;
-			outFile << "if deleted, important information about this mail box will be lost," << std::endl;
-			outFile << "don't delete it.  If you do happen to delete it by mistake, it will be" << std::endl;
-			outFile << "recreated with default data." << std::endl << std::endl;
-			outFile.close();
+			if (outFile.good()) {
+			    strftime(timestring, 1023, "%c", tm_now);
+			    outFile << "From MAILER-DAEMON " << timestring << std::endl;
+			    strftime(timestring, 1023, "%d %b %Y %X ", tm_now);
+			    sprintf(tz_string, "% 03d%02d", zone_east / 60, zone_east % 60);
+			    outFile << "Date: " << timestring << tz_string << std::endl;
+			    outFile << "From: Mail Daemon <MAILER-DAEMON@" << session->GetServer()->GetFQDN() << ">" << std::endl;
+			    outFile << "Subject: DO NOT DELETE THIS MESSAGE -- IT CONTAINS INTERNAL FOLDER DATA" << std::endl;
+			    sprintf(timestring, "%010u %010u", now, 0);
+			    outFile << "X-IMAP: " << timestring << std::endl;
+			    outFile << "Status: RO" << std::endl << std::endl;
+			    outFile << "This message contains metadata for this mail box and is not a real" << std::endl;
+			    outFile << "message.  It is created automatically by the mail server software and" << std::endl;
+			    outFile << "if deleted, important information about this mail box will be lost," << std::endl;
+			    outFile << "don't delete it.  If you do happen to delete it by mistake, it will be" << std::endl;
+			    outFile << "recreated with default data." << std::endl << std::endl;
+			    outFile.close();
+			}
+			else {
+			    result = MAILBOX_PATH_BAD;
+			    errnoFromLibrary = errno;
+			}
 		    }
 		}
 		else {
 		    result = MAILBOX_PATH_BAD;
+		    errnoFromLibrary = errno;
 		}
 	    }
 	    else {
@@ -185,6 +196,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Ful
 	    }
 	    else {
 		result = GENERAL_FAILURE;
+		errnoFromLibrary = errno;
 	    }
 	}
 	else {
@@ -197,9 +209,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Ful
 		if (0 != rmdir(fullPath.c_str())) {
 		    if (ENOTEMPTY == errno) {
 			result = MAILBOX_IS_NOT_LEAF;
+			errnoFromLibrary = 0;
 		    }
 		    else {
 			result = GENERAL_FAILURE;
+			errnoFromLibrary = errno;
 		    }
 		}
 	    }
@@ -236,6 +250,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 	    }
 	    else {
 		result = GENERAL_FAILURE;
+		errnoFromLibrary = errno;
 	    }
 	}
     }
@@ -280,6 +295,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 			    else {
 				// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
 				result = MAILBOX_PATH_BAD;
+				errnoFromLibrary = errno;
 			    }
 			}
 			else {
