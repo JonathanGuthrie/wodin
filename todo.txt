@@ -1,0 +1,75 @@
+done)  Finish the login code (so that it actually checks the password)
+
+done)  Add case insensitivity where I've deferred it
+
+done)  Add the AUTHENTICATE code
+
+done)  Add the stubbed-out STARTTLS code
+
+done)  Create the mailbox manipulation parts of an initial mailstore (mbox under
+  unix)
+
+done)  Un-comment the creation of the inbox
+
+done) Make the mailbox error text come from the mailbox classes.  This will
+  include having some sort of IMAP error code that indicates a mailbox error
+  and some place to hold the mailbox error code
+
+8)  Basic name space implementation
+
+9)  Do the commands available in both the AUTHENTICATED and SELECTED state
+  (NAMESPACE through SUBSCRIBE) (namespace, select, examine, status, append)
+
+10)  Refactor the utility message creation in MailstoreMbox
+
+12)  Do the commands available in the SELECTED state
+
+12)  Finish the parts of the NOOP command I've deferred
+
+13)  Asynchonous notifications
+
+)  Locking for multiple simultaneous access to mailboxes
+
+)  Restore the rest of the SASL authentication modes
+
+)  Update the CAPABILITY code to handle the SASL authentication methods for
+    those user bases for which plain text passwords are available
+
+)  Test the SASL authentication modes
+
+)  Overwrite the strings that hold passwords
+
+)  Re-do the boyer-moore-pratt search so it's not downloaded code
+
+)  Add anonymous authentication to the capability string (availability should be known by the server class)
+
+)  Deal with logging
+
+done)  Add an idle timer
+
+)  Add support user-defined flags to the initial mailstore
+
+done)  Add support for a delay after a failed login (need a timer manager)
+ 
+)  Really add the support for STARTTLS
+
+)  Add the logic required to forbid logins outside of tls sessions
+
+)  Build the logic to handle multiple simultaneous access properly
+
+)  Use epoll for the thread pooling instead of select
+
+)  Create a mailstore for maildir under unix
+
+)  Create a mailstore for an as-yet undesigned database-backend, maybe with a user class.
+
+)  Add support for the periodic wakeup of each session to check for changes to its selected mailstore
+
+)  Add support for the IDLE command
+
+)  Keep some sort of track about the number of connections a user has.  Maybe
+  collect some state about each user in the IMAP server
+
+)  Pluggable modules for mail stores 
+
+)  Configuration
