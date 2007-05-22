@@ -5,59 +5,37 @@
 #include "imapuser.hpp"
 #include "mailstore.hpp"
 #include "ThreadPool.hpp"
+#include "deltaqueue.hpp"
 
-class SessionDriver;
 class ImapSession;
+class ImapServer;
+
+// The SessionDriver class sits between the server, which does the listening
+// for more data, and the ImapSession, which does all the processing of the
+// data.  It knows server-specific stuff and the merest bit of session stuff.
+// This has to be a separate class from ImapServer because I want one of these
+// for each ImapSession
+class SessionDriver
+{
+public:
+    SessionDriver(ImapServer *s, int pipe);
+    ~SessionDriver();
+    void DoWork(void);
+    void NewSession(Socket *s);
+    const ImapSession *GetSession(void) const { return session; }
+    void DestroySession(void);
+    Socket *GetSocket(void) const { return sock; }
+    ImapServer *GetServer(void) const { return server; }
+
+private:
+    ImapSession *session;
+    ImapServer *server;
+    Socket *sock;
+    int pipe;
+};
+
+
 typedef ThreadPool<SessionDriver *> ImapWorkerPool;
-
-class DeltaQueueAction
-{
-public:
-    DeltaQueueAction(int delta, SessionDriver *driver);
-    class DeltaQueueAction *next;
-    virtual void HandleTimeout(bool isPurge) = 0;
-    unsigned delta;
-    SessionDriver *driver;
-};
-
-
-// SYZYGY -- the idle timer shouldn't be reset.  Instead, I should keep the time the last command
-// SYZYGY -- was executed and then check for the timeout period elapsing when the timer expires
-// SYZYGY -- and set the timeout for the time since that command happened.
-class DeltaQueueIdleTimer : DeltaQueueAction
-{
-public:
-    DeltaQueueIdleTimer(int delta, SessionDriver *driver);
-    virtual void HandleTimeout(bool isPurge);
-};
-
-
-class DeltaQueueDelayedMessage : DeltaQueueAction
-{
-public:
-    DeltaQueueDelayedMessage(int delta, SessionDriver *driver, const std::string message); // Note:  Calling copy constructor on the message
-    virtual void HandleTimeout(bool isPurge);
-
-private:
-    const std::string message;
-};
-
-
-class DeltaQueue
-{
-public:
-    void Tick(void);
-    void AddSend(SessionDriver *driver, unsigned seconds, const std::string &message);
-    void AddTimeout(SessionDriver *driver, time_t timeout);
-    DeltaQueue();
-    void InsertNewAction(DeltaQueueAction *action);
-    void PurgeSession(const SessionDriver *driver);
-
-private:
-    pthread_mutex_t queueMutex;
-    DeltaQueueAction *queueHead;
-};
-
 
 class ImapServer {
 public:
