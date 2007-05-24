@@ -175,9 +175,9 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.levels[1] = true;
     symbolToInsert.levels[2] = true;
     symbolToInsert.levels[3] = false;
-#if 0
     symbolToInsert.handler = &ImapSession::NamespaceHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("NAMESPACE"), symbolToInsert));
+    symbols.insert(IMAPSYMBOLS::value_type("NAMESPACE", symbolToInsert));
+#if 0
     symbolToInsert.handler = &ImapSession::SelectHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("SELECT"), symbolToInsert));
     symbolToInsert.handler = &ImapSession::ExamineHandler;
@@ -1930,15 +1930,17 @@ IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, const size_t dataLen, size
     return result;
 }
 
-#if 0
-IMAP_RESULTS ImapSession::NamespaceHandler(byte *pData, DWORD dwDataLen, DWORD &r_dwParsingAt)
+IMAP_RESULTS ImapSession::NamespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt)
 {
-    char *s = _T("* NAMESPACE ((\"\" \".\")) NIL NIL\r\n");
-    Send(s, (int)strlen(s));
+    // SYZYGY parsingAt should be the index of a '\0'
+    std::string str = "* " + store->ListNamespaces();
+    str += "\n";
+    s->Send((uint8_t *) str.c_str(), str.size());
     return IMAP_OK;
 }
 
 
+#if 0
 void ImapSession::SendSelectData(const CStdString &mailbox, bool bIsReadWrite)
 {
     m_dwCurrentNextUid = m_msStore->GetSerialNumber();

@@ -192,8 +192,8 @@ private:
     IMAP_RESULTS StarttlsHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS AuthenticateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
  
+    IMAP_RESULTS NamespaceHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
-    IMAP_RESULTS NamespaceHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS SelectHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS ExamineHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
 #endif // 0

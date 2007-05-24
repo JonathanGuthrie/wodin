@@ -15,10 +15,15 @@ done) Make the mailbox error text come from the mailbox classes.  This will
   include having some sort of IMAP error code that indicates a mailbox error
   and some place to hold the mailbox error code
 
-8)  Basic name space implementation
+done)  Basic name space implementation
 
 9)  Do the commands available in both the AUTHENTICATED and SELECTED state
-  (NAMESPACE through SUBSCRIBE) (namespace, select, examine, status, append)
+  (NAMESPACE through SUBSCRIBE)
+  done) namespace
+  b) select and examine
+  c) status
+  d) append
+
 
 10)  Refactor the utility message creation in MailstoreMbox
 
