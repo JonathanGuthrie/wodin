@@ -3,7 +3,7 @@
 
 #include "socket.hpp"
 #include "imapuser.hpp"
-#include "mailstore.hpp"
+#include "namespace.hpp"
 #include "ThreadPool.hpp"
 #include "deltaqueue.hpp"
 
@@ -45,7 +45,7 @@ public:
     void Shutdown();
     void WantsToReceive(int which);
     ImapUser *GetUserInfo(const char *userid);
-    MailStore *GetMailStore(ImapSession *session);
+    Namespace *GetMailStore(ImapSession *session);
     bool IsAnonymousEnabled() { return false; } // SYZYGY ANONYMOUS
     // This will send the specified message out the specified socket
     // after the specified number of seconds and then set that session

@@ -10,7 +10,7 @@
 
 #include "socket.hpp"
 #include "imapuser.hpp"
-#include "mailstore.hpp"
+#include "namespace.hpp"
 #include "sasl.hpp"
 #include "insensitive.hpp"
 
@@ -119,7 +119,7 @@ private:
 
     // This is associated with handling appends
     uint32_t m_dwAppendingUid;
-    MailStore *store;
+    Namespace *store;
     char responseCode[MAX_RESPONSE_STRING_LENGTH+1];
     char responseText[MAX_RESPONSE_STRING_LENGTH+1];
     uint32_t commandString, arguments;

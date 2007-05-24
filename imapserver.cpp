@@ -8,6 +8,8 @@
 
 #include "imapunixuser.hpp"
 #include "mailstorembox.hpp"
+#include "mailstoreinvalid.hpp"
+#include "namespace.hpp"
 
 SessionDriver::SessionDriver(ImapServer *s, int pipe)
 {
@@ -228,15 +230,30 @@ ImapUser *ImapServer::GetUserInfo(const char *userid)
     return (ImapUser *) new ImapUnixUser(userid);
 }
 
-MailStore *ImapServer::GetMailStore(ImapSession *session)
+Namespace *ImapServer::GetMailStore(ImapSession *session)
 {
     const ImapUser *user = session->GetUser();
     std::string inbox_dir = "/var/mail/";
-    inbox_dir += user->GetName();
+    inbox_dir += user->GetName();   // SYZYGY -- set the INBOX directory based on some default value
+
     // std::cout << "The user's home directory is \"" << user->GetHomeDir() << "\"" << std::endl;
     // std::cout << "The user's mail directory is \"" << inbox_dir << "\"" << std::endl;
-    return (MailStore *) new MailStoreMbox(session, inbox_dir.c_str(), user->GetHomeDir());  // SYZYGY -- set the INBOX directory based on some default value
-    // return (MailStore *) new MailStoreMbox(session, "/var/mail/jguthrie", user->GetHomeDir());  // SYZYGY -- set the INBOX directory based on some default value
+
+    Namespace *result = new Namespace(session);
+    // SYZYGY -- need namespaces for
+    // SYZYGY -- #mhinbox, #mh, ~, #shared, #ftp, #news, and #public
+    // SYZYGY -- and need stubbed-out mail stores for them
+
+    result->AddNamespace(Namespace::PERSONAL, "", (MailStore *) new MailStoreMbox(session, inbox_dir.c_str(), user->GetHomeDir()), '/');
+    result->AddNamespace(Namespace::PERSONAL, "#mhinbox", (MailStore *) new MailStoreInvalid(session));
+    result->AddNamespace(Namespace::PERSONAL, "#mh/", (MailStore *) new MailStoreInvalid(session), '/');
+    result->AddNamespace(Namespace::OTHERS, "~", (MailStore *) new MailStoreInvalid(session), '/');
+    result->AddNamespace(Namespace::SHARED, "#shared/", (MailStore *) new MailStoreInvalid(session), '/');
+    result->AddNamespace(Namespace::SHARED, "#ftp/", (MailStore *) new MailStoreInvalid(session), '/');
+    result->AddNamespace(Namespace::SHARED, "#news.", (MailStore *) new MailStoreInvalid(session), '.');
+    result->AddNamespace(Namespace::SHARED, "#public/", (MailStore *) new MailStoreInvalid(session), '/');
+
+    return result;
 }
 
 
