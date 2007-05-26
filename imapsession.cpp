@@ -2680,12 +2680,17 @@ IMAP_RESULTS ImapSession::AppendHandlerExecute(uint8_t *data, const size_t dataL
 	if ('"' == data[parsingAt]) {
 	    // The constructor for DateTime swallows both the leading and trailing
 	    // double quote characters
-	    DateTime temp_date_time(data, dataLen, parsingAt);
-	    if (temp_date_time.IsValid() && (1 < (dataLen - parsingAt)) && (' ' == data[parsingAt])) {
-		messageDateTime = temp_date_time;
-		++parsingAt;
+	    try {
+		DateTime temp_date_time(data, dataLen, parsingAt);
+		if (' ' == data[parsingAt]) {
+		    messageDateTime = temp_date_time;
+		    ++parsingAt;
+		}
+		else {
+		    strncpy(responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		}
 	    }
-	    else {
+	    catch (DateTimeInvalidDateTimeString) {
 		strncpy(responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	    }
 	}
