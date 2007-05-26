@@ -2338,9 +2338,18 @@ IMAP_RESULTS ImapSession::ListHandlerExecute(bool listAll)
 	 * reference for '.', adding it if it's not there, and then just combining the two strings.
 	 */
 	/*
-	 * SYZYGY -- that's dumb.  The namespace should actually be separate.  However, I'm not going
-	 * SYZYGY -- to fix that right now.  I can do it at any time.  However, the name spaces need to
+	 * That's dumb.  The namespace should actually be separate.  However, I'm not going
+	 * to fix that right now.  I can do it at any time.  However, the name spaces need to
 	 * be defined elsewhere, like in the server class
+	 *
+	 * No, that's not dumb, the reference is not the namespace, it's just the first part of the path,
+	 * like the current working directory, if your operation system has that concept.  However, it's
+	 * not necessarily straightforward to just concatenate them because you should put a path separator
+	 * between them unless the reference ends with one, but I don't know what the path separator is until
+	 * I know what the namespace is.  I think I need to think about this.  Right now, my best guess is
+	 * to keep them separate until it gets to the mailstore driver, at which point it combines them.  To
+	 * determine the namespace, I look at the reference unless it's zero-length, in which case I look at
+	 * the pattern.
 	 */
 	MAILBOX_LIST mailboxList;
 	store->BuildMailboxList(reference, mailbox, &mailboxList, listAll);
