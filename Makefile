@@ -23,10 +23,12 @@ SOURCES=imapd.cpp \
 	deltaqueuedelayedmessage.cpp \
 	deltaqueueaction.cpp \
 	namespace.cpp \
-	mailstoreinvalid.cpp
+	mailstoreinvalid.cpp \
+	datetime.cpp
 
 imapd: imapd.o imapserver.o imapsession.o socket.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o mailstore.o \
-	deltaqueue.o deltaqueueaction.o deltaqueueidletimer.o deltaqueuedelayedmessage.o namespace.o mailstoreinvalid.o
+	deltaqueue.o deltaqueueaction.o deltaqueueidletimer.o deltaqueuedelayedmessage.o namespace.o mailstoreinvalid.o \
+	datetime.o
 
 include $(SOURCES:.cpp=.d)
 
@@ -61,6 +63,8 @@ deltaqueuedelayedmessage.o: Makefile
 namespace.o: Makefile
 
 mailstoreinvalid.o: Makefile
+
+datetime.o: Makefile
 
 clean:
 	rm -f *.o *.d imapd
