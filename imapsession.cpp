@@ -2546,54 +2546,33 @@ IMAP_RESULTS ImapSession::StatusHandlerExecute(uint8_t *data, const size_t dataL
     {
 	unsigned messageCount, recentCount, uidNext, uidValidity, firstUnseen;
 	if (MailStore::SUCCESS == store->GetMailboxCounts(mailbox, flagset, messageCount, recentCount, uidNext, uidValidity, firstUnseen)) {
-	    std::string response("* STATUS ");
-	    response += mailboxExternal + " ";
+	    // SYZYGY -- I should just build the string in ss rather than introducing "response"
+	    std::ostringstream response;
+	    response << "* STATUS ";
+	    response << mailboxExternal << " ";
 	    char separator = '(';
-	    // SYZYGY -- I should calculate the values that I need
-	    // SYZYGY -- and tell the lower level what I need so it does
-	    // SYZYGY -- no more work than necessary
 	    if (flagset & SAV_MESSAGES) {
-		response += separator;
-		response += "MESSAGES ";
-		std::ostringstream ss;
-		ss << messageCount;
-		response += ss.str();
+		response << separator << "MESSAGES " << messageCount;
 		separator = ' ';
 	    } 
 	    if (flagset & SAV_RECENT) {
-		response += separator;
-		response += "RECENT ";
-		std::ostringstream ss;
-		ss << recentCount;
-		response += ss.str();
+		response << separator << "RECENT " << recentCount;
 		separator = ' ';
 	    }
 	    if (flagset & SAV_UIDNEXT) {
-		response += separator;
-		response += "UIDNEXT ";
-		std::ostringstream ss;
-		ss << uidNext;
-		response += ss.str();
+		response << separator << "UIDNEXT " << uidNext;
 		separator = ' ';
 	    }
 	    if (flagset & SAV_UIDVALIDITY) {
-		response += separator;
-		response += "UIDVALIDITY ";
-		std::ostringstream ss;
-		ss << uidValidity;
-		response += ss.str();
+		response << separator << "UIDVALIDITY " << uidValidity;
 		separator = ' ';
 	    }
 	    if (flagset & SAV_UNSEEN) {
-		response += separator;
-		response += "UNSEEN ";
-		std::ostringstream ss;
-		ss << firstUnseen;
-		response += ss.str();
+		response << separator << "UNSEEN " << firstUnseen;
 		separator = ' ';
 	    }
-	    response += ")\r\n";
-	    s->Send((uint8_t *)response.data(), response.length());
+	    response << ")\r\n";
+	    s->Send((uint8_t *)response.str().data(), response.str().length());
 	    result = IMAP_OK;
 	}
 	else {
