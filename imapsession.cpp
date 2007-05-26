@@ -1683,58 +1683,57 @@ IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &par
 	    (currentMessageCount != store->MailboxMessageCount()))
 	{
 	    NUMBER_LIST purgedMessages;
-	    std::string untagged;
+	    std::ostringstream ss;
 
 	    if (MailStore::SUCCESS == store->MailboxUpdateStats(&purgedMessages))
 	    {
 		for (NUMBER_LIST::iterator i=purgedMessages.begin() ; i!= purgedMessages.end(); ++i)
 		{
 		    int message_number;
-		    std::string untagged;
 
 		    message_number = *i;
-		    // SYZYGY FORMAT
-		    // untagged.Format(_T("* %d EXPUNGE\r\n"), message_number);
-		    s->Send((uint8_t *)untagged.c_str(), untagged.size());
+		    ss << "* " << message_number << " EXPUNGE\r\n";
+		    s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+		    ss.str("");
 		}
 	    }
 	    if (currentNextUid != store->GetSerialNumber())
 	    {
 		currentNextUid = store->GetSerialNumber();
-		// SYZYGY FORMAT
-		// untagged.Format(_T("* OK [UIDNEXT %d]\r\n"), m_dwCurrentNextUid);
-		s->Send((uint8_t *)untagged.c_str(), untagged.size());
+		ss << "* OK [UIDNEXT " << currentNextUid << "]\r\n";
+		s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+		ss.str("");
 	    }
 	    if (currentMessageCount != store->MailboxMessageCount())
 	    {
 		currentMessageCount = store->MailboxMessageCount();
-		// SYZYGY FORMAT
-		// untagged.Format(_T("* %d EXISTS\r\n"), m_dwCurrentMessageCount);
-		s->Send((uint8_t *)untagged.c_str(), untagged.size());
+		ss << "* " << currentMessageCount << " EXISTS\r\n";
+		s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+		ss.str("");
 	    }
 	    if (currentRecentCount != store->MailboxRecentCount())
 	    {
 		currentRecentCount = store->MailboxRecentCount();
-		// SYZYGY FORMAT
-		// untagged.Format(_T("* %d RECENT\r\n"), m_dwCurrentRecentCount);
-		s->Send((uint8_t *)untagged.c_str(), untagged.size());
+		ss << "* " << currentRecentCount << " RECENT\r\n";
+		s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+		ss.str("");
 	    }
 	    if (currentUnseen != store->MailboxFirstUnseen())
 	    {
 		currentUnseen = store->MailboxFirstUnseen();
 		if (0 < currentUnseen)
 		{
-		    // SYZYGY FORMAT
-		    // untagged.Format(_T("* OK [UNSEEN %d]\r\n"), m_dwCurrentUnseen);
-		    s->Send((uint8_t *)untagged.c_str(), untagged.size());
+		    ss << "* OK [UNSEEN " << currentUnseen << "]\r\n";
+		    s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+		    ss.str("");
 		}
 	    }
 	    if (currentUidValidity != store->GetUidValidityNumber())
 	    {
 		currentUidValidity = store->GetUidValidityNumber();
-		// SYZYGY FORMAT
-		// untagged.Format(_T("* OK [UIDVALIDITY %d]\r\n"), m_dwCurrentUidValidity);
-		s->Send((uint8_t *)untagged.c_str(), untagged.size());
+		ss << "* OK [UIDVALIDITY " << currentUidValidity << "]\r\n";
+		s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+		ss.str("");
 	    }
 	}
     }
