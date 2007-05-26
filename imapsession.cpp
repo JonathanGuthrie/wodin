@@ -859,6 +859,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 	}
 	else {
 	    IMAP_RESULTS result = IMAP_OK;
+	    responseText[0] = '\0';
 	    if (1 == parseStage) {
 		size_t residue;
 		// It's the message body that's arrived
