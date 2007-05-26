@@ -20,18 +20,27 @@ done)  Basic name space implementation
 9)  Do the commands available in both the AUTHENTICATED and SELECTED state
   (NAMESPACE through SUBSCRIBE)
   done) namespace
-  b) select and examine
-  c) status
+  done) select and examine
+  done) status
   d) append
 
+10)  Do the commands available in the SELECTED state
+  a) check
+  b) close
+  c) expunge
+  d) search
+  e) fetch
+  f) store
+  g) copy
+  h) uid (three commands)
 
-10)  Refactor the utility message creation in MailstoreMbox
+11)  Properly handle the situation where the IMAP-specific headers aren't in the messages of an mbox message base.
 
-12)  Do the commands available in the SELECTED state
+12)  Refactor the utility message creation in MailstoreMbox
 
-12)  Finish the parts of the NOOP command I've deferred
+13)  Finish the parts of the NOOP command I've deferred
 
-13)  Asynchonous notifications
+14)  Asynchonous notifications
 
 )  Locking for multiple simultaneous access to mailboxes
 
