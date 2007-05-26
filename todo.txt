@@ -44,7 +44,7 @@ done)  Basic name space implementation
 
 )  Locking for multiple simultaneous access to mailboxes
 
-)  Restore the rest of the SASL authentication modes
+)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
 )  Update the CAPABILITY code to handle the SASL authentication methods for
     those user bases for which plain text passwords are available
@@ -55,7 +55,7 @@ done)  Basic name space implementation
 
 )  Re-do the boyer-moore-pratt search so it's not downloaded code
 
-)  Add anonymous authentication to the capability string (availability should be known by the server class)
+)  Add anonymous authentication to the capability string (availability should be known by the server class--make that so as well)
 
 )  Deal with logging
 
