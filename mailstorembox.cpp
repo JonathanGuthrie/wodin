@@ -1,6 +1,6 @@
 #include <iostream>
 #include <vector>
-#include <fstream>
+#include <sstream>
 
 #include <dirent.h>
 #include <unistd.h>
@@ -370,28 +370,263 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
     return MailStore::SUCCESS;
 }
 
+MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+						 DateTime &createTime, uint32_t messageFlags, size_t *newUid) {
+    return MailStore::SUCCESS; // SYZYGY 
+}
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
+    return MailStore::SUCCESS; // SYZYGY 
+}
+
+
 unsigned MailStoreMbox::GetSerialNumber()
 {
+    return uidNext;
 }
 
+// SYZYGY -- this is used for appends
 unsigned MailStoreMbox::GetNextSerialNumber()
 {
+    return 6; // SYZYGY -- this gets calculated somewhere
 }
 
-unsigned MailStoreMbox::MailboxMessageCount(const std::string &MailboxName)
-{
+// SYZYGY -- I need to determine if IMAP has ever opened the mail box and act accordingly
+bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, unsigned &messageCount, unsigned &recentCount, unsigned &uidNext,
+				 unsigned &firstUnseen, unsigned &uidValidity) {
+    bool result = true;
+    bool inHeader = true;
+    bool countMessage = true;
+    bool recentFlag = true;
+    bool unseenFlag = true;
+    std::string line;
+
+    inFile >> line; // Skip over the "From " line
+    if (!inFile.eof()) {
+	std::ifstream::pos_type here;
+	while (result && !inFile.eof()) {
+	    here = inFile.tellg();
+	    getline(inFile, line);
+	    // std::cout << "The line is \"" << line << "\"" << std::endl;
+	    if (!inFile.eof()) {
+		if (inHeader) {
+		    if (0 == line.length()) {
+			inHeader = false;
+		    }
+		    else {
+			if (firstMessage) {
+			    if (0 == line.compare(0, 7, "X-IMAP:")) {
+				countMessage = false;
+				std::istringstream ss(line.substr(7));
+
+				ss >> uidValidity;
+				ss >> uidNext;
+				++uidNext;
+				// std::cout << "It's an X-IMAP line with uidValidity = " << uidValidity << " and uidNext = " << uidNext << std::endl;
+				result = ss;
+			    }
+			    else if (0 == line.compare(0, 11, "X-IMAPbase:")) {
+				std::istringstream ss(line.substr(11));
+
+				ss >> uidValidity;
+				ss >> uidNext;
+				++uidNext;
+				// std::cout << "It's an X-IMAPbase line with uidValidity = " << uidValidity << " and uidNext = " << uidNext << std::endl;
+				result = ss;
+			    }
+			}
+			if (0 == line.compare(0,  6, "X-UID:")) {
+			    unsigned uid;
+			    std::istringstream ss(line.substr(6));
+			    ss >> uid;
+			    // std::cout << "It's an X-UID line with uid = " << uid << std::endl;
+			}
+#if 0
+			else if (0 == line.compare(0, 11, "X-Keywords:")) {
+			    // std::cout << "It's an X-Keywords line" << std::endl;
+			}
+#endif // 0
+			else if (0 == line.compare(0,  9, "X-Status:")) {
+			    // std::cout << "It's an X-Status line" << std::endl;
+			    std::string flags = line.substr(9);
+			    if (std::string::npos != flags.find('O', 0)) {
+				recentFlag = false;
+			    }
+			    if (std::string::npos != flags.find('R', 0)) {
+				unseenFlag = false;
+			    }
+			}
+			else if (0 == line.compare(0, 7, "Status:")) {
+			    // std::cout << "It's an X-Status line" << std::endl;
+			    std::string flags = line.substr(7);
+			    if (std::string::npos != flags.find('O', 0)) {
+				recentFlag = false;
+			    }
+			    if (std::string::npos != flags.find('R', 0)) {
+				unseenFlag = false;
+			    }
+			}
+		    }
+		}
+	    }
+	    if (0 == line.compare(0, 5, "From ")) {
+		// std::cout << "It's a new message" << std::endl;
+		inFile.seekg(here);
+		break;
+	    }
+	}
+    }
+    if (result && countMessage) {
+	messageCount++;
+	if (recentFlag) {
+	    recentCount++;
+	}
+	if ((0 == firstUnseen) && unseenFlag) {
+	    firstUnseen = messageCount;
+	}
+    }
+    return result;
 }
 
-unsigned MailStoreMbox::MailboxRecentCount(const std::string &MailboxName)
-{
+
+// Fundamentally, the proximate purpose behind MailboxOpen is to populate these values:
+//    mailboxMessageCount
+//    recentCount
+//    firstUnseen
+//    uidNext
+//    uidValidity
+// and to get a list of the flags and permanent flags
+// to do that, I need to at least partly parse the entire file, I may want to parse and cache 
+// the results of that parsing for things like message sequence numbers, UID's, and offsets in the
+// file
+MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullName, bool readWrite) {
+    std::string MailboxName = FullName;
+    std::string fullPath;
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+
+    if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
+	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
+	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
+	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
+	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
+	('\0' == MailboxName[5])) {
+	fullPath = inboxPath;
+    }
+    else {
+	while ('/' == MailboxName.at(MailboxName.size()-1)) {
+	    MailboxName.erase(MailboxName.size()-1);
+	}
+
+	fullPath = homeDirectory;
+	fullPath += "/";
+	fullPath += MailboxName;
+
+	struct stat sb;
+
+	// std::cout << "The fullpath is \"" << fullPath << "\"" << std::endl;
+	if (-1 == lstat(fullPath.c_str(), &sb)) {
+	    if (ENOENT == errno) {
+		result = MAILBOX_DOES_NOT_EXIST;
+	    }
+	    else {
+		// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
+		result = MAILBOX_PATH_BAD;
+		errnoFromLibrary = errno;
+	    }
+	}
+	else {
+	    if (S_ISDIR(sb.st_mode)) {
+		// std::cout << "it appears as if \"" << fullPath << "\" is not a directory" << std::endl;
+		result = MAILBOX_NOT_SELECTABLE;
+	    }
+	}
+    }
+
+    if (result == SUCCESS) {
+	std::ifstream inFile(fullPath.c_str());
+	bool firstMessage = true;
+	bool parseSuccess;
+
+	mailboxMessageCount = 0;
+	recentCount = 0;
+	firstUnseen = 0;
+	uidNext = 0;
+	uidValidity = 0;
+	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, mailboxMessageCount, recentCount, uidNext, firstUnseen, uidValidity))) {
+	    firstMessage = false;
+	}
+	inFile.close();
+	// SYZYGY -- if parseSuccess is not true, it should return an error
+    }
+    return result;
 }
 
-unsigned MailStoreMbox::MailboxFirstUnseen(const std::string &MailboxName)
-{
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &FullName, uint32_t which, unsigned &messageCount,
+							     unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity,
+							     unsigned &firstUnseen) {
+    std::string MailboxName = FullName;
+    std::string fullPath;
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+
+    if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
+	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
+	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
+	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
+	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
+	('\0' == MailboxName[5])) {
+	fullPath = inboxPath;
+    }
+    else {
+	while ('/' == MailboxName.at(MailboxName.size()-1)) {
+	    MailboxName.erase(MailboxName.size()-1);
+	}
+
+	fullPath = homeDirectory;
+	fullPath += "/";
+	fullPath += MailboxName;
+
+	struct stat sb;
+
+	// std::cout << "The fullpath is \"" << fullPath << "\"" << std::endl;
+	if (-1 == lstat(fullPath.c_str(), &sb)) {
+	    if (ENOENT == errno) {
+		result = MAILBOX_DOES_NOT_EXIST;
+	    }
+	    else {
+		// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
+		result = MAILBOX_PATH_BAD;
+		errnoFromLibrary = errno;
+	    }
+	}
+	else {
+	    if (S_ISDIR(sb.st_mode)) {
+		// std::cout << "it appears as if \"" << fullPath << "\" is not a directory" << std::endl;
+		result = MAILBOX_NOT_SELECTABLE;
+	    }
+	}
+    }
+
+    if (result == SUCCESS) {
+	std::ifstream inFile(fullPath.c_str());
+	bool firstMessage = true;
+	bool parseSuccess;
+
+	messageCount = 0;
+	recentCount = 0;
+	firstUnseen = 0;
+	uidNext = 0;
+	uidValidity = 0;
+	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, messageCount, recentCount, uidNext, firstUnseen, uidValidity))) {
+	    firstMessage = false;
+	}
+	inFile.close();
+	// SYZYGY -- if parseSuccess is not true, it should return an error
+    }
+    return result;
 }
 
-std::string MailStoreMbox::GetMailboxUserPath() const
-{
+std::string MailStoreMbox::GetMailboxUserPath() const {
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxUpdateStats(NUMBER_LIST *nowGone)
@@ -870,4 +1105,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
 
 MailStoreMbox::~MailStoreMbox()
 {
+}
+
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMessage(const std::string &MailboxName, size_t uid) {
+    return MailStore::SUCCESS; // SYZYGY
 }

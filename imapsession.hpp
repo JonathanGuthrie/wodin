@@ -118,14 +118,14 @@ private:
     uint32_t parsePointer; 			// This points past the end of what's been put into the parse buffer
 
     // This is associated with handling appends
-    uint32_t m_dwAppendingUid;
+    uint32_t appendingUid;
     Namespace *store;
     char responseCode[MAX_RESPONSE_STRING_LENGTH+1];
     char responseText[MAX_RESPONSE_STRING_LENGTH+1];
     uint32_t commandString, arguments;
     uint32_t parseStage;
     uint32_t literalLength;
-    bool m_bUsesUid;
+    bool usesUid;
 
     // These are used to send live updates in case the mailbox is accessed by multiple client simultaneously
     uint32_t currentNextUid, currentMessageCount;
@@ -139,10 +139,8 @@ private:
     // This creates a properly formatted capability string based on the current state and configuration
     // of the IMAP server 
     std::string BuildCapabilityString(void);
-#if 0
     // This sends the untagged responses associated with selecting a mailbox
-    void SendSelectData(const CStdString &mailbox, bool bIsReadWrite);
-#endif // 0
+    void SendSelectData(const std::string &mailbox, bool isReadWrite);
     // This appends data to the Parse Buffer, extending the parse buffer as necessary.
     void AddToParseBuffer(const uint8_t *data, size_t length, bool bNulTerminate = true);
 
@@ -153,21 +151,23 @@ private:
     IMAP_RESULTS StoreHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
     IMAP_RESULTS FetchHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
     IMAP_RESULTS CopyHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
-    DWORD ReadEmailFlags(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool &r_okay);
+#endif // 0
+    size_t ReadEmailFlags(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool &okay);
+#if 0
     bool UpdateSearchTerms(CMailSearch &searchTerm, DWORD &r_dwTokenPointer, bool isSubExpression);
     bool MsnSequenceSet(SEARCH_RESULT &r_srVector, DWORD &r_dwTokenPointer);
     bool UidSequenceSet(SEARCH_RESULT &r_srVector, DWORD &r_dwTokenPointer);
     bool UpdateSearchTerm(CMailSearch &searchTerm, DWORD &r_dwTokenPointer);
-    IMAP_RESULTS SelectHandlerExecute(bool isReadWrite = true);
 #endif // 0
+    IMAP_RESULTS SelectHandlerExecute(bool isReadWrite = true);
     IMAP_RESULTS CreateHandlerExecute();
     IMAP_RESULTS DeleteHandlerExecute();
     IMAP_RESULTS RenameHandlerExecute();
     IMAP_RESULTS SubscribeHandlerExecute(bool isSubscribe);
     IMAP_RESULTS ListHandlerExecute(bool listAll);
+    IMAP_RESULTS StatusHandlerExecute(uint8_t *data, const size_t dataLen, size_t parsingAt);
+    IMAP_RESULTS AppendHandlerExecute(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
-    IMAP_RESULTS StatusHandlerExecute(byte *pData, const DWORD dwDataLen, DWORD dwParsingAt);
-    IMAP_RESULTS AppendHandlerExecute(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS SearchHandlerExecute(bool bUsingUid);
     IMAP_RESULTS FetchHandlerExecute(bool bUsingUid);
     IMAP_RESULTS CopyHandlerExecute(bool bUsingUid);
@@ -193,10 +193,8 @@ private:
     IMAP_RESULTS AuthenticateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
  
     IMAP_RESULTS NamespaceHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-#if 0
-    IMAP_RESULTS SelectHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-    IMAP_RESULTS ExamineHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-#endif // 0
+    IMAP_RESULTS SelectHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS ExamineHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS DeleteHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS RenameHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
@@ -204,10 +202,10 @@ private:
     IMAP_RESULTS UnsubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS ListHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS LsubHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-#if 0
-    IMAP_RESULTS StatusHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-    IMAP_RESULTS AppendHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
+    IMAP_RESULTS StatusHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS AppendHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 
+#if 0
     IMAP_RESULTS CheckHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS CloseHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS ExpungeHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);

@@ -5,6 +5,8 @@
 #include <vector>
 #include <string>
 
+#include "datetime.hpp"
+
 typedef struct
 {
     std::string name;
@@ -69,12 +71,17 @@ public:
     // This function subscribes to the specified mailbox if isSubscribe is true, otherwise it 
     // unsubscribes from the mailbox
     virtual MAIL_STORE_RESULT SubscribeMailbox(const std::string &MailboxName, bool isSubscribe) = 0;
+    virtual MAIL_STORE_RESULT AddMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+						  DateTime &createTime, uint32_t messageFlags, size_t *newUid = NULL) = 0;
+    virtual MAIL_STORE_RESULT AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) = 0;
     virtual unsigned GetSerialNumber() = 0;
     virtual unsigned GetNextSerialNumber() = 0;
     virtual unsigned GetUidValidityNumber() = 0;
-    virtual unsigned MailboxMessageCount(const std::string &MailboxName) = 0;
-    virtual unsigned MailboxRecentCount(const std::string &MailboxName) = 0;
-    virtual unsigned MailboxFirstUnseen(const std::string &MailboxName) = 0;
+    virtual MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true) = 0;
+
+    virtual MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
+					       unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity, unsigned &firstUnseen) = 0;
+
     virtual unsigned MailboxMessageCount() = 0;
     virtual unsigned MailboxRecentCount() = 0;
     virtual unsigned MailboxFirstUnseen() = 0;
@@ -87,6 +94,8 @@ public:
     virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll) = 0;
     virtual ~MailStore();
     std::string TurnErrorCodeIntoString(MAIL_STORE_RESULT code);
+    // This deletes a message in a mail box
+    virtual MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, size_t uid) = 0;
 
 protected:
     ImapSession *session;

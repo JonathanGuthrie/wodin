@@ -21,12 +21,14 @@ MailStore *Namespace::getNameSpace(const std::string &name) {
 	    break;
 	}
     }
+#if 0
     if (i != namespaces.end()) {
 	std::cout << "The name is \"" << name << "\" and the key value is \"" << i->first << "\"" << std::endl;
     }
     else {
 	std::cout << "Name \"" << name << "\" not found in any namespace" << std::endl;
     }
+#endif // 0
     return result;
 }
 
@@ -100,6 +102,27 @@ MailStore::MAIL_STORE_RESULT Namespace::SubscribeMailbox(const std::string &Mail
     return result;
 }
 
+MailStore::MAIL_STORE_RESULT Namespace::AddMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+						 DateTime &createTime, uint32_t messageFlags, size_t *newUid) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    MailStore *store = getNameSpace(MailboxName);
+    if (NULL != store) {
+	// SYZYGY -- I need to strip off the namespace, I think
+	result = store->AddMessageToMailbox(MailboxName, data, length, createTime, messageFlags, newUid);
+    }
+    return result;
+}
+
+MailStore::MAIL_STORE_RESULT Namespace::AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    MailStore *store = getNameSpace(MailboxName);
+    if (NULL != store) {
+	// SYZYGY -- I need to strip off the namespace, I think
+	result = store->AppendDataToMessage(MailboxName, uid, data, length);
+    }
+    return result;
+}
+
 // The next seven methods only have meaning if a mailbox has been opened, something I expect to be 
 // enforced by the IMAP server logic because they're only meaningful in the selected state
 unsigned Namespace::GetSerialNumber() {
@@ -126,32 +149,26 @@ unsigned Namespace::GetUidValidityNumber() {
     return result;
 }
 
-unsigned Namespace::MailboxMessageCount(const std::string &MailboxName) {
-    unsigned result = 0;
+MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxName, bool readWrite) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     MailStore *store = getNameSpace(MailboxName);
     if (NULL != store) {
 	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->MailboxMessageCount(MailboxName);
+	if (SUCCESS == (result = store->MailboxOpen(MailboxName, readWrite))) {
+	    selectedNamespace = store;
+	}
     }
     return result;
 }
 
-unsigned Namespace::MailboxRecentCount(const std::string &MailboxName) {
-    unsigned result = 0;
-    MailStore *store = getNameSpace(MailboxName);
-    if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->MailboxRecentCount(MailboxName);
-    }
-    return result;
-}
 
-unsigned Namespace::MailboxFirstUnseen(const std::string &MailboxName) {
-    unsigned result = 0;
+MailStore::MAIL_STORE_RESULT Namespace::GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
+							 unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity,
+							 unsigned &firstUnseen) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     MailStore *store = getNameSpace(MailboxName);
     if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->MailboxFirstUnseen(MailboxName);
+	result = store->GetMailboxCounts(MailboxName, which, messageCount, recentCount, uidNext, uidValidity, firstUnseen);
     }
     return result;
 }
@@ -267,5 +284,15 @@ const std::string Namespace::ListNamespaces(void) const {
 	}
 	t = PERSONAL == t ? OTHERS : (OTHERS == t ? SHARED : BAD_NAMESPACE);
     } while (t < BAD_NAMESPACE);
+    return result;
+}
+
+MailStore::MAIL_STORE_RESULT Namespace::DeleteMessage(const std::string &MailboxName, size_t uid) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    MailStore *store = getNameSpace(MailboxName);
+    if (NULL != store) {
+	// SYZYGY -- I need to strip off the namespace, I think
+	result = store->DeleteMessage(MailboxName, uid);
+    }
     return result;
 }

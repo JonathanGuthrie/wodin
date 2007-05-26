@@ -16,7 +16,7 @@ public:
     } status;
     Sasl(ImapSession *mySession);
     status IsAuthenticated() { return currentStatus;}
-    // CUser getUser() { return authorizationEntity;}
+    const std::string getUser() const { return authorizationEntity;}
     virtual void SendChallenge(char *challenge_buff) = 0;
     virtual status ReceiveResponse(const std::string &csLine2) = 0;
 

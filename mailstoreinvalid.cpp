@@ -26,6 +26,15 @@ void MailStoreInvalid::BuildMailboxList(const char *ref, const char *pattern, MA
 MailStore::MAIL_STORE_RESULT MailStoreInvalid::SubscribeMailbox(const std::string &MailboxName, bool isSubscribe) {
 }
 
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::AddMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+								   DateTime &createTime, uint32_t messageFlags, size_t *newUid ) {
+    return GENERAL_FAILURE;
+}
+
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
+    return GENERAL_FAILURE;
+}
+
 // The next seven methods only have meaning if a mailbox has been opened, something I expect to be 
 // enforced by the IMAP server logic because they're only meaningful in the selected state
 unsigned MailStoreInvalid::GetSerialNumber() {
@@ -40,16 +49,14 @@ unsigned MailStoreInvalid::GetUidValidityNumber() {
     return 0;
 }
 
-unsigned MailStoreInvalid::MailboxMessageCount(const std::string &MailboxName) {
-    return 0;
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxOpen(const std::string &MailboxName, bool readWrite) {
+    return GENERAL_FAILURE;
 }
 
-unsigned MailStoreInvalid::MailboxRecentCount(const std::string &MailboxName) {
-    return 0;
-}
-
-unsigned MailStoreInvalid::MailboxFirstUnseen(const std::string &MailboxName) {
-    return 0;
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
+								unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity,
+								unsigned &firstUnseen) {
+    return GENERAL_FAILURE;
 }
 
 unsigned MailStoreInvalid::MailboxMessageCount() {
@@ -73,4 +80,9 @@ MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxUpdateStats(NUMBER_LIST *n
 }
 
 MailStoreInvalid::~MailStoreInvalid() {
+}
+
+
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::DeleteMessage(const std::string &MailboxName, size_t uid) {
+    return GENERAL_FAILURE;
 }
