@@ -76,9 +76,6 @@ typedef struct {
     IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 } symbol;
 
-// SYZYGY This should actually be defined like this:
-// typedef std::map<std::string, symbol, less_no_case> IMAPSYMBOLS;
-// where less_no_case is a function that does not distinguish case
 typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
 
 class ImapSession
