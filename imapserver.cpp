@@ -240,9 +240,8 @@ Namespace *ImapServer::GetMailStore(ImapSession *session)
     // std::cout << "The user's mail directory is \"" << inbox_dir << "\"" << std::endl;
 
     Namespace *result = new Namespace(session);
-    // SYZYGY -- need namespaces for
-    // SYZYGY -- #mhinbox, #mh, ~, #shared, #ftp, #news, and #public
-    // SYZYGY -- and need stubbed-out mail stores for them
+    // need namespaces for #mhinbox, #mh, ~, #shared, #ftp, #news, and #public, just like
+    // uw-imap, although all of them have stubbed-out mail stores for them
 
     result->AddNamespace(Namespace::PERSONAL, "", (MailStore *) new MailStoreMbox(session, inbox_dir.c_str(), user->GetHomeDir()), '/');
     result->AddNamespace(Namespace::PERSONAL, "#mhinbox", (MailStore *) new MailStoreInvalid(session));

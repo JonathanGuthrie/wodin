@@ -1,6 +1,5 @@
 #include "datetime.hpp"
 
-// SYZYGY -- this whole thing
 DateTime::DateTime() {
     time_t t = time(NULL);
     gmtime_r(&t, &tm);
