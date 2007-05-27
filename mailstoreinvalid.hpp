@@ -21,6 +21,7 @@ public:
     virtual MailStore::MAIL_STORE_RESULT AddMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
 						  DateTime &createTime, uint32_t messageFlags, size_t *newUid = NULL);
     virtual MailStore::MAIL_STORE_RESULT AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length);
+    virtual MailStore::MAIL_STORE_RESULT DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid);
     virtual unsigned GetSerialNumber();
     virtual unsigned GetNextSerialNumber();
     virtual unsigned GetUidValidityNumber();

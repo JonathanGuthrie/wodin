@@ -379,6 +379,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AppendDataToMessage(const std::strin
     return MailStore::SUCCESS; // SYZYGY 
 }
 
+MailStore::MAIL_STORE_RESULT MailStoreMbox::DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid) {
+    return MailStore::SUCCESS; // SYZYGY
+}
 
 unsigned MailStoreMbox::GetSerialNumber()
 {

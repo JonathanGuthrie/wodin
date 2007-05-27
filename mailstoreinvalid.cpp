@@ -35,6 +35,10 @@ MailStore::MAIL_STORE_RESULT MailStoreInvalid::AppendDataToMessage(const std::st
     return GENERAL_FAILURE;
 }
 
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid) {
+    return GENERAL_FAILURE;
+}
+
 // The next seven methods only have meaning if a mailbox has been opened, something I expect to be 
 // enforced by the IMAP server logic because they're only meaningful in the selected state
 unsigned MailStoreInvalid::GetSerialNumber() {

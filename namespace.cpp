@@ -123,6 +123,17 @@ MailStore::MAIL_STORE_RESULT Namespace::AppendDataToMessage(const std::string &M
     return result;
 }
 
+MailStore::MAIL_STORE_RESULT Namespace::DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    MailStore *store = getNameSpace(MailboxName);
+    if (NULL != store) {
+	// SYZYGY -- I need to strip off the namespace, I think
+	result = store->DoneAppendingDataToMessage(MailboxName, uid);
+    }
+    return result;
+}
+
+
 // The next seven methods only have meaning if a mailbox has been opened, something I expect to be 
 // enforced by the IMAP server logic because they're only meaningful in the selected state
 unsigned Namespace::GetSerialNumber() {
