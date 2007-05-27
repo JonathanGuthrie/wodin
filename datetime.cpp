@@ -1,3 +1,6 @@
+#include <iomanip>
+#include <sstream>
+
 #include "datetime.hpp"
 
 DateTime::DateTime() {
@@ -11,188 +14,214 @@ DateTime::DateTime() {
 // A date-time string is "DD-MMM-YYYY HH:MM:SS +ZZZZ" (quotes included)
 // That looks to be 2+11+2+8+5 = 28 characters
 
-DateTime::DateTime(const uint8_t *data, size_t dataLen, size_t &parsingAt) throw(DateTimeInvalidDateTimeString) {
+DateTime::DateTime(const uint8_t *data, size_t dataLen, size_t &parsingAt) throw(DateTimeInvalidDateTime) {
     valid = false;
     // The first character should be a double-quote
-    if (28 <= (dataLen - parsingAt)) {
-	if ('"' != data[parsingAt]) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	++parsingAt;
+    if (28 > (dataLen - parsingAt)) {
+	throw DateTimeInvalidDateTime();
+    }
+    if ('"' != data[parsingAt]) {
+ 	throw DateTimeInvalidDateTime();
+    }
+    ++parsingAt;
 
-	if (((' ' != data[parsingAt]) && !isdigit(data[parsingAt])) ||
-	    !isdigit(data[parsingAt+1])) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	tm.tm_mday = strtol((const char *)&data[parsingAt], NULL, 10);
-	parsingAt += 2;
+    if (((' ' != data[parsingAt]) && !isdigit(data[parsingAt])) ||
+	!isdigit(data[parsingAt+1])) {
+	throw DateTimeInvalidDateTime();
+    }
+    tm.tm_mday = strtol((const char *)&data[parsingAt], NULL, 10);
+    parsingAt += 2;
 
-	if ((tm.tm_mday < 1) || (tm.tm_mday > 31) || ('-' != data[parsingAt])) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	++parsingAt;
+    if ((tm.tm_mday < 1) || (tm.tm_mday > 31) || ('-' != data[parsingAt])) {
+	throw DateTimeInvalidDateTime();
+    }
+    ++parsingAt;
 
-	// Check Jan, Jun, and Jul first
-	if ('J' == data[parsingAt]) {
-	    // Jun or Jul
-	    if ('u' == data[parsingAt+1]) {
-		if ('n' == data[parsingAt+2]) {
-		    if (tm.tm_mday > 30) {
-			throw DateTimeInvalidDateTimeString();
-		    }
-		    tm.tm_mon = 5;
-		}
-		else if ('l' == data[parsingAt+2]) {
-		    tm.tm_mon = 6;
-		}
-		else {
-		    throw DateTimeInvalidDateTimeString();
-		}
-	    }
-	    else if (('a' == data[parsingAt+1]) && ('n' == data[parsingAt+2])) {
-		tm.tm_mon = 0;
-	    }
-	    else {
-		throw DateTimeInvalidDateTimeString();
-	    }
-	}
-	// Next, Mar and May
-	else if (('M' == data[parsingAt]) && ('a' == data[parsingAt+1])) {
-	    if ('r' == data[parsingAt+2]) {
-		tm.tm_mon = 2;
-	    }
-	    else if ('y' == data[parsingAt+2]) {
-		tm.tm_mon = 4;
-	    }
-	    else {
-		throw DateTimeInvalidDateTimeString();
-	    }
-	}
-	// Next Apr and Aug
-	else if ('A' == data[parsingAt]) {
-	    if (('p' == data[parsingAt+1]) && ('r' == data[parsingAt+2])) {
+    // Check Jan, Jun, and Jul first
+    if ('J' == data[parsingAt]) {
+	// Jun or Jul
+	if ('u' == data[parsingAt+1]) {
+	    if ('n' == data[parsingAt+2]) {
 		if (tm.tm_mday > 30) {
-		    throw DateTimeInvalidDateTimeString();
+		    throw DateTimeInvalidDateTime();
 		}
-		tm.tm_mon = 3;
+		tm.tm_mon = 5;
+	    }
+	    else if ('l' == data[parsingAt+2]) {
+		tm.tm_mon = 6;
 	    }
 	    else {
-		if (('u' == data[parsingAt+1]) && ('g' == data[parsingAt+2])) {
-		    tm.tm_mon = 7;
-		}
-		else {
-		    throw DateTimeInvalidDateTimeString();
-		}
+		throw DateTimeInvalidDateTime();
 	    }
 	}
-	// Feb
-	else if (('F' == data[parsingAt]) && ('e' == data[parsingAt+1]) && ('b' == data[parsingAt+2])) {
-	    tm.tm_mon = 1;
-	    if (tm.tm_mday > 29) {
-		throw DateTimeInvalidDateTimeString();
-	    }
-	}
-	// Sep
-	else if (('S' == data[parsingAt]) && ('e' == data[parsingAt+1]) && ('p' == data[parsingAt+2])) {
-	    if (tm.tm_mday > 30) {
-		throw DateTimeInvalidDateTimeString();
-	    }
-	    tm.tm_mon = 8;
-	}
-	// Oct
-	else if (('O' == data[parsingAt]) && ('c' == data[parsingAt+1]) && ('t' == data[parsingAt+2])) {
-	    tm.tm_mon = 9;
-	}
-	// Nov
-	else if (('N' == data[parsingAt]) && ('o' == data[parsingAt+1]) && ('v' == data[parsingAt+2])) {
-	    if (tm.tm_mday > 30) {
-		throw DateTimeInvalidDateTimeString();
-	    }
-	    tm.tm_mon = 10;
-	}
-	// Dec
-	else if (('D' == data[parsingAt]) && ('e' == data[parsingAt+1]) && ('c' == data[parsingAt+2])) {
-	    tm.tm_mon = 11;
+	else if (('a' == data[parsingAt+1]) && ('n' == data[parsingAt+2])) {
+	    tm.tm_mon = 0;
 	}
 	else {
-	    throw DateTimeInvalidDateTimeString();
+	    throw DateTimeInvalidDateTime();
 	}
-	parsingAt += 3;
-
-	if ('-' != data[parsingAt]) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	++parsingAt;
-
-	if (!isdigit(data[parsingAt]) || !isdigit(data[parsingAt+1]) || !isdigit(data[parsingAt+2]) || !isdigit(data[parsingAt+3])) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	tm.tm_year = strtol((const char *)&data[parsingAt], NULL, 10);
-	parsingAt += 4;
-
-	// If I'm looking at Feb 29, then it needs to be a leap year
-	if ((1 == tm.tm_mon) && (29 == tm.tm_mday) &&
-	    (0 != (tm.tm_year % 4)) || ((0 == tm.tm_year % 100) && (0 != tm.tm_year % 400))) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-
-	if (' ' != data[parsingAt]) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	++parsingAt;
-
-	if (!isdigit(data[parsingAt]) || !isdigit(data[parsingAt+1])) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	tm.tm_hour = strtol((const char *)&data[parsingAt], NULL, 10);
-	parsingAt += 2;
-
-	if (':' != data[parsingAt]) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	++parsingAt;
-
-	if (!isdigit(data[parsingAt]) || !isdigit(data[parsingAt+1])) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	tm.tm_min = strtol((const char *)&data[parsingAt], NULL, 10);
-	parsingAt += 2;
-
-	if (':' != data[parsingAt]) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	++parsingAt;
-
-	if (!isdigit(data[parsingAt]) || !isdigit(data[parsingAt+1])) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	tm.tm_sec = strtol((const char *)&data[parsingAt], NULL, 10);
-	parsingAt += 2;
-
-	if (' ' != data[parsingAt]) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	++parsingAt;
-
-	if ((('-' != data[parsingAt]) && ('+' != data[parsingAt])) ||
-	    !isdigit(data[parsingAt+1]) || !isdigit(data[parsingAt+2]) || !isdigit(data[parsingAt+3]) || !isdigit(data[parsingAt+4])) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	zone = strtol((const char *)&data[parsingAt], NULL, 10);
-	parsingAt += 5;
-
-	if ((2459 < abs(zone)) || (59 < (abs(zone)%100))) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-
-	if ('"' != data[parsingAt]) {
-	    throw DateTimeInvalidDateTimeString();
-	}
-	++parsingAt;
     }
+    // Next, Mar and May
+    else if (('M' == data[parsingAt]) && ('a' == data[parsingAt+1])) {
+	if ('r' == data[parsingAt+2]) {
+	    tm.tm_mon = 2;
+	}
+	else if ('y' == data[parsingAt+2]) {
+	    tm.tm_mon = 4;
+	}
+	else {
+	    throw DateTimeInvalidDateTime();
+	}
+    }
+    // Next Apr and Aug
+    else if ('A' == data[parsingAt]) {
+	if (('p' == data[parsingAt+1]) && ('r' == data[parsingAt+2])) {
+	    if (tm.tm_mday > 30) {
+		throw DateTimeInvalidDateTime();
+	    }
+	    tm.tm_mon = 3;
+	}
+	else {
+	    if (('u' == data[parsingAt+1]) && ('g' == data[parsingAt+2])) {
+		tm.tm_mon = 7;
+	    }
+	    else {
+		throw DateTimeInvalidDateTime();
+	    }
+	}
+    }
+    // Feb
+    else if (('F' == data[parsingAt]) && ('e' == data[parsingAt+1]) && ('b' == data[parsingAt+2])) {
+	tm.tm_mon = 1;
+	if (tm.tm_mday > 29) {
+	    throw DateTimeInvalidDateTime();
+	}
+    }
+    // Sep
+    else if (('S' == data[parsingAt]) && ('e' == data[parsingAt+1]) && ('p' == data[parsingAt+2])) {
+	if (tm.tm_mday > 30) {
+	    throw DateTimeInvalidDateTime();
+	}
+	tm.tm_mon = 8;
+    }
+    // Oct
+    else if (('O' == data[parsingAt]) && ('c' == data[parsingAt+1]) && ('t' == data[parsingAt+2])) {
+	tm.tm_mon = 9;
+    }
+    // Nov
+    else if (('N' == data[parsingAt]) && ('o' == data[parsingAt+1]) && ('v' == data[parsingAt+2])) {
+	if (tm.tm_mday > 30) {
+	    throw DateTimeInvalidDateTime();
+	}
+	tm.tm_mon = 10;
+    }
+    // Dec
+    else if (('D' == data[parsingAt]) && ('e' == data[parsingAt+1]) && ('c' == data[parsingAt+2])) {
+	tm.tm_mon = 11;
+    }
+    else {
+	throw DateTimeInvalidDateTime();
+    }
+    parsingAt += 3;
+
+    if ('-' != data[parsingAt]) {
+	throw DateTimeInvalidDateTime();
+    }
+    ++parsingAt;
+
+    if (!isdigit(data[parsingAt]) || !isdigit(data[parsingAt+1]) || !isdigit(data[parsingAt+2]) || !isdigit(data[parsingAt+3])) {
+	throw DateTimeInvalidDateTime();
+    }
+    tm.tm_year = strtol((const char *)&data[parsingAt], NULL, 10);
+    parsingAt += 4;
+
+    // If I'm looking at Feb 29, then it needs to be a leap year
+    if ((1 == tm.tm_mon) && (29 == tm.tm_mday) &&
+	(0 != (tm.tm_year % 4)) || ((0 == tm.tm_year % 100) && (0 != tm.tm_year % 400))) {
+	throw DateTimeInvalidDateTime();
+    }
+
+    if (' ' != data[parsingAt]) {
+	throw DateTimeInvalidDateTime();
+    }
+    ++parsingAt;
+
+    if (!isdigit(data[parsingAt]) || !isdigit(data[parsingAt+1])) {
+	throw DateTimeInvalidDateTime();
+    }
+    tm.tm_hour = strtol((const char *)&data[parsingAt], NULL, 10);
+    parsingAt += 2;
+
+    if (':' != data[parsingAt]) {
+	throw DateTimeInvalidDateTime();
+    }
+    ++parsingAt;
+
+    if (!isdigit(data[parsingAt]) || !isdigit(data[parsingAt+1])) {
+	throw DateTimeInvalidDateTime();
+    }
+    tm.tm_min = strtol((const char *)&data[parsingAt], NULL, 10);
+    parsingAt += 2;
+
+    if (':' != data[parsingAt]) {
+	throw DateTimeInvalidDateTime();
+    }
+    ++parsingAt;
+
+    if (!isdigit(data[parsingAt]) || !isdigit(data[parsingAt+1])) {
+	throw DateTimeInvalidDateTime();
+    }
+    tm.tm_sec = strtol((const char *)&data[parsingAt], NULL, 10);
+    parsingAt += 2;
+
+    if (' ' != data[parsingAt]) {
+	throw DateTimeInvalidDateTime();
+    }
+    ++parsingAt;
+
+    if ((('-' != data[parsingAt]) && ('+' != data[parsingAt])) ||
+	!isdigit(data[parsingAt+1]) || !isdigit(data[parsingAt+2]) || !isdigit(data[parsingAt+3]) || !isdigit(data[parsingAt+4])) {
+	throw DateTimeInvalidDateTime();
+    }
+    zone = strtol((const char *)&data[parsingAt], NULL, 10);
+    parsingAt += 5;
+
+    if ((2459 < abs(zone)) || (59 < (abs(zone)%100))) {
+	throw DateTimeInvalidDateTime();
+    }
+
+    if ('"' != data[parsingAt]) {
+	throw DateTimeInvalidDateTime();
+    }
+    ++parsingAt;
+
+    // Use Zeller's Congruence to calculate the day of the week
+    // See, for example http://en.wikipedia.org/wiki/Zeller's_congruence
+    int zMonth, zYear;
+    int table[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+    zYear = (tm.tm_mon < 2) ? tm.tm_year - 1 : tm.tm_year;
+    tm.tm_wday = (zYear + zYear / 4 - zYear / 100 + zYear / 400 + table[tm.tm_mon] + tm.tm_mday) % 7;
+
     valid = true;
 }
 
 
 DateTime::~DateTime() {
+}
+
+const std::string DateTime::str(void) const throw(DateTimeInvalidDateTime) {
+    if (!valid) {
+	throw DateTimeInvalidDateTime();
+    }
+    std::stringstream ss;
+    const char *wdayTable[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+    const char *monthTable[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    ss << wdayTable[tm.tm_wday] << " " << monthTable[tm.tm_mon] << " " <<
+	std::setw(2) << tm.tm_mday << " " <<
+	std::setw(2) << std::setfill('0') << tm.tm_hour << ":" <<
+	std::setw(2) << std::setfill('0') << tm.tm_min << ":" <<
+	std::setw(2) << std::setfill('0') << tm.tm_sec << " " <<
+	tm.tm_year << " " <<
+	std::showpos << std::setfill('0') << std::setw(5) << std::internal << zone;
+    return ss.str();
 }

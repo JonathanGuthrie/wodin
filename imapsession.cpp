@@ -2677,7 +2677,7 @@ IMAP_RESULTS ImapSession::AppendHandlerExecute(uint8_t *data, const size_t dataL
 		    strncpy(responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 		}
 	    }
-	    catch (DateTimeInvalidDateTimeString) {
+	    catch (DateTimeInvalidDateTime) {
 		strncpy(responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	    }
 	}
