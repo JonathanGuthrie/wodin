@@ -370,9 +370,85 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
     return MailStore::SUCCESS;
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::string &FullName, uint8_t *data, size_t length,
 						 DateTime &createTime, uint32_t messageFlags, size_t *newUid) {
-    return MailStore::SUCCESS; // SYZYGY 
+    std::string MailboxName = FullName;
+    std::string fullPath;
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+
+    if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
+	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
+	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
+	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
+	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
+	('\0' == MailboxName[5])) {
+	fullPath = inboxPath;
+    }
+    else {
+	while ('/' == MailboxName.at(MailboxName.size()-1)) {
+	    MailboxName.erase(MailboxName.size()-1);
+	}
+
+	fullPath = homeDirectory;
+	fullPath += "/";
+	fullPath += MailboxName;
+
+	struct stat sb;
+
+	// std::cout << "The fullpath is \"" << fullPath << "\"" << std::endl;
+	if (-1 == lstat(fullPath.c_str(), &sb)) {
+	    if (ENOENT == errno) {
+		result = MAILBOX_DOES_NOT_EXIST;
+	    }
+	    else {
+		// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
+		result = MAILBOX_PATH_BAD;
+		errnoFromLibrary = errno;
+	    }
+	}
+	else {
+	    if (S_ISDIR(sb.st_mode)) {
+		// std::cout << "it appears as if \"" << fullPath << "\" is not a directory" << std::endl;
+		result = MAILBOX_NOT_SELECTABLE;
+	    }
+	}
+    }
+
+    if (SUCCESS == result) {
+	// SYZYGY working here
+	// SYZYGY -- what's wrong with this, well, I need to look at the incoming data and see if it's got header fields in it already
+	// SYZYGY -- which I have to suppress or ignore.  I also have to do "From " line quoting and I need to suppress carriage returns
+	// SYZYGY -- because this file, by definition, only has linefeeds.  That's just off the top of my head.
+	try {
+	    std::ofstream outFile(fullPath.c_str());
+
+	    outFile << "\nFrom " << session->GetUser()->GetName() << "@" << session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
+	    outFile << "X-Status: ";
+	    if (0 != (IMAP_MESSAGE_ANSWERED & messageFlags)) {
+		outFile << 'A';
+	    }
+	    if (0 != (IMAP_MESSAGE_FLAGGED & messageFlags)) {
+		outFile << 'F';
+	    }
+	    if (0 != (IMAP_MESSAGE_DRAFT & messageFlags)) {
+		outFile << 'T';
+	    }
+	    if (0 != (IMAP_MESSAGE_DELETED & messageFlags)) {
+		outFile << 'D';
+	    }
+	    outFile << '\n';
+	    outFile << "Status: ";
+	    if (0 != (IMAP_MESSAGE_SEEN & messageFlags)) {
+		outFile << 'R';
+	    }
+	    outFile << '\n';
+	    outFile << data;  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay for now because it's NUL terminated
+	}
+	catch (DateTimeInvalidDateTime) {
+	    result = MailStore::GENERAL_FAILURE;
+	}
+    }
+    return result;
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
