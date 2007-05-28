@@ -875,12 +875,14 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 		if (MailStore::SUCCESS == store->AppendDataToMessage(mailbox, appendingUid, data, len)) {
 		    literalLength -= len;
 		    if (0 == literalLength) {
+			store->DoneAppendingDataToMessage(mailbox, appendingUid);
 			parseStage = 2;
 			appendingUid = 0;
 		    }
 		    inProgress = ImapCommandAppend;
 		}
 		else {
+		    store->DoneAppendingDataToMessage(mailbox, appendingUid);
 		    store->DeleteMessage(mailbox, appendingUid);
 		    result = IMAP_MBOX_ERROR;
 		    appendingUid = 0;
