@@ -202,6 +202,11 @@ DateTime::DateTime(const uint8_t *data, size_t dataLen, size_t &parsingAt) throw
     zYear = (tm.tm_mon < 2) ? tm.tm_year - 1 : tm.tm_year;
     tm.tm_wday = (zYear + zYear / 4 - zYear / 100 + zYear / 400 + table[tm.tm_mon] + tm.tm_mday) % 7;
 
+    // One last correction, tm_year is defined to hold years since 1900, but what's in it at this point
+    // is years since zero, so I have to apply a correction.  I can't correct it before now because if I
+    // do that, then Zeller's congruence may not work, so I correct it here.
+    tm.tm_year -= 1900;
+
     valid = true;
 }
 
@@ -221,7 +226,7 @@ const std::string DateTime::str(void) const throw(DateTimeInvalidDateTime) {
 	std::setw(2) << std::setfill('0') << tm.tm_hour << ":" <<
 	std::setw(2) << std::setfill('0') << tm.tm_min << ":" <<
 	std::setw(2) << std::setfill('0') << tm.tm_sec << " " <<
-	tm.tm_year << " " <<
-	std::showpos << std::setfill('0') << std::setw(5) << std::internal << zone;
+	(tm.tm_year + 1900) << " " <<
+	std::setw(5) << std::setfill('0') << std::internal << std::showpos << zone;
     return ss.str();
 }
