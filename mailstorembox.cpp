@@ -19,6 +19,11 @@
 
 MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, const char *usersHomeDirectory) : MailStore(session)
 {
+    m_mailboxMessageCount = 0;
+    m_recentCount = 0;
+    m_firstUnseen = 0;
+    m_uidNext = 0;
+    m_uidValidity = 0;
     m_outFile = NULL;
     m_inboxPath = strdup(usersInboxPath);
     m_homeDirectory = strdup(usersHomeDirectory);
@@ -441,6 +446,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	    *m_outFile << "Status: ";
 	    if (0 != (IMAP_MESSAGE_SEEN & messageFlags)) {
 		*m_outFile << 'R';
+	    }
+	    if (NULL != newUid) {
+		*newUid = m_uidNext;
+	    }
+	    if (0 != (m_uidNext)) {
+		*m_outFile << "X-UID: " << m_uidNext;
+		++m_uidNext;
 	    }
 	    *m_outFile << '\n';
 	    m_outFile->write((char *)data, length);  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay until I get my stuff together
@@ -1200,3 +1212,4 @@ MailStoreMbox::~MailStoreMbox()
 MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMessage(const std::string &MailboxName, size_t uid) {
     return MailStore::SUCCESS; // SYZYGY
 }
+?
