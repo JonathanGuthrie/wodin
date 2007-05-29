@@ -375,6 +375,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 {
+    MailboxFlushBuffers(NULL);
+    m_isOpen = false;
     return MailStore::SUCCESS;
 }
 
@@ -384,6 +386,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
     std::string fullPath;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
+    m_isDirty = true;
     if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
 	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
 	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
@@ -714,6 +717,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 	    firstMessage = false;
 	}
 	inFile.close();
+	m_isOpen = true;
 	// SYZYGY -- if parseSuccess is not true, it should return an error
     }
     return result;
@@ -724,6 +728,9 @@ std::string MailStoreMbox::GetMailboxUserPath() const {
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *nowGone)
 {
+    if (m_isDirty) {
+	// SYZYGY
+    }
     return MailStore::SUCCESS;
 }
 
@@ -1205,8 +1212,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
 MailStoreMbox::~MailStoreMbox()
 {
     if (m_isOpen) {
-	// SYZYGY -- close, when I get around to having a close
-	// SYZYGY -- I expect close will handle the dirty flag
+	MailboxClose();
     }
     if (NULL != m_outFile) {
 	m_outFile->close();
