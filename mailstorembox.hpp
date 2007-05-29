@@ -47,6 +47,8 @@ private:
     unsigned m_firstUnseen;
     unsigned m_uidValidity;
     unsigned m_uidNext;
+    bool m_isOpen;
+    bool m_isDirty;
     std::ofstream *m_outFile;
     void ListAll(const char *pattern, MAILBOX_LIST *result);
     void ListSubscribed(const char *pattern, MAILBOX_LIST *result);

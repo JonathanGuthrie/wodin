@@ -25,6 +25,8 @@ MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, c
     m_uidNext = 0;
     m_uidValidity = 0;
     m_outFile = NULL;
+    m_isOpen = false;
+    m_isDirty = false;
     m_inboxPath = strdup(usersInboxPath);
     m_homeDirectory = strdup(usersHomeDirectory);
 }
@@ -1207,6 +1209,10 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
 
 MailStoreMbox::~MailStoreMbox()
 {
+    if (m_isOpen) {
+	// SYZYGY -- close, when I get around to having a close
+	// SYZYGY -- I expect close will handle the dirty flag
+    }
     if (NULL != m_outFile) {
 	m_outFile->close();
 	delete m_outFile;
