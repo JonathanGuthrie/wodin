@@ -45,10 +45,6 @@ unsigned MailStoreInvalid::GetSerialNumber() {
     return 0;
 }
 
-unsigned MailStoreInvalid::GetNextSerialNumber() {
-    return 0;
-}
-
 unsigned MailStoreInvalid::GetUidValidityNumber() {
     return 0;
 }

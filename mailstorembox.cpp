@@ -483,11 +483,6 @@ unsigned MailStoreMbox::GetSerialNumber()
     return m_uidNext;
 }
 
-// SYZYGY -- this is used for appends
-unsigned MailStoreMbox::GetNextSerialNumber()
-{
-    return 6; // SYZYGY -- this gets calculated somewhere
-}
 
 // SYZYGY -- I need to determine if IMAP has ever opened the mail box and act accordingly
 bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, unsigned &messageCount, unsigned &recentCount, unsigned &uidNext,

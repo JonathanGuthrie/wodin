@@ -34,7 +34,6 @@ public:
     virtual MailStore::MAIL_STORE_RESULT AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length);
     virtual MailStore::MAIL_STORE_RESULT DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid);
     virtual unsigned GetSerialNumber();
-    virtual unsigned GetNextSerialNumber();
     virtual unsigned GetUidValidityNumber();
     virtual MailStore::MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true);
 

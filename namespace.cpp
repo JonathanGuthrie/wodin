@@ -144,14 +144,6 @@ unsigned Namespace::GetSerialNumber() {
     return result;
 }
 
-unsigned Namespace::GetNextSerialNumber() {
-    unsigned result = 0;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->GetNextSerialNumber();
-    }
-    return result;
-}
-
 unsigned Namespace::GetUidValidityNumber() {
     unsigned result = 0;
     if (NULL != selectedNamespace) {
