@@ -79,6 +79,10 @@ std::string MailStoreInvalid::GetMailboxUserPath() const {
     return "";
 }
 
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxFlushBuffers(NUMBER_LIST *nowGone) {
+    return GENERAL_FAILURE;
+}
+
 MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxUpdateStats(NUMBER_LIST *nowGone) {
     return GENERAL_FAILURE;
 }

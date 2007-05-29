@@ -32,6 +32,7 @@ public:
     virtual unsigned MailboxRecentCount() { return m_recentCount; }
     virtual unsigned MailboxFirstUnseen() { return m_firstUnseen; }
     virtual std::string GetMailboxUserPath() const ;
+    virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone);
     virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
     virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~MailStoreMbox();

@@ -725,6 +725,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 std::string MailStoreMbox::GetMailboxUserPath() const {
 }
 
+MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *nowGone)
+{
+    return MailStore::SUCCESS;
+}
+
+
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxUpdateStats(NUMBER_LIST *nowGone)
 {
     return MailStore::SUCCESS;
@@ -1202,7 +1208,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
 MailStoreMbox::~MailStoreMbox()
 {
     if (NULL != m_outFile) {
-	m_outFile->Close();
+	m_outFile->close();
 	delete m_outFile;
 	m_outFile = NULL;
     }
@@ -1212,4 +1218,4 @@ MailStoreMbox::~MailStoreMbox()
 MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMessage(const std::string &MailboxName, size_t uid) {
     return MailStore::SUCCESS; // SYZYGY
 }
-?
+

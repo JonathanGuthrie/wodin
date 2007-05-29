@@ -216,6 +216,14 @@ std::string Namespace::GetMailboxUserPath() const {
     return result;
 }
 
+MailStore::MAIL_STORE_RESULT Namespace::MailboxFlushBuffers(NUMBER_LIST *nowGone) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->MailboxFlushBuffers(nowGone);
+    }
+    return result;
+}
+
 MailStore::MAIL_STORE_RESULT Namespace::MailboxUpdateStats(NUMBER_LIST *nowGone) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     if (NULL != selectedNamespace) {

@@ -87,6 +87,7 @@ public:
     virtual unsigned MailboxRecentCount() = 0;
     virtual unsigned MailboxFirstUnseen() = 0;
     virtual std::string GetMailboxUserPath() const = 0;
+    virtual MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone) = 0;
     virtual MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone) = 0;
     // If BuildMailboxList fails, it returns nothing, which is fine for IMAP
     // If bListAll is true, it will return all matching mailboxes, otherwise, it will return 
