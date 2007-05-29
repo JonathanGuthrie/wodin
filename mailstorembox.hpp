@@ -22,15 +22,15 @@ public:
     virtual MailStore::MAIL_STORE_RESULT DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid);
     virtual unsigned GetSerialNumber();
     virtual unsigned GetNextSerialNumber();
-    virtual unsigned GetUidValidityNumber() { return uidValidity; }
+    virtual unsigned GetUidValidityNumber() { return m_uidValidity; }
     virtual MailStore::MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true);
 
     virtual MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 					       unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity, unsigned &firstUnseen);
 
-    virtual unsigned MailboxMessageCount() { return mailboxMessageCount; }
-    virtual unsigned MailboxRecentCount() { return recentCount; }
-    virtual unsigned MailboxFirstUnseen() { return firstUnseen; }
+    virtual unsigned MailboxMessageCount() { return m_mailboxMessageCount; }
+    virtual unsigned MailboxRecentCount() { return m_recentCount; }
+    virtual unsigned MailboxFirstUnseen() { return m_firstUnseen; }
     virtual std::string GetMailboxUserPath() const ;
     virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
     virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll);
@@ -39,13 +39,14 @@ public:
     virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, size_t uid);
 
 private:
-    const char *homeDirectory;
-    const char *inboxPath;
-    unsigned mailboxMessageCount;
-    unsigned recentCount;
-    unsigned firstUnseen;
-    unsigned uidValidity;
-    unsigned uidNext;
+    const char *m_homeDirectory;
+    const char *m_inboxPath;
+    unsigned m_mailboxMessageCount;
+    unsigned m_recentCount;
+    unsigned m_firstUnseen;
+    unsigned m_uidValidity;
+    unsigned m_uidNext;
+    std::ofstream *m_outFile;
     void ListAll(const char *pattern, MAILBOX_LIST *result);
     void ListSubscribed(const char *pattern, MAILBOX_LIST *result);
     bool isMailboxInteresting(const std::string path);

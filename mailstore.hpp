@@ -99,8 +99,8 @@ public:
     virtual MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, size_t uid) = 0;
 
 protected:
-    ImapSession *session;
-    int errnoFromLibrary;
+    ImapSession *m_session;
+    int m_errnoFromLibrary;
 };
 
 #endif // _MAILSTORE_HPP_INCLUDED_

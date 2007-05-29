@@ -1,7 +1,7 @@
 #include "mailstore.hpp"
 
-MailStore::MailStore(ImapSession *session) : session(session) {
-    errnoFromLibrary = 0;
+MailStore::MailStore(ImapSession *session) : m_session(session) {
+    m_errnoFromLibrary = 0;
 }
 
 MailStore::~MailStore()
@@ -29,9 +29,9 @@ std::string MailStore::TurnErrorCodeIntoString(MAIL_STORE_RESULT code) {
     };
     if (code < (sizeof(response) / sizeof(const char*))) {
 	std::string result = response[code];
-	if (0 != errnoFromLibrary) {
+	if (0 != m_errnoFromLibrary) {
 	    result += ": ";
-	    result += strerror(errnoFromLibrary);
+	    result += strerror(m_errnoFromLibrary);
 	}
 	return result;
     }

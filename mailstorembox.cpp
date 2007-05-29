@@ -19,8 +19,9 @@
 
 MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, const char *usersHomeDirectory) : MailStore(session)
 {
-    inboxPath = strdup(usersInboxPath);
-    homeDirectory = strdup(usersHomeDirectory);
+    m_outFile = NULL;
+    m_inboxPath = strdup(usersInboxPath);
+    m_homeDirectory = strdup(usersHomeDirectory);
 }
 
 // The CreateMailbox method deals with two cases.  Either the mailbox name is "inbox" which
@@ -41,7 +42,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 	result = MailStore::CANNOT_CREATE_INBOX;
     }
     else {
-	std::string fullPath = homeDirectory;
+	std::string fullPath = m_homeDirectory;
 	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
 
 	while ('/' == MailboxName[MailboxName.size()-1]) {
@@ -67,13 +68,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			if (0 != mkdir(fullPath.c_str(), 0700)) {
 			    // std::cout << "The mkdir failed" << std::endl;
 			    result = MAILBOX_PATH_BAD;
-			    errnoFromLibrary = errno;
+			    m_errnoFromLibrary = errno;
 			}
 		    }
 		    else {
 			// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
 			result = MAILBOX_PATH_BAD;
-			errnoFromLibrary = errno;
+			m_errnoFromLibrary = errno;
 		    }
 		}
 		else {
@@ -99,7 +100,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 		    if (isDirectory) {
 			if (0 != mkdir(fullPath.c_str(), 0700)) {
 			    result = MAILBOX_PATH_BAD;
-			    errnoFromLibrary = errno;
+			    m_errnoFromLibrary = errno;
 			}
 		    }
 		    else {
@@ -130,7 +131,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			    strftime(timestring, 1023, "%d %b %Y %X ", tm_now);
 			    sprintf(tz_string, "% 03d%02d", zone_east / 60, zone_east % 60);
 			    outFile << "Date: " << timestring << tz_string << std::endl;
-			    outFile << "From: Mail Daemon <MAILER-DAEMON@" << session->GetServer()->GetFQDN() << ">" << std::endl;
+			    outFile << "From: Mail Daemon <MAILER-DAEMON@" << m_session->GetServer()->GetFQDN() << ">" << std::endl;
 			    outFile << "Subject: DO NOT DELETE THIS MESSAGE -- IT CONTAINS INTERNAL FOLDER DATA" << std::endl;
 			    sprintf(timestring, "%010u %010u", now, 0);
 			    outFile << "X-IMAP: " << timestring << std::endl;
@@ -144,13 +145,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			}
 			else {
 			    result = MAILBOX_PATH_BAD;
-			    errnoFromLibrary = errno;
+			    m_errnoFromLibrary = errno;
 			}
 		    }
 		}
 		else {
 		    result = MAILBOX_PATH_BAD;
-		    errnoFromLibrary = errno;
+		    m_errnoFromLibrary = errno;
 		}
 	    }
 	    else {
@@ -181,7 +182,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Ful
     else {
 	struct stat sb;
 
-	std::string fullPath = homeDirectory;
+	std::string fullPath = m_homeDirectory;
 	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
 
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
@@ -196,7 +197,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Ful
 	    }
 	    else {
 		result = GENERAL_FAILURE;
-		errnoFromLibrary = errno;
+		m_errnoFromLibrary = errno;
 	    }
 	}
 	else {
@@ -209,11 +210,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Ful
 		if (0 != rmdir(fullPath.c_str())) {
 		    if (ENOTEMPTY == errno) {
 			result = MAILBOX_IS_NOT_LEAF;
-			errnoFromLibrary = 0;
+			m_errnoFromLibrary = 0;
 		    }
 		    else {
 			result = GENERAL_FAILURE;
-			errnoFromLibrary = errno;
+			m_errnoFromLibrary = errno;
 		    }
 		}
 	    }
@@ -234,13 +235,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 	(('o' == SourceName[3]) || ('O' == SourceName[3])) &&
 	(('x' == SourceName[4]) || ('X' == SourceName[4])) &&
 	('\0' == SourceName[5])) {
-	sourcePath = inboxPath;
+	sourcePath = m_inboxPath;
 	isInbox = true;
     }
     else {
 	struct stat sb;
 
-	sourcePath = homeDirectory;
+	sourcePath = m_homeDirectory;
 	sourcePath += "/";
 	sourcePath += SourceName;
 
@@ -250,7 +251,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 	    }
 	    else {
 		result = GENERAL_FAILURE;
-		errnoFromLibrary = errno;
+		m_errnoFromLibrary = errno;
 	    }
 	}
     }
@@ -265,7 +266,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 	    result = MailStore::MAILBOX_ALREADY_EXISTS;
 	}
 	else {
-	    destPath = homeDirectory;
+	    destPath = m_homeDirectory;
 
 	    if ('/' == DestinationName[DestinationName.size()-1]) {
 		result = MailStore::MAILBOX_PATH_BAD;
@@ -295,7 +296,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 			    else {
 				// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
 				result = MAILBOX_PATH_BAD;
-				errnoFromLibrary = errno;
+				m_errnoFromLibrary = errno;
 			    }
 			}
 			else {
@@ -344,7 +345,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 		strftime(timestring, 1023, "%d %b %Y %X ", tm_now);
 		sprintf(tz_string, "% 03d%02d", zone_east / 60, zone_east % 60);
 		outFile << "Date: " << timestring << tz_string << std::endl;
-		outFile << "From: Mail Daemon <MAILER-DAEMON@" << session->GetServer()->GetFQDN() << ">" << std::endl;
+		outFile << "From: Mail Daemon <MAILER-DAEMON@" << m_session->GetServer()->GetFQDN() << ">" << std::endl;
 		outFile << "Subject: DO NOT DELETE THIS MESSAGE -- IT CONTAINS INTERNAL FOLDER DATA" << std::endl;
 		sprintf(timestring, "%010u %010u", now, 0);
 		outFile << "X-IMAP: " << timestring << std::endl;
@@ -382,14 +383,14 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
 	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
 	('\0' == MailboxName[5])) {
-	fullPath = inboxPath;
+	fullPath = m_inboxPath;
     }
     else {
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
 	    MailboxName.erase(MailboxName.size()-1);
 	}
 
-	fullPath = homeDirectory;
+	fullPath = m_homeDirectory;
 	fullPath += "/";
 	fullPath += MailboxName;
 
@@ -403,7 +404,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	    else {
 		// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
 		result = MAILBOX_PATH_BAD;
-		errnoFromLibrary = errno;
+		m_errnoFromLibrary = errno;
 	    }
 	}
 	else {
@@ -420,29 +421,29 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	// SYZYGY -- which I have to suppress or ignore.  I also have to do "From " line quoting and I need to suppress carriage returns
 	// SYZYGY -- because this file, by definition, only has linefeeds.  That's just off the top of my head.
 	try {
-	    std::ofstream outFile(fullPath.c_str());
+	    m_outFile = new std::ofstream(fullPath.c_str(), std::ios_base::out|std::ios_base::app);
 
-	    outFile << "\nFrom " << session->GetUser()->GetName() << "@" << session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
-	    outFile << "X-Status: ";
+	    *m_outFile << "\nFrom " << m_session->GetUser()->GetName() << "@" << m_session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
+	    *m_outFile << "X-Status: ";
 	    if (0 != (IMAP_MESSAGE_ANSWERED & messageFlags)) {
-		outFile << 'A';
+		*m_outFile << 'A';
 	    }
 	    if (0 != (IMAP_MESSAGE_FLAGGED & messageFlags)) {
-		outFile << 'F';
+		*m_outFile << 'F';
 	    }
 	    if (0 != (IMAP_MESSAGE_DRAFT & messageFlags)) {
-		outFile << 'T';
+		*m_outFile << 'T';
 	    }
 	    if (0 != (IMAP_MESSAGE_DELETED & messageFlags)) {
-		outFile << 'D';
+		*m_outFile << 'D';
 	    }
-	    outFile << '\n';
-	    outFile << "Status: ";
+	    *m_outFile << '\n';
+	    *m_outFile << "Status: ";
 	    if (0 != (IMAP_MESSAGE_SEEN & messageFlags)) {
-		outFile << 'R';
+		*m_outFile << 'R';
 	    }
-	    outFile << '\n';
-	    outFile << data;  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay for now because it's NUL terminated
+	    *m_outFile << '\n';
+	    m_outFile->write((char *)data, length);  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay until I get my stuff together
 	}
 	catch (DateTimeInvalidDateTime) {
 	    result = MailStore::GENERAL_FAILURE;
@@ -452,16 +453,20 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
+    m_outFile->write((char *)data, length);  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay until I get my stuff together
     return MailStore::SUCCESS; // SYZYGY 
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid) {
+    m_outFile->close();
+    delete m_outFile;
+    m_outFile = NULL;
     return MailStore::SUCCESS; // SYZYGY
 }
 
 unsigned MailStoreMbox::GetSerialNumber()
 {
-    return uidNext;
+    return m_uidNext;
 }
 
 // SYZYGY -- this is used for appends
@@ -589,14 +594,14 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
 	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
 	('\0' == MailboxName[5])) {
-	fullPath = inboxPath;
+	fullPath = m_inboxPath;
     }
     else {
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
 	    MailboxName.erase(MailboxName.size()-1);
 	}
 
-	fullPath = homeDirectory;
+	fullPath = m_homeDirectory;
 	fullPath += "/";
 	fullPath += MailboxName;
 
@@ -610,7 +615,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	    else {
 		// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
 		result = MAILBOX_PATH_BAD;
-		errnoFromLibrary = errno;
+		m_errnoFromLibrary = errno;
 	    }
 	}
 	else {
@@ -626,12 +631,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	bool firstMessage = true;
 	bool parseSuccess;
 
-	mailboxMessageCount = 0;
-	recentCount = 0;
-	firstUnseen = 0;
-	uidNext = 0;
-	uidValidity = 0;
-	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, mailboxMessageCount, recentCount, uidNext, firstUnseen, uidValidity))) {
+	m_mailboxMessageCount = 0;
+	m_recentCount = 0;
+	m_firstUnseen = 0;
+	m_uidNext = 0;
+	m_uidValidity = 0;
+	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, m_mailboxMessageCount, m_recentCount, m_uidNext, m_firstUnseen, m_uidValidity))) {
 	    firstMessage = false;
 	}
 	inFile.close();
@@ -654,14 +659,14 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
 	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
 	('\0' == MailboxName[5])) {
-	fullPath = inboxPath;
+	fullPath = m_inboxPath;
     }
     else {
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
 	    MailboxName.erase(MailboxName.size()-1);
 	}
 
-	fullPath = homeDirectory;
+	fullPath = m_homeDirectory;
 	fullPath += "/";
 	fullPath += MailboxName;
 
@@ -675,7 +680,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 	    else {
 		// std::cout << "The errno isn't ENOENT, but is " << strerror(errno) << std::endl;
 		result = MAILBOX_PATH_BAD;
-		errnoFromLibrary = errno;
+		m_errnoFromLibrary = errno;
 	    }
 	}
 	else {
@@ -887,7 +892,7 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
 
 	    name.name = "INBOX";
 	    name.attributes = MailStore::IMAP_MBOX_NOINFERIORS;
-	    if (isMailboxInteresting(inboxPath))
+	    if (isMailboxInteresting(m_inboxPath))
 	    {
 		name.attributes |= MailStore::IMAP_MBOX_MARKED;
 	    }
@@ -947,7 +952,7 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
 		break;
 	    }
 	}
-	sprintf(base_path, "%s/%.*s", homeDirectory, static_len, pattern);
+	sprintf(base_path, "%s/%.*s", m_homeDirectory, static_len, pattern);
 	DIR *directory = opendir(base_path);
 	if (NULL != directory)
 	{
@@ -968,7 +973,7 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
 		    {
 			strcpy(short_path, entry->d_name);
 		    }
-		    sprintf(full_path, "%s/%s", homeDirectory, short_path);
+		    sprintf(full_path, "%s/%s", m_homeDirectory, short_path);
 		    struct stat stat_buf;
 		    if (0 == lstat(full_path, &stat_buf))
 		    {
@@ -981,7 +986,7 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
 			    name.attributes = MailStore::IMAP_MBOX_NOSELECT;
 			    if (S_ISDIR(stat_buf.st_mode))
 			    {
-				if (ListAllHelper(&compiled_regex, homeDirectory, short_path, result, maxdepth))
+				if (ListAllHelper(&compiled_regex, m_homeDirectory, short_path, result, maxdepth))
 				{
 				    name.attributes |= MailStore::IMAP_MBOX_HASCHILDREN;
 				}
@@ -1045,7 +1050,7 @@ void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
 	regfree(&compiled_regex);
     }
 
-    std::string file_name = homeDirectory;
+    std::string file_name = m_homeDirectory;
     file_name += "/" MAILBOX_LIST_FILE_NAME;
     std::ifstream inFile(file_name.c_str());
     if (0 == regcomp(&compiled_regex, regex, REG_EXTENDED))
@@ -1073,7 +1078,7 @@ void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
 
 		    name.name = "INBOX";
 		    name.attributes = MailStore::IMAP_MBOX_NOINFERIORS;
-		    if (isMailboxInteresting(inboxPath))
+		    if (isMailboxInteresting(m_inboxPath))
 		    {
 			name.attributes |= MailStore::IMAP_MBOX_MARKED;
 		    }
@@ -1137,9 +1142,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
 {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     bool foundLine = false;
-    std::string in_file_name = homeDirectory;
+    std::string in_file_name = m_homeDirectory;
     in_file_name += "/" MAILBOX_LIST_FILE_NAME;
-    std::string out_file_name = homeDirectory;
+    std::string out_file_name = m_homeDirectory;
     out_file_name += "/" MAILBOX_LIST_FILE_NAME;
     out_file_name += ".new";
     std::ifstream inFile(in_file_name.c_str());
@@ -1184,6 +1189,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
 
 MailStoreMbox::~MailStoreMbox()
 {
+    if (NULL != m_outFile) {
+	m_outFile->Close();
+	delete m_outFile;
+	m_outFile = NULL;
+    }
 }
 
 
