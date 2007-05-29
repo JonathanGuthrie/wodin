@@ -375,8 +375,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 {
-    MailboxFlushBuffers(NULL);
-    m_isOpen = false;
+    if (m_isOpen) {
+	MailboxFlushBuffers(NULL);
+	messageIndex.clear();
+	m_isOpen = false;
+    }
     return MailStore::SUCCESS;
 }
 
@@ -488,15 +491,18 @@ unsigned MailStoreMbox::GetSerialNumber()
 
 
 // SYZYGY -- I need to determine if IMAP has ever opened the mail box and act accordingly
-bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, unsigned &messageCount, unsigned &recentCount, unsigned &uidNext,
-				 unsigned &firstUnseen, unsigned &uidValidity) {
+bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData) {
+
     bool result = true;
     bool inHeader = true;
-    bool countMessage = true;
-    bool recentFlag = true;
-    bool unseenFlag = true;
+    bool seenStatus = false;
+    bool seenUid = false;
+    uint32_t flags = IMAP_MESSAGE_RECENT;
+    unsigned uid = 0;
     std::string line;
+    countMessage = true;
 
+    messageMetaData.start = inFile.tellg();
     inFile >> line; // Skip over the "From " line
     if (!inFile.eof()) {
 	std::ifstream::pos_type here;
@@ -532,7 +538,7 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, unsig
 			    }
 			}
 			if (0 == line.compare(0,  6, "X-UID:")) {
-			    unsigned uid;
+			    seenUid = true;
 			    std::istringstream ss(line.substr(6));
 			    ss >> uid;
 			    // std::cout << "It's an X-UID line with uid = " << uid << std::endl;
@@ -543,23 +549,49 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, unsig
 			}
 #endif // 0
 			else if (0 == line.compare(0,  9, "X-Status:")) {
+			    seenStatus = true;
 			    // std::cout << "It's an X-Status line" << std::endl;
-			    std::string flags = line.substr(9);
-			    if (std::string::npos != flags.find('O', 0)) {
-				recentFlag = false;
+			    std::string flagString = line.substr(9);
+			    if (std::string::npos != flagString.find('O', 0)) {
+				flags &= ~IMAP_MESSAGE_RECENT;
 			    }
-			    if (std::string::npos != flags.find('R', 0)) {
-				unseenFlag = false;
+			    if (std::string::npos != flagString.find('R', 0)) {
+				flags |= IMAP_MESSAGE_SEEN;
+			    }
+			    if (std::string::npos != flagString.find('D', 0)) {
+				flags |= IMAP_MESSAGE_DELETED;
+			    }
+			    if (std::string::npos != flagString.find('A', 0)) {
+				flags |= IMAP_MESSAGE_ANSWERED;
+			    }
+			    if (std::string::npos != flagString.find('F', 0)) {
+				flags |= IMAP_MESSAGE_FLAGGED;
+			    }
+			    if (std::string::npos != flagString.find('T', 0)) {
+				flags |= IMAP_MESSAGE_DRAFT;
 			    }
 			}
 			else if (0 == line.compare(0, 7, "Status:")) {
+			    seenStatus = true;
 			    // std::cout << "It's an X-Status line" << std::endl;
-			    std::string flags = line.substr(7);
-			    if (std::string::npos != flags.find('O', 0)) {
-				recentFlag = false;
+			    std::string flagString = line.substr(7);
+			    if (std::string::npos != flagString.find('O', 0)) {
+				flags &= ~IMAP_MESSAGE_RECENT;
 			    }
-			    if (std::string::npos != flags.find('R', 0)) {
-				unseenFlag = false;
+			    if (std::string::npos != flagString.find('R', 0)) {
+				flags |= IMAP_MESSAGE_SEEN;
+			    }
+			    if (std::string::npos != flagString.find('D', 0)) {
+				flags |= IMAP_MESSAGE_DELETED;
+			    }
+			    if (std::string::npos != flagString.find('A', 0)) {
+				flags |= IMAP_MESSAGE_ANSWERED;
+			    }
+			    if (std::string::npos != flagString.find('F', 0)) {
+				flags |= IMAP_MESSAGE_FLAGGED;
+			    }
+			    if (std::string::npos != flagString.find('T', 0)) {
+				flags |= IMAP_MESSAGE_DRAFT;
 			    }
 			}
 		    }
@@ -573,14 +605,12 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, unsig
 	}
     }
     if (result && countMessage) {
-	messageCount++;
-	if (recentFlag) {
-	    recentCount++;
-	}
-	if ((0 == firstUnseen) && unseenFlag) {
-	    firstUnseen = messageCount;
-	}
+	messageMetaData.uid = uid;
+	messageMetaData.flags = flags;
+	messageMetaData.imapLength = 0; // SYZYGY -- Finding this could be complicated
+	messageMetaData.isDirty = !seenStatus || !seenUid;
     }
+
     return result;
 }
 
@@ -642,17 +672,42 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	std::ifstream inFile(fullPath.c_str());
 	bool firstMessage = true;
 	bool parseSuccess;
+	bool countMessage;
+	MessageIndex_t messageMetaData;
 
 	m_mailboxMessageCount = 0;
 	m_recentCount = 0;
 	m_firstUnseen = 0;
 	m_uidNext = 0;
 	m_uidValidity = 0;
-	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, m_mailboxMessageCount, m_recentCount, m_uidNext, m_firstUnseen, m_uidValidity))) {
+	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidNext, messageMetaData))) {
+	    if (countMessage) {
+		++m_mailboxMessageCount;
+		if (0 != (MailStore::IMAP_MESSAGE_RECENT & messageMetaData.flags)) {
+		    ++m_recentCount;
+		}
+		if ((0 == m_firstUnseen) && (0 != (MailStore::IMAP_MESSAGE_SEEN & messageMetaData.flags))) {
+		    m_firstUnseen = m_mailboxMessageCount;
+		}
+		if (0 == messageMetaData.uid) {
+		    messageMetaData.uid = m_uidNext++;
+		    m_isDirty = true;
+		}
+		messageIndex.push_back(messageMetaData);
+	    }
 	    firstMessage = false;
 	}
 	inFile.close();
 	// SYZYGY -- if parseSuccess is not true, it should return an error
+
+	for (int i=0; i < messageIndex.size(); ++i) {
+	    std::cout << "Message " << i << " has uid " << messageIndex[i].uid;
+	    if (messageIndex[i].isDirty) {
+		std::cout << " and is dirty";
+	    }
+	    std::cout << std::endl;
+	}
+	m_isOpen = true;
     }
     return result;
 }
@@ -707,17 +762,31 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 	std::ifstream inFile(fullPath.c_str());
 	bool firstMessage = true;
 	bool parseSuccess;
+	bool countMessage;
+	MessageIndex_t messageMetaData;
 
 	messageCount = 0;
 	recentCount = 0;
 	firstUnseen = 0;
 	uidNext = 0;
 	uidValidity = 0;
-	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, messageCount, recentCount, uidNext, firstUnseen, uidValidity))) {
+
+	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, uidValidity, uidNext, messageMetaData))) {
+	    if (countMessage) {
+		++messageCount;
+		if (0 != (MailStore::IMAP_MESSAGE_RECENT & messageMetaData.flags)) {
+		    ++recentCount;
+		}
+		if ((0 == firstUnseen) && (0 != (MailStore::IMAP_MESSAGE_SEEN & messageMetaData.flags))) {
+		    firstUnseen = messageCount;
+		}
+		if (0 == messageMetaData.uid) {
+		    messageMetaData.uid = uidNext++;
+		}
+	    }
 	    firstMessage = false;
 	}
 	inFile.close();
-	m_isOpen = true;
 	// SYZYGY -- if parseSuccess is not true, it should return an error
     }
     return result;

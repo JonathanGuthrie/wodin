@@ -39,6 +39,16 @@ public:
     virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, size_t uid);
 
 private:
+    typedef struct {
+	unsigned uid;
+	uint32_t flags;
+	std::fstream::pos_type start;
+	unsigned imapLength;
+	bool isDirty;
+    } MessageIndex_t;
+
+    typedef std::vector<MessageIndex_t> MESSAGE_INDEX;
+    MESSAGE_INDEX messageIndex;
     const char *m_homeDirectory;
     const char *m_inboxPath;
     unsigned m_mailboxMessageCount;
@@ -53,8 +63,7 @@ private:
     void ListSubscribed(const char *pattern, MAILBOX_LIST *result);
     bool isMailboxInteresting(const std::string path);
     bool ListAllHelper(const regex_t *compiled_regex, const char *home_directory, const char *working_dir, MAILBOX_LIST *result, int maxdepth);
-    bool ParseMessage(std::ifstream &inFile, bool firstMessage, unsigned &messageCount, unsigned &recentCount, unsigned &uidNext,
-		      unsigned &firstUnseen, unsigned &uidValidity);
+    bool ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData);
 };
 
 #endif // _MAILSTOREMBOX_HPP_INCLUDED_
