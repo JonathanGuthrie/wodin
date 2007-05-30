@@ -22,7 +22,7 @@ done)  Basic name space implementation
   done) namespace
   done) select and examine
   done) status
-  d) append
+  done) append
 
 10)  Do the commands available in the SELECTED state
   a) check
