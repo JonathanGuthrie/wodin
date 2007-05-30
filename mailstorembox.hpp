@@ -59,11 +59,15 @@ private:
     bool m_isOpen;
     bool m_isDirty;
     std::ofstream *m_outFile;
+    // Appendstate is used as part of the append process.  It's used to detect any "\n>*From " strings in messages so that I can 
+    // properly quote them as the message is imported.  I need to create a state transition diagram, somewhere.
+    int m_appendState;
     void ListAll(const char *pattern, MAILBOX_LIST *result);
     void ListSubscribed(const char *pattern, MAILBOX_LIST *result);
     bool isMailboxInteresting(const std::string path);
     bool ListAllHelper(const regex_t *compiled_regex, const char *home_directory, const char *working_dir, MAILBOX_LIST *result, int maxdepth);
     bool ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData);
+    void AddDataToMessageFile(uint8_t *data, size_t length);
 };
 
 #endif // _MAILSTOREMBOX_HPP_INCLUDED_

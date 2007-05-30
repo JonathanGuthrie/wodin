@@ -383,6 +383,90 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
     return MailStore::SUCCESS;
 }
 
+void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
+    // m_outFile->write((char *)data, length);  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay until I get my stuff together
+    for (int i=0; i<length; ++i) {
+	if ('\n' == data[i]) {
+	    m_outFile->write((char *)&data[i], 1);
+	    m_appendState = 1;
+	}
+	else {
+	    switch(m_appendState) {
+	    case 0:
+	    default:
+		m_appendState = 0;
+		m_outFile->write((char *)&data[i], 1);
+		// The state transition from 0 to 1 is handled in an outside conditional
+		break;
+
+	    case 1:
+		// Seen '\n>*'
+		// Ignore CR if I see it here
+		if ('\r' != data[i]) {
+		    if ('F' == data[i]) {
+			m_appendState = 2;
+		    }
+		    else {
+			m_outFile->write((char *)&data[i], 1);
+			if ('>' != data[i]) {
+			    m_appendState = 0;
+			}
+		    }
+		}
+		break;
+
+	    case 2:
+		// Seen '\n>*F'
+		if ('r' == data[i]) {
+		    m_appendState = 3;
+		}
+		else {
+		    m_appendState = 0;
+		    m_outFile->write("F", 1);
+		    m_outFile->write((char *)&data[i], 1);
+		}
+		break;
+
+	    case 3:
+		// Seen '\n>*Fr'
+		if ('o' == data[i]) {
+		    m_appendState = 4;
+		}
+		else {
+		    m_appendState = 0;
+		    m_outFile->write("Fr", 2);
+		    m_outFile->write((char *)&data[i], 1);
+		}
+		break;
+
+	    case 4:
+		// Seen '\n>*Fro'
+		if ('m' == data[i]) {
+		    m_appendState = 5;
+		}
+		else {
+		    m_appendState = 0;
+		    m_outFile->write("Fro", 3);
+		    m_outFile->write((char *)&data[i], 1);
+		}
+		break;
+
+	    case 5:
+		// Seen '\n>*From'
+		if (' ' == data[i]) {
+		    m_outFile->write(">From ", 6);
+		}
+		else {
+		    m_outFile->write("From", 4);
+		    m_outFile->write((char *)&data[i], 1);
+		}
+		m_appendState = 0;
+		break;
+	    }
+	}
+    }
+}
+
 MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::string &FullName, uint8_t *data, size_t length,
 						 DateTime &createTime, uint32_t messageFlags, size_t *newUid) {
     std::string MailboxName = FullName;
@@ -463,7 +547,10 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 		++m_uidNext;
 	    }
 	    *m_outFile << '\n';
-	    m_outFile->write((char *)data, length);  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay until I get my stuff together
+	    // This has to be one because I know that the character immediately preceeding whatever I'm
+	    // going to write next is a linefeed.
+	    m_appendState = 1;
+	    AddDataToMessageFile(data, length);
 	}
 	catch (DateTimeInvalidDateTime) {
 	    result = MailStore::GENERAL_FAILURE;
@@ -473,7 +560,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
-    m_outFile->write((char *)data, length);  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay until I get my stuff together
+    AddDataToMessageFile(data, length);
     return MailStore::SUCCESS; // SYZYGY 
 }
 
