@@ -202,8 +202,8 @@ private:
     IMAP_RESULTS StatusHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS AppendHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 
+    IMAP_RESULTS CheckHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
-    IMAP_RESULTS CheckHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS CloseHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS ExpungeHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS SearchHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);

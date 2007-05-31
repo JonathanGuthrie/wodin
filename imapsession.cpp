@@ -2753,15 +2753,64 @@ IMAP_RESULTS ImapSession::AppendHandler(uint8_t *data, const size_t dataLen, siz
     return result;
 }
 
-#if 0
 // The CheckHandler is there because the spec says it is and because I may need the ability to
 // do housekeeping at some point.  If there's no housekeeping to do, it's supposed to do the
 // same thing as NOOP
-IMAP_RESULTS ImapSession::CheckHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt)
+IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt)
 {
-    return NoopHandler(pData, dwDataLen, r_dwParsingAt); 
+    // Unlike NOOP, I always call MailboxFlushBuffers because that recalculates the the cached data.
+    // That may be the only way to find out that the number of messages or the UIDNEXT value has
+    // changed.
+    NUMBER_LIST purgedMessages;
+    std::ostringstream ss;
+
+    if (MailStore::SUCCESS == store->MailboxFlushBuffers(&purgedMessages)) {
+	for (NUMBER_LIST::iterator i=purgedMessages.begin() ; i!= purgedMessages.end(); ++i) {
+	    int message_number;
+
+	    message_number = *i;
+	    ss << "* " << message_number << " EXPUNGE\r\n";
+	    s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	    ss.str("");
+	}
+    }
+    if (currentNextUid != store->GetSerialNumber()) {
+	currentNextUid = store->GetSerialNumber();
+	ss << "* OK [UIDNEXT " << currentNextUid << "]\r\n";
+	s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	ss.str("");
+    }
+    if (currentMessageCount != store->MailboxMessageCount()) {
+	currentMessageCount = store->MailboxMessageCount();
+	ss << "* " << currentMessageCount << " EXISTS\r\n";
+	s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	ss.str("");
+    }
+    if (currentRecentCount != store->MailboxRecentCount()) {
+	currentRecentCount = store->MailboxRecentCount();
+	ss << "* " << currentRecentCount << " RECENT\r\n";
+	s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	ss.str("");
+    }
+    if (currentUnseen != store->MailboxFirstUnseen()) {
+	currentUnseen = store->MailboxFirstUnseen();
+	if (0 < currentUnseen) {
+	    ss << "* OK [UNSEEN " << currentUnseen << "]\r\n";
+	    s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	    ss.str("");
+	}
+    }
+    if (currentUidValidity != store->GetUidValidityNumber()) {
+	currentUidValidity = store->GetUidValidityNumber();
+	ss << "* OK [UIDVALIDITY " << currentUidValidity << "]\r\n";
+	s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	ss.str("");
+    }
+
+    return IMAP_OK;
 }
 
+#if 0
 IMAP_RESULTS ImapSession::CloseHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt)
 {
     // If the mailbox is open, close it
