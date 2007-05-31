@@ -25,7 +25,7 @@ MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, c
     m_uidNext = 0;
     m_uidValidity = 0;
     m_outFile = NULL;
-    m_isOpen = false;
+    m_openMailbox = NULL;
     m_isDirty = false;
     m_inboxPath = strdup(usersInboxPath);
     m_homeDirectory = strdup(usersHomeDirectory);
@@ -375,10 +375,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 {
-    if (m_isOpen) {
+    if (NULL != m_openMailbox) {
 	MailboxFlushBuffers(NULL);
 	messageIndex.clear();
-	m_isOpen = false;
+	delete m_openMailbox;
+	m_openMailbox = NULL;
     }
     return MailStore::SUCCESS;
 }
@@ -548,7 +549,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 		// read it, so I need to compare the modification time now with the modification time when
 		// I last parsed the mailbox.  Instead, I'll assign UID numbers at the next checkpoint when I
 		// reparse the message base.
-		if (m_isOpen && (stat_buf.st_mtime <= m_lastMtime)) {
+		if ((*m_openMailbox == FullName) && (stat_buf.st_mtime <= m_lastMtime)) {
 		    if (NULL != newUid) {
 			*newUid = m_uidNext;
 		    }
@@ -818,7 +819,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 
 	if (0 == lstat(fullPath.c_str(), &stat_buf)) {
 	    m_lastMtime = stat_buf.st_mtime;
-	    m_isOpen = true;
+	    m_openMailbox = new std::string(FullName);
 	}
 	else {
 	    m_errnoFromLibrary = errno;
@@ -1396,7 +1397,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
 
 MailStoreMbox::~MailStoreMbox()
 {
-    if (m_isOpen) {
+    if (NULL != m_openMailbox) {
 	MailboxClose();
     }
     if (NULL != m_outFile) {

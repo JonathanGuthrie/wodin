@@ -56,7 +56,7 @@ private:
     unsigned m_firstUnseen;
     unsigned m_uidValidity;
     unsigned m_uidNext;
-    bool m_isOpen;
+    std::string *m_openMailbox;
     bool m_isDirty;
     std::ofstream *m_outFile;
     // Appendstate is used as part of the append process.  It's used to detect any "\n>*From " strings in messages so that I can 
