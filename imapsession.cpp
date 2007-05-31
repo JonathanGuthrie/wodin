@@ -893,6 +893,9 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen)
 		inProgress = ImapCommandNone;
 	    }
 	    if (ImapCommandNone == inProgress) {
+		// SYZYGY -- Notify the user that new mail has arrived if the mailbox that was just
+		// SYZYGY -- appended to is the currently selected mailbox.  See, for example,
+		// SYZYGY -- RFC 3501 section 6.3.11
 		std::string response = FormatTaggedResponse(result);
 		s->Send((uint8_t *)response.data(), response.length());
 	    }
