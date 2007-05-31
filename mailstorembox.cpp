@@ -518,39 +518,59 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	// SYZYGY -- which I have to suppress or ignore.  I also have to do "From " line quoting and I need to suppress carriage returns
 	// SYZYGY -- because this file, by definition, only has linefeeds.  That's just off the top of my head.
 	try {
-	    m_outFile = new std::ofstream(fullPath.c_str(), std::ios_base::out|std::ios_base::app);
+	    struct stat stat_buf;
 
-	    *m_outFile << "\nFrom " << m_session->GetUser()->GetName() << "@" << m_session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
-	    *m_outFile << "X-Status: ";
-	    if (0 != (IMAP_MESSAGE_ANSWERED & messageFlags)) {
-		*m_outFile << 'A';
+	    if (0 == lstat(fullPath.c_str(), &stat_buf)) {
+		m_outFile = new std::ofstream(fullPath.c_str(), std::ios_base::out|std::ios_base::app);
+
+		*m_outFile << "\nFrom " << m_session->GetUser()->GetName() << "@" << m_session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
+		*m_outFile << "X-Status: ";
+		if (0 != (IMAP_MESSAGE_ANSWERED & messageFlags)) {
+		    *m_outFile << 'A';
+		}
+		if (0 != (IMAP_MESSAGE_FLAGGED & messageFlags)) {
+		    *m_outFile << 'F';
+		}
+		if (0 != (IMAP_MESSAGE_DRAFT & messageFlags)) {
+		    *m_outFile << 'T';
+		}
+		if (0 != (IMAP_MESSAGE_DELETED & messageFlags)) {
+		    *m_outFile << 'D';
+		}
+		*m_outFile << '\n';
+		*m_outFile << "Status: ";
+		if (0 != (IMAP_MESSAGE_SEEN & messageFlags)) {
+		    *m_outFile << 'R';
+		}
+		*m_outFile << '\n';
+
+		// I don't want to set the uid or add the header if the file has been modified since I last
+		// read it, so I need to compare the modification time now with the modification time when
+		// I last parsed the mailbox.  Instead, I'll assign UID numbers at the next checkpoint when I
+		// reparse the message base.
+		if (m_isOpen && (stat_buf.st_mtime <= m_lastMtime)) {
+		    if (NULL != newUid) {
+			*newUid = m_uidNext;
+		    }
+		    if (0 != (m_uidNext)) {
+			*m_outFile << "X-UID: " << m_uidNext;
+			++m_uidNext;
+			*m_outFile << '\n';
+		    }
+		}
+		else {
+		    *newUid = 0;
+		}
+
+		// This has to be one because I know that the character immediately preceeding whatever I'm
+		// going to write next is a linefeed.
+		m_appendState = 1;
+		AddDataToMessageFile(data, length);
 	    }
-	    if (0 != (IMAP_MESSAGE_FLAGGED & messageFlags)) {
-		*m_outFile << 'F';
+	    else {
+		m_errnoFromLibrary = errno;
+		result = MailStore::GENERAL_FAILURE;
 	    }
-	    if (0 != (IMAP_MESSAGE_DRAFT & messageFlags)) {
-		*m_outFile << 'T';
-	    }
-	    if (0 != (IMAP_MESSAGE_DELETED & messageFlags)) {
-		*m_outFile << 'D';
-	    }
-	    *m_outFile << '\n';
-	    *m_outFile << "Status: ";
-	    if (0 != (IMAP_MESSAGE_SEEN & messageFlags)) {
-		*m_outFile << 'R';
-	    }
-	    if (NULL != newUid) {
-		*newUid = m_uidNext;
-	    }
-	    if (0 != (m_uidNext)) {
-		*m_outFile << "X-UID: " << m_uidNext;
-		++m_uidNext;
-	    }
-	    *m_outFile << '\n';
-	    // This has to be one because I know that the character immediately preceeding whatever I'm
-	    // going to write next is a linefeed.
-	    m_appendState = 1;
-	    AddDataToMessageFile(data, length);
 	}
 	catch (DateTimeInvalidDateTime) {
 	    result = MailStore::GENERAL_FAILURE;
@@ -794,7 +814,16 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	    }
 	    std::cout << std::endl;
 	}
-	m_isOpen = true;
+	struct stat stat_buf;
+
+	if (0 == lstat(fullPath.c_str(), &stat_buf)) {
+	    m_lastMtime = stat_buf.st_mtime;
+	    m_isOpen = true;
+	}
+	else {
+	    m_errnoFromLibrary = errno;
+	    result = MailStore::GENERAL_FAILURE;
+	}
     }
     return result;
 }

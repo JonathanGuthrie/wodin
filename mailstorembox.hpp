@@ -62,6 +62,7 @@ private:
     // Appendstate is used as part of the append process.  It's used to detect any "\n>*From " strings in messages so that I can 
     // properly quote them as the message is imported.  I need to create a state transition diagram, somewhere.
     int m_appendState;
+    time_t m_lastMtime; // The mtime of the file the last time it was at a known good state.
     void ListAll(const char *pattern, MAILBOX_LIST *result);
     void ListSubscribed(const char *pattern, MAILBOX_LIST *result);
     bool isMailboxInteresting(const std::string path);
