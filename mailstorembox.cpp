@@ -387,115 +387,158 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
     // m_outFile->write((char *)data, length);  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay until I get my stuff together
     for (int i=0; i<length; ++i) {
-	if ('\n' == data[i]) {
-	    m_outFile->write((char *)&data[i], 1);
-	    m_appendState = 1;
-	}
-	else {
-	    switch(m_appendState) {
-	    case 0:
-	    default:
-		// The state transition from 0 to 1 is handled in an outside conditional
-		m_appendState = 0;
-		if ('\r' == data[i]) {
-		    m_appendState = 7;
-		}
-		else {
-		    m_outFile->write((char *)&data[i], 1);
-		}
-		break;
-
-	    case 1:
-		// Seen '\n'
-		// Ignore CR if I see it here
-		if ('\r' == data[i]) {
+	switch(m_appendState) {
+	case 0:
+	default:
+	    m_appendState = 0;
+	    if ('\r' == data[i]) {
+		m_appendState = 1;
+	    }
+	    else {
+		m_outFile->write((char *)&data[i], 1);
+		if ('\n' == data[i]) {
 		    m_appendState = 2;
 		}
-		else {
-		    if ('F' == data[i]) {
-			m_appendState = 3;
-		    }
-		    else {
-			m_outFile->write((char *)&data[i], 1);
-			if ('>' == data[i]) {
-			    m_appendState = 2;
-			}
-			else {
-			    m_appendState = 0;
-			}
-		    }
-		}
-		break;
+	    }
+	    break;
 
-	    case 2:
-		// Seen '\n\r?>*'
-		if ('F' == data[i]) {
-		    m_appendState = 3;
+	case 1:
+	    // Seen '\r'
+	    // recognize newline if I see '\n'
+	    if ('\n' == data[i]) {
+		m_appendState = 3;
+	    }
+	    else {
+		// I saw a CR without LF, so I emit it and hope the client knows what it's doing
+		m_outFile->write("\r", 1);
+		m_appendState = 0;
+	    }
+	    m_outFile->write((char *)&data[i], 1);
+	    break;
+
+	case 2:
+	    // seen '\n'
+	    // recognize newline, swallow the '\r' if I see it.
+	    // I emit everything but F and '\r'
+	    if ('\r' == data[i]) {
+		m_appendState = 3;
+	    }
+	    else if ('F' == data[i]) {
+		m_appendState = 4;
+	    }
+	    else {
+		m_outFile->write((char *)&data[i], 1);
+		m_appendState = 3;
+	    }
+	    break;
+
+	case 3:
+	    // Seen '\n\r?>*'
+	    if ('F' == data[i]) {
+		m_appendState = 4;
+	    }
+	    else if ('\r' == data[i]) {
+		m_appendState = 1;
+	    }
+	    else {
+		m_outFile->write((char *)&data[i], 1);
+		if ('\n' == data[i]) {
+		    m_appendState = 2;
+		}
+		else if ('>' != data[i]) {
+		    m_appendState = 0;
+		}
+	    }
+	    break;
+
+	case 4:
+	    // Seen '\n\r>*F'
+	    if ('r' == data[i]) {
+		m_appendState = 5;
+	    }
+	    else {
+		m_outFile->write("F", 1);
+		if ('\r' == data[i]) {
+		    m_appendState = 1;
 		}
 		else {
 		    m_outFile->write((char *)&data[i], 1);
-		    if ('>' != data[i]) {
+		    if ('\n' == data[i]) {
+			m_appendState = 2;
+		    }
+		    else {
 			m_appendState = 0;
 		    }
 		}
-		break;
-
-	    case 3:
-		// Seen '\n\r>*F'
-		if ('r' == data[i]) {
-		    m_appendState = 4;
-		}
-		else {
-		    m_appendState = 0;
-		    m_outFile->write("F", 1);
-		    m_outFile->write((char *)&data[i], 1);
-		}
-		break;
-
-	    case 4:
-		// Seen '\n\r>*Fr'
-		if ('o' == data[i]) {
-		    m_appendState = 5;
-		}
-		else {
-		    m_appendState = 0;
-		    m_outFile->write("Fr", 2);
-		    m_outFile->write((char *)&data[i], 1);
-		}
-		break;
-
-	    case 5:
-		// Seen '\n\r>*Fro'
-		if ('m' == data[i]) {
-		    m_appendState = 6;
-		}
-		else {
-		    m_appendState = 0;
-		    m_outFile->write("Fro", 3);
-		    m_outFile->write((char *)&data[i], 1);
-		}
-		break;
-
-	    case 6:
-		// Seen '\n\r>*From'
-		if (' ' == data[i]) {
-		    m_outFile->write(">From ", 6);
-		}
-		else {
-		    m_outFile->write("From", 4);
-		    m_outFile->write((char *)&data[i], 1);
-		}
-		m_appendState = 0;
-		break;
-
-	    case 7:
-		// Seen '\r'
-		// if it's followed by a linefeed, the outside conditional is executed
-		// rather than the switch, so the carriage return is swallowed.
-		m_outFile->write('\r', 1);
-		m_outFile->write((char *)&data[i], 1);
-		break;
 	    }
+	    break;
+
+	case 5:
+	    // Seen '\n\r>*Fr'
+	    if ('o' == data[i]) {
+		m_appendState = 6;
+	    }
+	    else {
+		m_outFile->write("Fr", 2);
+		if ('\r' == data[i]) {
+		    m_appendState = 1;
+		}
+		else {
+		    m_outFile->write((char *)&data[i], 1);
+		    if ('\n' == data[i]) {
+			m_appendState = 2;
+		    }
+		    else {
+			m_appendState = 0;
+		    }
+		}
+	    }
+	    break;
+
+	case 6:
+	    // Seen '\n\r>*Fro'
+	    if ('m' == data[i]) {
+		m_appendState = 7;
+	    }
+	    else {
+		m_outFile->write("Fro", 3);
+		if ('\r' == data[i]) {
+		    m_appendState = 1;
+		}
+		else {
+		    m_outFile->write((char *)&data[i], 1);
+		    if ('\n' == data[i]) {
+			m_appendState = 2;
+		    }
+		    else {
+			m_appendState = 0;
+		    }
+		}
+	    }
+	    break;
+
+	case 7:
+	    // Seen '\n\r>*From'
+	    if (' ' == data[i]) {
+		m_outFile->write(">From ", 6);
+		m_appendState = 0;
+	    }
+	    else {
+		m_outFile->write("From", 4);
+		if ('\r' == data[i]) {
+		    m_appendState = 1;
+		}
+		else {
+		    m_outFile->write((char *)&data[i], 1);
+		    if ('\n' == data[i]) {
+			m_appendState = 2;
+		    }
+		    else {
+			m_appendState = 0;
+		    }
+		}
+	    }
+	    break;
 	}
     }
 }
@@ -594,9 +637,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 		    *newUid = 0;
 		}
 
-		// This has to be one because I know that the character immediately preceeding whatever I'm
-		// going to write next is a linefeed.
-		m_appendState = 1;
+		// This has to be three because I know that the character immediately preceeding whatever I'm
+		// going to write next is a newline.
+		m_appendState = 3;
 		AddDataToMessageFile(data, length);
 	    }
 	    else {
@@ -970,7 +1013,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 	fullPath += "/";
 	fullPath += *m_openMailbox;
     }
-    
+
     struct stat stat_buf;
     if (0 == lstat(fullPath.c_str(), &stat_buf)) {
 	if (m_isDirty || (stat_buf.st_mtime <= m_lastMtime)) {
