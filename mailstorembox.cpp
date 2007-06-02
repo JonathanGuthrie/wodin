@@ -1165,7 +1165,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 				if (0 <= messageIndex) {
 				    std::cout << "It's a real message" << std::endl;
 				    std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
-				    if (uidFromMessage == 0 || (messageIndex >= m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) 
+				    if (uidFromMessage == 0 || (messageIndex >= m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) {
 					if (messageIndex >= m_messageIndex.size()) {
 					    // If it's not in the Index, it is by definition recent
 					    flagsFromMessage |= IMAP_MESSAGE_RECENT;
@@ -1270,6 +1270,16 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 				std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
 				if (uidFromMessage == 0 || (messageIndex > m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) {
 				    if (messageIndex > m_messageIndex.size()) {
+					// If it's not in the Index, it is by definition recent
+					flagsFromMessage |= IMAP_MESSAGE_RECENT;
+					MessageIndex_t messageMetaData;
+
+					messageMetaData.uid = m_uidNext++;
+					messageMetaData.flags = flagsFromMessage;
+					messageMetaData.imapLength = 0;; // SYZYGY -- how do I determine this?
+					messageMetaData.start = 0;  //SYZYGY -- how do I determine this?
+					messageMetaData.isDirty = true;
+					m_messageIndex.push_back(messageMetaData);
 				    }
 				    std::ostringstream ss;
 				    ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
