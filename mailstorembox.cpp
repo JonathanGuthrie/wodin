@@ -623,7 +623,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 		// read it, so I need to compare the modification time now with the modification time when
 		// I last parsed the mailbox.  Instead, I'll assign UID numbers at the next checkpoint when I
 		// reparse the message base.
-		if ((*m_openMailbox == FullName) && (stat_buf.st_mtime <= m_lastMtime)) {
+		if ((NULL != m_openMailbox) && (*m_openMailbox == FullName) && (stat_buf.st_mtime <= m_lastMtime)) {
 		    if (NULL != newUid) {
 			*newUid = m_uidNext;
 		    }
