@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <sstream>
 
@@ -1036,6 +1037,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 	    buff2.next = &buff1;
 	    curr = &buff1;
 	    updateFile.read((char *)buff1.data, 8192);
+	    updateFile.clear();
 	    buff1.count = updateFile.gcount();
 	    bool notDone = true;
 	    int messageIndex;
@@ -1052,7 +1054,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 		messageIndex = -1;
 	    }
 	    while (notDone) {
-		// SYZYGY -- if mail has arrived while I'm reading it, I need to build the index items
 		// SYZYGY -- I need to flush at the end of the file.
 		// SYZYGY -- When I'm done with everything, I need to write the entries in the X-IMAP line
 		// SYZYGY -- I need to mark the open file as "clean" if everything went okay
@@ -1530,6 +1531,160 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 		curr = curr->next;
 		lastPutPos = updateFile.tellp();
 	    }
+
+	    // The last thing I do is update the X-IMAP or X-IMAPbase information
+	    updateFile.seekg(0, std::ios_base::beg);
+	    updateFile.read((char *)buff1.data, 8192);
+	    buff1.count = updateFile.gcount();
+
+	    // At this point, I'm assuming that the first message's header fits inside the
+	    // first 8k. That won't necessarily be true when I start doing keyword flags, or when
+	    // I start using generic messages for the metadata message.
+
+	    parseState = 1;
+	    for (int i=0; (parseState<15) && (i<buff1.count); ++i) {
+		// std::cout << "In state " << parseState << " message " << messageIndex << " reading character " << i << " which happens to be " << buff1.data[i] << std::endl;
+		// This parser is simplified.  All I'm doing is looking for \nX-IMAP or \nX-IMAPbase
+		// and then the second number after that, which I want to replace with the new number
+		switch(parseState) {
+		case 0:
+		    if ('\n' == buff1.data[i]) {
+			parseState = 1;
+		    }
+		    break;
+
+		case 1:
+		    if ('X' == buff1.data[i]) {
+			parseState = 2;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 2:
+		    if ('-' == buff1.data[i]) {
+			parseState = 3;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 3:
+		    if ('I' == buff1.data[i]) {
+			parseState = 4;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 4:
+		    if ('M' == buff1.data[i]) {
+			parseState = 5;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 5:
+		    if ('A' == buff1.data[i]) {
+			parseState = 6;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 6:
+		    if ('P' == buff1.data[i]) {
+			parseState = 7;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 7:
+		    if (':' == buff1.data[i]) {
+			parseState = 12;
+		    }
+		    else if ('b' == buff1.data[i]) {
+			parseState = 8;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 8:
+		    if ('a' == buff1.data[i]) {
+			parseState = 9;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 9:
+		    if ('s' == buff1.data[i]) {
+			parseState = 10;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 10:
+		    if ('e' == buff1.data[i]) {
+			parseState = 11;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 11:
+		    if (':' == buff1.data[i]) {
+			parseState = 12;
+		    }
+		    else {
+			parseState = 0;
+		    }
+		    break;
+
+		case 12:
+		    // Okay, I've found the header, now skip over the whitespace
+		    if (isdigit(buff1.data[i])) {
+			parseState = 13;
+		    }
+		    break;
+
+		case 13:
+		    if (!isdigit(buff1.data[i])) {
+			parseState = 14;
+		    }
+		    break;
+
+		case 14:
+		    if (isdigit(buff1.data[i])) {
+			// i now has the offset of the stringxb
+			// it's guaranteed 10 characters long
+			std::ostringstream ss;
+
+			ss << std::setw(10) << std::setfill('0') << m_uidLast;
+			// std::cout << "Writing the string \"" << ss.str() << "\" as the uidLast value" << std::endl;
+			updateFile.clear();
+			updateFile.seekp(i, std::ios_base::beg);
+
+			updateFile.write((char *)ss.str().c_str(), 10);
+			parseState = 999;
+		    };
+		}
+	    }
+
 	    updateFile.close();
 	}
     }
