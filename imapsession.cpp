@@ -203,13 +203,13 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.handler = &ImapSession::AppendHandler;
     symbols.insert(IMAPSYMBOLS::value_type("APPEND", symbolToInsert));
 
-#if 0
     symbolToInsert.levels[0] = false;
     symbolToInsert.levels[1] = false;
     symbolToInsert.levels[2] = true;
     symbolToInsert.levels[3] = false;
     symbolToInsert.handler = &ImapSession::CheckHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("CHECK"), symbolToInsert));
+    symbols.insert(IMAPSYMBOLS::value_type("CHECK", symbolToInsert));
+#if 0
     symbolToInsert.handler = &ImapSession::CloseHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("CLOSE"), symbolToInsert)); 
     symbolToInsert.handler = &ImapSession::ExpungeHandler;
