@@ -824,6 +824,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 		++m_mailboxMessageCount;
 		if (0 != (MailStore::IMAP_MESSAGE_RECENT & messageMetaData.flags)) {
 		    ++m_recentCount;
+		    m_isDirty = true;
 		}
 		if ((0 == m_firstUnseen) && (0 != (MailStore::IMAP_MESSAGE_SEEN & messageMetaData.flags))) {
 		    m_firstUnseen = m_mailboxMessageCount;
