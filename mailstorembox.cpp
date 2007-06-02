@@ -395,21 +395,32 @@ void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
 	    switch(m_appendState) {
 	    case 0:
 	    default:
-		m_appendState = 0;
-		m_outFile->write((char *)&data[i], 1);
 		// The state transition from 0 to 1 is handled in an outside conditional
+		m_appendState = 0;
+		if ('\r' == data[i]) {
+		    m_appendState = 7;
+		}
+		else {
+		    m_outFile->write((char *)&data[i], 1);
+		}
 		break;
 
 	    case 1:
-		// Seen '\n>*'
+		// Seen '\n'
 		// Ignore CR if I see it here
-		if ('\r' != data[i]) {
+		if ('\r' == data[i]) {
+		    m_appendState = 2;
+		}
+		else {
 		    if ('F' == data[i]) {
-			m_appendState = 2;
+			m_appendState = 3;
 		    }
 		    else {
 			m_outFile->write((char *)&data[i], 1);
-			if ('>' != data[i]) {
+			if ('>' == data[i]) {
+			    m_appendState = 2;
+			}
+			else {
 			    m_appendState = 0;
 			}
 		    }
@@ -417,9 +428,22 @@ void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
 		break;
 
 	    case 2:
-		// Seen '\n>*F'
-		if ('r' == data[i]) {
+		// Seen '\n\r?>*'
+		if ('F' == data[i]) {
 		    m_appendState = 3;
+		}
+		else {
+		    m_outFile->write((char *)&data[i], 1);
+		    if ('>' != data[i]) {
+			m_appendState = 0;
+		    }
+		}
+		break;
+
+	    case 3:
+		// Seen '\n\r>*F'
+		if ('r' == data[i]) {
+		    m_appendState = 4;
 		}
 		else {
 		    m_appendState = 0;
@@ -428,10 +452,10 @@ void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
 		}
 		break;
 
-	    case 3:
-		// Seen '\n>*Fr'
+	    case 4:
+		// Seen '\n\r>*Fr'
 		if ('o' == data[i]) {
-		    m_appendState = 4;
+		    m_appendState = 5;
 		}
 		else {
 		    m_appendState = 0;
@@ -440,10 +464,10 @@ void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
 		}
 		break;
 
-	    case 4:
-		// Seen '\n>*Fro'
+	    case 5:
+		// Seen '\n\r>*Fro'
 		if ('m' == data[i]) {
-		    m_appendState = 5;
+		    m_appendState = 6;
 		}
 		else {
 		    m_appendState = 0;
@@ -452,8 +476,8 @@ void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
 		}
 		break;
 
-	    case 5:
-		// Seen '\n>*From'
+	    case 6:
+		// Seen '\n\r>*From'
 		if (' ' == data[i]) {
 		    m_outFile->write(">From ", 6);
 		}
@@ -462,6 +486,14 @@ void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
 		    m_outFile->write((char *)&data[i], 1);
 		}
 		m_appendState = 0;
+		break;
+
+	    case 7:
+		// Seen '\r'
+		// if it's followed by a linefeed, the outside conditional is executed
+		// rather than the switch, so the carriage return is swallowed.
+		m_outFile->write('\r', 1);
+		m_outFile->write((char *)&data[i], 1);
 		break;
 	    }
 	}
