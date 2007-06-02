@@ -1056,8 +1056,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 		messageIndex = -1;
 	    }
 	    while (notDone) {
-		// SYZYGY -- I need to flush at the end of the file.
-		// SYZYGY -- When I'm done with everything, I need to write the entries in the X-IMAP line
 		// SYZYGY -- I need to mark the open file as "clean" if everything went okay
 		updateFile.seekg(lastGetPos);
 		updateFile.read((char *)curr->next->data, 8192);
