@@ -87,8 +87,17 @@ public:
     virtual unsigned MailboxRecentCount() = 0;
     virtual unsigned MailboxFirstUnseen() = 0;
     virtual std::string GetMailboxUserPath() const = 0;
+    // MailboxFlushBuffers and MailboxUpdateStats updates statistics and also handles expunges on some
+    // mail stores, which is why it has to return a list of expunged MSN's.  However, MailboxUpdateStats
+    // doesn't do any expunges.  The difference is that MailboxFlushBuffers is called by the handler for
+    // CHECK and MailboxUpdateStats is called by the handler for NOOP
     virtual MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone) = 0;
     virtual MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone) = 0;
+    // SYZYGY -- I also need a function that will cause the system to recalculate the
+    // SYZYGY -- number of messages in the file and the next UID value, for those mailstores
+    // SYZYGY -- where that is a lengthy operation so that I can recalculate it periodically
+    // SYZYGY -- in a separate worker thread.  Or do I?  I need to try again when I'm farther
+    // SYZYGY -- along and see what I need
     // If BuildMailboxList fails, it returns nothing, which is fine for IMAP
     // If bListAll is true, it will return all matching mailboxes, otherwise, it will return 
     // the mailboxes using the IMAP LSUB semantics, which may not be what you expect.
