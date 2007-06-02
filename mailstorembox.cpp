@@ -947,12 +947,547 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 std::string MailStoreMbox::GetMailboxUserPath() const {
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *nowGone)
-{
-    if (m_isDirty) {
-	// SYZYGY
+MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *nowGone) {
+    // If there are changes, I need to flush them.  I also need to reparse the file
+    // to calculate new statistics.  The thing is, although this method should always
+    // write the 'O' flag to the status line, it shouldn't reset any "recent" flags in
+    // the index fields, it should remember the recent state until the close and it should
+    // also record the recent state for any new messages (that don't have the 'O' flag set)
+    // even as it's setting the 'O' status for those messages.
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+    std::string fullPath;
+
+    if ((('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
+	(('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
+	(('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
+	(('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
+	(('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
+	('\0' == (*m_openMailbox)[5])) {
+	fullPath = m_inboxPath;
     }
-    return MailStore::SUCCESS;
+    else {
+	fullPath = m_homeDirectory;
+	fullPath += "/";
+	fullPath += *m_openMailbox;
+    }
+    
+    struct stat stat_buf;
+    if (0 == lstat(fullPath.c_str(), &stat_buf)) {
+	if (m_isDirty || (stat_buf.st_mtime <= m_lastMtime)) {
+	    std::ifstream::pos_type lastGetPos, lastPutPos;
+
+	    std::fstream updateFile(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+	    updateFile.seekp(0, std::ios_base::beg);
+	    lastPutPos = updateFile.tellp();
+	    updateFile.seekg(0, std::ios_base::beg);
+
+	    // Okay, I reading through the file, working message by message until I reach the end
+	    // and I'm updating the file as I go.   I need to define two buffers and work with them
+	    // efficiently.
+	    int charactersAdded = 0;
+
+	    typedef struct rb {
+		struct rb *next;
+		unsigned char data[8192];
+		std::streamsize count;
+	    } rb_t;
+	    rb_t buff1, buff2, *curr;
+	    buff1.next = &buff2;
+	    buff2.next = &buff1;
+	    curr = &buff1;
+	    updateFile.read((char *)buff1.data, 8192);
+	    buff1.count = updateFile.gcount();
+	    bool notDone = true;
+	    int messageIndex;
+	    unsigned parseState = 0;
+	    lastGetPos = updateFile.tellg();
+	    bool isXheader;
+	    unsigned uidFromMessage = 0;
+	    uint32_t flagsFromMessage;
+
+	    if (m_hasHiddenMessage) {
+		messageIndex = -2;
+	    }
+	    else {
+		messageIndex = -1;
+	    }
+	    while (notDone) {
+		// SYZYGY -- if mail has arrived while I'm reading it, I need to build the index items
+		// SYZYGY -- I need to flush at the end of the file.
+		// SYZYGY -- When I'm done with everything, I need to write the entries in the X-IMAP line
+		// SYZYGY -- I need to mark the open file as "clean" if everything went okay
+		updateFile.seekg(lastGetPos);
+		updateFile.read((char *)curr->next->data, 8192);
+		updateFile.clear();
+		curr->next->count = updateFile.gcount();
+		notDone = 8192 == curr->next->count;
+		lastGetPos = updateFile.tellg();
+		updateFile.seekp(lastPutPos);
+		for (int i=0; i<curr->count; ++i) {
+		    // std::cout << "In state " << parseState << " message " << messageIndex << " reading character " << i << " which happens to be " << curr->data[i] << std::endl;
+		    // I have several jobs to do here.  I have to find the beginnings of messages and I have
+		    // to find the X-Status, Status, X-IMAP, X-IMAPbase, and X-UID header lines
+		    // SYZYGY working here
+		    switch(parseState) {
+		    case 0:
+			if ('F' == curr->data[i]) {
+			    parseState = 2;
+			}
+			else if ('\n' != curr->data[i]) {
+			    parseState = 1;
+			}
+			updateFile.write((char *)&curr->data[i], 1);
+			break;
+
+		    case 1:
+			if ('\n' == curr->data[i]) {
+			    parseState = 0;
+			}
+			updateFile.write((char *)&curr->data[i], 1);
+			break;
+
+		    case 2:
+			if ('r' == curr->data[i]) {
+			    parseState = 3;
+			}
+			else {
+			    parseState = 1;
+			}
+			updateFile.write((char *)&curr->data[i], 1);
+			break;
+
+		    case 3:
+			if ('o' == curr->data[i]) {
+			    parseState = 4;
+			}
+			else {
+			    parseState = 1;
+			}
+			updateFile.write((char *)&curr->data[i], 1);
+			break;
+
+		    case 4:
+			if ('m' == curr->data[i]) {
+			    parseState = 5;
+			}
+			else {
+			    parseState = 1;
+			}
+			updateFile.write((char *)&curr->data[i], 1);
+			break;
+
+		    case 5:
+			if (' ' == curr->data[i]) {
+			    parseState = 6;
+			    // When I get here, I know that I'm in a new message, so I have to
+			    // do new message processing
+			    ++messageIndex;
+			    flagsFromMessage = 0;
+			}
+			else {
+			    parseState = 1;
+			}
+			updateFile.write((char *)&curr->data[i], 1);
+			break;
+
+		    case 6:
+			// In the rest of a header line or a From line
+			if ('\n' == curr->data[i]) {
+			    parseState = 7;
+			}
+			updateFile.write((char *)&curr->data[i], 1);
+			break;
+
+		    case 7:
+			// I'm at the first character in a line in a message header
+			if ('F' == curr->data[i]) {
+			    // Could be a From line
+			    parseState = 8;
+			}
+			else if ('X' == curr->data[i]) {
+			    // Could be X-Status, X-IMAP, X-IMAPbase, or X-UID
+			    parseState = 12;
+			    isXheader = true;
+			}
+			else if ('S' == curr->data[i]) {
+			    isXheader = false;
+			    // Could be Status
+			    parseState = 14;
+			}
+			else {
+			    if ('\n' == curr->data[i]) {
+				std::cout << "Flushing the buffer" << std::endl;
+				// Another newline means I'm at the end of a message body.
+				// I append all the header lines I need to here
+				if (0 <= messageIndex) {
+				    std::cout << "It's a real message" << std::endl;
+				    std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
+				    if (uidFromMessage == 0 || (messageIndex >= m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) 
+					if (messageIndex >= m_messageIndex.size()) {
+					    // If it's not in the Index, it is by definition recent
+					    flagsFromMessage |= IMAP_MESSAGE_RECENT;
+					    MessageIndex_t messageMetaData;
+
+					    messageMetaData.uid = m_uidNext++;
+					    messageMetaData.flags = flagsFromMessage;
+					    messageMetaData.imapLength = 0;; // SYZYGY -- how do I determine this?
+					    messageMetaData.start = 0;  //SYZYGY -- how do I determine this?
+					    messageMetaData.isDirty = true;
+					    m_messageIndex.push_back(messageMetaData);
+					}
+					std::cout << "" << std::endl;
+					std::ostringstream ss;
+					ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
+					ss << "X-Status: ";
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
+					    ss << 'A';
+					}
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
+					    ss << 'F';
+					}
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
+					    ss << 'D';
+					}
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
+					    ss << 'T';
+					}
+					ss << "\nStatus: O";
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
+					    ss << 'R';
+					}
+					ss << '\n';
+					charactersAdded += ss.str().length();
+					std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " <<
+					    ss.str().length() << " characters long" << std::endl;
+					updateFile.write(ss.str().c_str(), ss.str().length());
+					updateFile.flush();
+				    }
+				    else {
+					std::cout << "ABORT:  when flushing buffers, m_messageIndex[" << messageIndex << "].uid = " << m_messageIndex[messageIndex].uid <<
+					    " but the message claims to have uid " << uidFromMessage << std::endl;
+					return MailStore::GENERAL_FAILURE; // SYZYGY
+				    }
+				}
+				// Go back to looking for "from"
+				parseState = 0;
+			    }
+			    else {
+				parseState = 6;
+			    }
+			    updateFile.write((char *)&curr->data[i], 1);
+			}
+			break;
+
+		    case 8:
+			// Seen '\nF'
+			if ('r' == curr->data[i]) {
+			    parseState = 9;
+			}
+			else {
+			    parseState = 6;
+			    updateFile.write("F", 1);
+			    updateFile.write((char *)&curr->data[i], 1);
+			}
+			break;
+
+		    case 9:
+			// Seen '\nFr'
+			if ('o' == curr->data[i]) {
+			    parseState = 10;
+			}
+			else {
+			    parseState = 6;
+			    updateFile.write("Fr", 2);
+			    updateFile.write((char *)&curr->data[i], 1);
+			}
+			break;
+
+		    case 10:
+			// Seen '\nFro'
+			if ('m' == curr->data[i]) {
+			    parseState = 11;
+			}
+			else {
+			    parseState = 6;
+			    updateFile.write("Fro", 3);
+			    updateFile.write((char *)&curr->data[i], 1);
+			}
+			break;
+
+		    case 11:
+			// Seen '\nFrom'
+			if (' ' == curr->data[i]) {
+			    // When I get here, I know that I'm in a new message, so I have to
+			    // do new message processing
+			    // I also know that I didn't get out of the header of the message
+			    // so I have to flush header fields
+			    std::cout << "Flushing the buffer" << std::endl;
+			    if (0 <= messageIndex) {
+				std::cout << "It's a real message" << std::endl;
+				std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
+				if (uidFromMessage == 0 || (messageIndex > m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) {
+				    if (messageIndex > m_messageIndex.size()) {
+				    }
+				    std::ostringstream ss;
+				    ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
+				    ss << "X-Status: ";
+				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
+					ss << 'A';
+				    }
+				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
+					ss << 'F';
+				    }
+				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
+					ss << 'D';
+				    }
+				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
+					ss << 'T';
+				    }
+				    ss << "\nStatus: O";
+				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
+					ss << 'R';
+				    }
+				    ss << '\n';
+				    charactersAdded += ss.str().length();
+				    std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " <<
+					ss.str().length() << " characters long" << std::endl;
+				    updateFile.write(ss.str().c_str(), ss.str().length());
+				    updateFile.flush();
+				}
+				else {
+				    std::cout << "ABORT:  when flushing buffers, m_messageIndex[" << messageIndex << "].uid = " << m_messageIndex[messageIndex].uid <<
+					" but the message claims to have uid " << uidFromMessage << std::endl;
+				    return MailStore::GENERAL_FAILURE; // SYZYGY
+				}
+			    }
+			    flagsFromMessage = 0;
+			    ++messageIndex;
+			}
+			parseState = 6;
+			updateFile.write("From", 4);
+			updateFile.write((char *)&curr->data[i], 1);
+			break;
+
+		    case 12:
+			// Seen '\nX'
+			if ('-' == curr->data[i]) {
+			    parseState = 13;
+			}
+			else {
+			    updateFile.write("X", 1);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 13:
+			// Seen '\nX-'
+			if ('S' == curr->data[i]) {
+			    parseState = 14;
+			}
+			else if ('U' == curr->data[i]) {
+			    parseState = 21;
+			}
+			else {
+			    updateFile.write("X-", 2);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 14:
+			// Seen '\nX-S'
+			if ('t' == curr->data[i]) {
+			    parseState = 15;
+			}
+			else {
+			    if (isXheader) {
+				updateFile.write("X-", 2);
+			    }
+			    updateFile.write("S", 1);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 15:
+			// Seen '\nX-St'
+			if ('a' == curr->data[i]) {
+			    parseState = 16;
+			}
+			else {
+			    if (isXheader) {
+				updateFile.write("X-", 2);
+			    }
+			    updateFile.write("St", 2);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 16:
+			// Seen '\nX-Sta'
+			if ('t' == curr->data[i]) {
+			    parseState = 17;
+			}
+			else {
+			    if (isXheader) {
+				updateFile.write("X-", 2);
+			    }
+			    updateFile.write("Sta", 3);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 17:
+			// Seen '\nX-Stat'
+			if ('u' == curr->data[i]) {
+			    parseState = 18;
+			}
+			else {
+			    if (isXheader) {
+				updateFile.write("X-", 2);
+			    }
+			    updateFile.write("Stat", 4);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 18:
+			// Seen '\nX-Statu'
+			if ('s' == curr->data[i]) {
+			    parseState = 19;
+			}
+			else {
+			    if (isXheader) {
+				updateFile.write("X-", 2);
+			    }
+			    updateFile.write("Statu", 5);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 19:
+			// Seen '\nX-Status'
+			if (':' == curr->data[i]) {
+			    if (isXheader) {
+				charactersAdded -= 2;
+			    }
+			    charactersAdded -= 6;
+			    parseState = 20;
+			}
+			else {
+			    if (isXheader) {
+				updateFile.write("X-", 2);
+			    }
+			    updateFile.write("Status", 6);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 20:
+			// Seen '\nX-Status:'
+			--charactersAdded;
+			if ('\n' == curr->data[i]) {
+			    parseState = 7;
+			    // Flush the flags from here
+			}
+			else if ('D' == curr->data[i]) {
+			    flagsFromMessage |= IMAP_MESSAGE_DELETED;
+			}
+			else if ('A' == curr->data[i]) {
+			    flagsFromMessage |= IMAP_MESSAGE_ANSWERED;
+			}
+			else if ('F' == curr->data[i]) {
+			    flagsFromMessage |= IMAP_MESSAGE_FLAGGED;
+			}
+			else if ('T' == curr->data[i]) {
+			    flagsFromMessage |= IMAP_MESSAGE_DRAFT;
+			}
+			else if ('R' == curr->data[i]) {
+			    flagsFromMessage |= IMAP_MESSAGE_SEEN;
+			}
+			break;
+
+		    case 21:
+			// Seen '\nX-U'
+			if ('I' == curr->data[i]) {
+			    parseState = 22;
+			}
+			else {
+			    updateFile.write("X-U", 3);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 22:
+			// Seen '\nX-UI'
+			if ('D' == curr->data[i]) {
+			    parseState = 23;
+			}
+			else {
+			    updateFile.write("X-UI", 4);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 23:
+			// Seen '\nX-UID'
+			if (':' == curr->data[i]) {
+			    charactersAdded -= 5;
+			    uidFromMessage == 0;
+			    parseState = 24;
+			}
+			else {
+			    updateFile.write("X-UID", 5);
+			    updateFile.write((char *)&curr->data[i], 1);
+			    parseState = 6;
+			}
+			break;
+
+		    case 24:
+			// Seen '\nX-UID:'
+			--charactersAdded;
+			if ('\n' == curr->data[i]) {
+			    parseState = 7;
+			}
+			else if (isdigit(curr->data[i])) {
+			    uidFromMessage = curr->data[i] - '0';
+			    parseState = 25;
+			}
+			break;
+
+		    case 25:
+			--charactersAdded;
+			if ('\n' == curr->data[i]) {
+			    parseState = 7;
+			}
+			else if (isdigit(curr->data[i])) {
+			    uidFromMessage = 10 * uidFromMessage + curr->data[i] - '0';
+			}
+			else {
+			    parseState = 26;
+			}
+			break;
+		    }
+		}
+		curr = curr->next;
+		lastPutPos = updateFile.tellp();
+	    }
+	    updateFile.close();
+	}
+    }
+    else {
+	m_errnoFromLibrary = errno;
+	result = MailStore::GENERAL_FAILURE;
+    }
+    return result;
 }
 
 
