@@ -55,7 +55,7 @@ private:
     unsigned m_recentCount;
     unsigned m_firstUnseen;
     unsigned m_uidValidity;
-    unsigned m_uidNext;
+    unsigned m_uidLast;
     bool m_hasHiddenMessage;
     std::string *m_openMailbox;
     bool m_isDirty;

@@ -22,7 +22,7 @@ MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, c
     m_mailboxMessageCount = 0;
     m_recentCount = 0;
     m_firstUnseen = 0;
-    m_uidNext = 0;
+    m_uidLast = 0;
     m_uidValidity = 0;
     m_outFile = NULL;
     m_openMailbox = NULL;
@@ -624,13 +624,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 		// I last parsed the mailbox.  Instead, I'll assign UID numbers at the next checkpoint when I
 		// reparse the message base.
 		if ((NULL != m_openMailbox) && (*m_openMailbox == FullName) && (stat_buf.st_mtime <= m_lastMtime)) {
-		    if (NULL != newUid) {
-			*newUid = m_uidNext;
-		    }
-		    if (0 != (m_uidNext)) {
-			*m_outFile << "X-UID: " << m_uidNext;
-			++m_uidNext;
+		    if (0 != (m_uidLast)) {
+			*m_outFile << "X-UID: " << ++m_uidLast;
 			*m_outFile << '\n';
+		    }
+		    if (NULL != newUid) {
+			*newUid = m_uidLast;
 		    }
 		}
 		else {
@@ -668,11 +667,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DoneAppendingDataToMessage(const std
 
 unsigned MailStoreMbox::GetSerialNumber()
 {
-    return m_uidNext;
+    return m_uidLast + 1;
 }
 
 
-bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData) {
+bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidLast, MessageIndex_t &messageMetaData) {
 
     bool result = true;
     bool inHeader = true;
@@ -703,18 +702,16 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
 				std::istringstream ss(line.substr(7));
 
 				ss >> uidValidity;
-				ss >> uidNext;
-				++uidNext;
-				// std::cout << "It's an X-IMAP line with uidValidity = " << uidValidity << " and uidNext = " << uidNext << std::endl;
+				ss >> uidLast;
+				// std::cout << "It's an X-IMAP line with uidValidity = " << uidValidity << " and uidLast = " << uidLast << std::endl;
 				result = ss;
 			    }
 			    else if (0 == line.compare(0, 11, "X-IMAPbase:")) {
 				std::istringstream ss(line.substr(11));
 
 				ss >> uidValidity;
-				ss >> uidNext;
-				++uidNext;
-				// std::cout << "It's an X-IMAPbase line with uidValidity = " << uidValidity << " and uidNext = " << uidNext << std::endl;
+				ss >> uidLast;
+				// std::cout << "It's an X-IMAPbase line with uidValidity = " << uidValidity << " and uidLast = " << uidLast << std::endl;
 				result = ss;
 			    }
 			}
@@ -800,7 +797,7 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
 //    mailboxMessageCount
 //    recentCount
 //    firstUnseen
-//    uidNext
+//    uidLast
 //    uidValidity
 // and to get a list of the flags and permanent flags
 // to do that, I need to at least partly parse the entire file, I may want to parse and cache 
@@ -859,10 +856,10 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	m_mailboxMessageCount = 0;
 	m_recentCount = 0;
 	m_firstUnseen = 0;
-	m_uidNext = 0;
+	m_uidLast = 0;
 	m_uidValidity = 0;
 	m_hasHiddenMessage = false;
-	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidNext, messageMetaData))) {
+	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidLast, messageMetaData))) {
 	    if (countMessage) {
 		++m_mailboxMessageCount;
 		if (0 != (MailStore::IMAP_MESSAGE_RECENT & messageMetaData.flags)) {
@@ -873,7 +870,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 		    m_firstUnseen = m_mailboxMessageCount;
 		}
 		if (0 == messageMetaData.uid) {
-		    messageMetaData.uid = m_uidNext++;
+		    messageMetaData.uid = ++m_uidLast;
 		    m_isDirty = true;
 		}
 		m_messageIndex.push_back(messageMetaData);
@@ -909,7 +906,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &FullName, uint32_t which, unsigned &messageCount,
-							     unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity,
+							     unsigned &recentCount, unsigned &uidLast, unsigned &uidValidity,
 							     unsigned &firstUnseen) {
     std::string MailboxName = FullName;
     std::string fullPath;
@@ -963,10 +960,10 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 	messageCount = 0;
 	recentCount = 0;
 	firstUnseen = 0;
-	uidNext = 0;
+	uidLast = 0;
 	uidValidity = 0;
 
-	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, uidValidity, uidNext, messageMetaData))) {
+	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, uidValidity, uidLast, messageMetaData))) {
 	    if (countMessage) {
 		++messageCount;
 		if (0 != (MailStore::IMAP_MESSAGE_RECENT & messageMetaData.flags)) {
@@ -976,7 +973,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 		    firstUnseen = messageCount;
 		}
 		if (0 == messageMetaData.uid) {
-		    messageMetaData.uid = uidNext++;
+		    messageMetaData.uid = ++uidLast;
 		}
 	    }
 	    firstMessage = false;
@@ -1171,7 +1168,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					    flagsFromMessage |= IMAP_MESSAGE_RECENT;
 					    MessageIndex_t messageMetaData;
 
-					    messageMetaData.uid = m_uidNext++;
+					    messageMetaData.uid = ++m_uidLast;
 					    messageMetaData.flags = flagsFromMessage;
 					    messageMetaData.imapLength = 0;; // SYZYGY -- how do I determine this?
 					    messageMetaData.start = 0;  //SYZYGY -- how do I determine this?
@@ -1274,7 +1271,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					flagsFromMessage |= IMAP_MESSAGE_RECENT;
 					MessageIndex_t messageMetaData;
 
-					messageMetaData.uid = m_uidNext++;
+					messageMetaData.uid = ++m_uidLast;
 					messageMetaData.flags = flagsFromMessage;
 					messageMetaData.imapLength = 0;; // SYZYGY -- how do I determine this?
 					messageMetaData.start = 0;  //SYZYGY -- how do I determine this?
