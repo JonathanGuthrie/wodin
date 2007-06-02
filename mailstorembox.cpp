@@ -377,7 +377,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 {
     if (NULL != m_openMailbox) {
 	MailboxFlushBuffers(NULL);
-	messageIndex.clear();
+	m_messageIndex.clear();
 	delete m_openMailbox;
 	m_openMailbox = NULL;
     }
@@ -820,6 +820,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	m_firstUnseen = 0;
 	m_uidNext = 0;
 	m_uidValidity = 0;
+	m_hasHiddenMessage = false;
 	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidNext, messageMetaData))) {
 	    if (countMessage) {
 		++m_mailboxMessageCount;
@@ -833,16 +834,19 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 		    messageMetaData.uid = m_uidNext++;
 		    m_isDirty = true;
 		}
-		messageIndex.push_back(messageMetaData);
+		m_messageIndex.push_back(messageMetaData);
+	    }
+	    else {
+		m_hasHiddenMessage = true;
 	    }
 	    firstMessage = false;
 	}
 	inFile.close();
 	// SYZYGY -- if parseSuccess is not true, it should return an error
 
-	for (int i=0; i < messageIndex.size(); ++i) {
-	    std::cout << "Message " << i << " has uid " << messageIndex[i].uid;
-	    if (messageIndex[i].isDirty) {
+	for (int i=0; i < m_messageIndex.size(); ++i) {
+	    std::cout << "Message " << i << " has uid " << m_messageIndex[i].uid;
+	    if (m_messageIndex[i].isDirty) {
 		std::cout << " and is dirty";
 	    }
 	    std::cout << std::endl;

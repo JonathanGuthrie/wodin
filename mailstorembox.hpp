@@ -48,7 +48,7 @@ private:
     } MessageIndex_t;
 
     typedef std::vector<MessageIndex_t> MESSAGE_INDEX;
-    MESSAGE_INDEX messageIndex;
+    MESSAGE_INDEX m_messageIndex;
     const char *m_homeDirectory;
     const char *m_inboxPath;
     unsigned m_mailboxMessageCount;
@@ -56,6 +56,7 @@ private:
     unsigned m_firstUnseen;
     unsigned m_uidValidity;
     unsigned m_uidNext;
+    bool m_hasHiddenMessage;
     std::string *m_openMailbox;
     bool m_isDirty;
     std::ofstream *m_outFile;
