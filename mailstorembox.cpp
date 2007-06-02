@@ -884,6 +884,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	inFile.close();
 	// SYZYGY -- if parseSuccess is not true, it should return an error
 
+#if 0
 	for (int i=0; i < m_messageIndex.size(); ++i) {
 	    std::cout << "Message " << i << " has uid " << m_messageIndex[i].uid;
 	    if (m_messageIndex[i].isDirty) {
@@ -891,6 +892,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	    }
 	    std::cout << std::endl;
 	}
+#endif // 0
 	struct stat stat_buf;
 
 	if (0 == lstat(fullPath.c_str(), &stat_buf)) {
@@ -1157,12 +1159,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    if ('\n' == curr->data[i]) {
-				std::cout << "Flushing the buffer" << std::endl;
+				// std::cout << "Flushing the buffer" << std::endl;
 				// Another newline means I'm at the end of a message body.
 				// I append all the header lines I need to here
 				if (0 <= messageIndex) {
-				    std::cout << "It's a real message" << std::endl;
-				    std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
+				    // std::cout << "It's a real message" << std::endl;
+				    // std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
 				    if (uidFromMessage == 0 || (messageIndex >= m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) {
 					if (messageIndex >= m_messageIndex.size()) {
 					    // If it's not in the Index, it is by definition recent
@@ -1176,7 +1178,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					    messageMetaData.isDirty = true;
 					    m_messageIndex.push_back(messageMetaData);
 					}
-					std::cout << "" << std::endl;
 					std::ostringstream ss;
 					ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
 					ss << "X-Status: ";
@@ -1198,8 +1199,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					}
 					ss << '\n';
 					charactersAdded += ss.str().length();
-					std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " <<
-					    ss.str().length() << " characters long" << std::endl;
+					// std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
 					updateFile.write(ss.str().c_str(), ss.str().length());
 					updateFile.flush();
 				    }
@@ -1262,10 +1262,10 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			    // do new message processing
 			    // I also know that I didn't get out of the header of the message
 			    // so I have to flush header fields
-			    std::cout << "Flushing the buffer" << std::endl;
+			    // std::cout << "Flushing the buffer" << std::endl;
 			    if (0 <= messageIndex) {
-				std::cout << "It's a real message" << std::endl;
-				std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
+				// std::cout << "It's a real message" << std::endl;
+				// std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
 				if (uidFromMessage == 0 || (messageIndex > m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) {
 				    if (messageIndex > m_messageIndex.size()) {
 					// If it's not in the Index, it is by definition recent
@@ -1300,8 +1300,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 				    }
 				    ss << '\n';
 				    charactersAdded += ss.str().length();
-				    std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " <<
-					ss.str().length() << " characters long" << std::endl;
+				    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
 				    updateFile.write(ss.str().c_str(), ss.str().length());
 				    updateFile.flush();
 				}
