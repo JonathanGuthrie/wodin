@@ -546,7 +546,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
     }
 
     if (SUCCESS == result) {
-	// SYZYGY working here
 	// SYZYGY -- what's wrong with this, well, I need to look at the incoming data and see if it's got header fields in it already
 	// SYZYGY -- which I have to suppress or ignore.  I also have to do "From " line quoting and I need to suppress carriage returns
 	// SYZYGY -- because this file, by definition, only has linefeeds.  That's just off the top of my head.
@@ -554,7 +553,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	    struct stat stat_buf;
 
 	    if (0 == lstat(fullPath.c_str(), &stat_buf)) {
-		m_outFile = new std::ofstream(fullPath.c_str(), std::ios_base::out|std::ios_base::app);
+		m_outFile = new std::ofstream(fullPath.c_str(), std::ios_base::out|std::ios_base::app|std::ios_base::binary);
 
 		*m_outFile << "\nFrom " << m_session->GetUser()->GetName() << "@" << m_session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
 		*m_outFile << "X-Status: ";
@@ -630,7 +629,6 @@ unsigned MailStoreMbox::GetSerialNumber()
 }
 
 
-// SYZYGY -- I need to determine if IMAP has ever opened the mail box and act accordingly
 bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData) {
 
     bool result = true;
