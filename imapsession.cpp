@@ -212,8 +212,10 @@ void ImapSession::BuildSymbolTables()
 #if 0
     symbolToInsert.handler = &ImapSession::CloseHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("CLOSE"), symbolToInsert)); 
+#endif // 0
     symbolToInsert.handler = &ImapSession::ExpungeHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("EXPUNGE"), symbolToInsert));
+    symbols.insert(IMAPSYMBOLS::value_type("EXPUNGE", symbolToInsert));
+#if 0
     symbolToInsert.handler = &ImapSession::SearchHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("SEARCH"), symbolToInsert));
     symbolToInsert.handler = &ImapSession::FetchHandler;
@@ -2761,6 +2763,7 @@ IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size
     // Unlike NOOP, I always call MailboxFlushBuffers because that recalculates the the cached data.
     // That may be the only way to find out that the number of messages or the UIDNEXT value has
     // changed.
+    IMAP_RESULTS result = IMAP_OK;
     NUMBER_LIST purgedMessages;
     std::ostringstream ss;
 
@@ -2773,6 +2776,9 @@ IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size
 	    s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
 	    ss.str("");
 	}
+    }
+    else {
+	result = IMAP_MBOX_ERROR;
     }
     if (currentNextUid != store->GetSerialNumber()) {
 	currentNextUid = store->GetSerialNumber();
@@ -2807,7 +2813,7 @@ IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size
 	ss.str("");
     }
 
-    return IMAP_OK;
+    return result;
 }
 
 #if 0
@@ -2821,44 +2827,28 @@ IMAP_RESULTS ImapSession::CloseHandler(byte *pData, const DWORD dwDataLen, DWORD
     m_eState = ImapAuthenticated;
     return IMAP_OK;
 }
+#endif // 0
 
-IMAP_RESULTS ImapSession::ExpungeHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt)
-{
+IMAP_RESULTS ImapSession::ExpungeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
-    NUMBER_LIST purged_messages;
+    NUMBER_LIST purgedMessages;
 
-    CMailStore::MAIL_STORE_RESULT purge_status = m_msStore->PurgeDeletedMessages(&purged_messages);
-    switch(purge_status)
-    {
-    case CMailStore::SUCCESS:
-	for (int i=0; i<purged_messages.GetSize(); ++i)
-	{
-	    DWORD message_number;
-	    CStdString untagged;
-
-	    message_number = purged_messages[i];
-	    untagged.Format(_T("* %d EXPUNGE\r\n"), message_number);
-	    Send((void *)untagged.c_str(), untagged.GetLength());
+    MailStore::MAIL_STORE_RESULT purge_status = store->PurgeDeletedMessages(&purgedMessages);
+    if (MailStore::SUCCESS == purge_status) {
+	std::ostringstream ss;
+	for (NUMBER_LIST::iterator message=purgedMessages.begin(); message != purgedMessages.end(); ++message) {
+	    ss << "* " << *message << " EXPUNGE\r\n";
 	}
-	break;
-
-    case CMailStore::MAILBOX_DOES_NOT_EXIST:
-	result = IMAP_NO;
-	strncpy(m_pResponseText, _T("Mailbox Does Not Exist"), MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    case CMailStore::MAILBOX_READ_ONLY:
-	result = IMAP_NO;
-	strncpy(m_pResponseText, _T("Mailbox Opened Read-Only"), MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    default:
-	break;
-
+	s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
     }
+    else {
+	result = IMAP_MBOX_ERROR;
+    }
+
     return result;
 }
 
+#if 0
 // A sequence set is a sequence of range values, each one of which is separated by commas
 // A range value is one of a number, a star, or two of either of those separated by 
 // a colon.  A star represents the last value in the range.  Two values separated by

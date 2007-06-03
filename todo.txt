@@ -25,7 +25,7 @@ done)  Basic name space implementation
   done) append
 
 10)  Do the commands available in the SELECTED state
-  a) check
+  done) check
   b) close
   c) expunge
   d) search

@@ -53,6 +53,10 @@ MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxOpen(const std::string &Ma
     return GENERAL_FAILURE;
 }
 
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::PurgeDeletedMessages(NUMBER_LIST *nowGone) {
+    return GENERAL_FAILURE;
+}
+
 MailStore::MAIL_STORE_RESULT MailStoreInvalid::GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 								unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity,
 								unsigned &firstUnseen) {

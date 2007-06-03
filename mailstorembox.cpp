@@ -904,6 +904,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 }
 
 
+MailStore::MAIL_STORE_RESULT MailStoreMbox::PurgeDeletedMessages(NUMBER_LIST *nowGone) {
+    // SYZYGY working here
+    return SUCCESS;
+}
+
+
 MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &FullName, uint32_t which, unsigned &messageCount,
 							     unsigned &recentCount, unsigned &uidLast, unsigned &uidValidity,
 							     unsigned &firstUnseen) {
@@ -1171,7 +1177,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 
 					    messageMetaData.uid = ++m_uidLast;
 					    messageMetaData.flags = flagsFromMessage;
-					    // SYZYGY working here
 					    messageMetaData.imapLength = 0;; // SYZYGY -- how do I determine this?
 					    messageMetaData.start = curr->startPos + (std::streamoff)messageStartOffset;
 					    messageMetaData.isDirty = true;

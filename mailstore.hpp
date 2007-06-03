@@ -80,6 +80,7 @@ public:
     virtual unsigned GetUidValidityNumber() = 0;
     virtual MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true) = 0;
 
+    virtual MAIL_STORE_RESULT PurgeDeletedMessages(NUMBER_LIST *nowGone) = 0;
     virtual MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 					       unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity, unsigned &firstUnseen) = 0;
 

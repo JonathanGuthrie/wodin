@@ -205,7 +205,9 @@ private:
     IMAP_RESULTS CheckHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
     IMAP_RESULTS CloseHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-    IMAP_RESULTS ExpungeHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
+#endif // 0
+    IMAP_RESULTS ExpungeHandler(uint8_t *data, const size_t dataLen, size_t &r_dwParsingAt);
+#if 0
     IMAP_RESULTS SearchHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS FetchHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS StoreHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);

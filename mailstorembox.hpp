@@ -23,6 +23,7 @@ public:
     virtual unsigned GetSerialNumber();
     virtual unsigned GetUidValidityNumber() { return m_uidValidity; }
     virtual MailStore::MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true);
+    virtual MailStore::MAIL_STORE_RESULT PurgeDeletedMessages(NUMBER_LIST *nowGone);
 
     virtual MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 					       unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity, unsigned &firstUnseen);

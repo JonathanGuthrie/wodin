@@ -164,6 +164,14 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxNa
     return result;
 }
 
+MailStore::MAIL_STORE_RESULT Namespace::PurgeDeletedMessages(NUMBER_LIST *nowGone) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->PurgeDeletedMessages(nowGone);
+    }
+    return result;
+}
+
 
 MailStore::MAIL_STORE_RESULT Namespace::GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 							 unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity,
