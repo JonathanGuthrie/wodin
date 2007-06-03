@@ -1012,8 +1012,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 
     struct stat stat_buf;
     if (0 == lstat(fullPath.c_str(), &stat_buf)) {
-	while (m_isDirty || (stat_buf.st_mtime <= m_lastMtime)) {
-	    std::ifstream::pos_type lastGetPos, lastPutPos;
+	while (m_isDirty || (stat_buf.st_mtime > m_lastMtime)) {
+	    std::fstream::pos_type lastGetPos, lastPutPos;
 
 	    std::fstream updateFile(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
 	    updateFile.seekp(0, std::ios_base::beg);
@@ -1027,6 +1027,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 
 	    typedef struct rb {
 		struct rb *next;
+		std::fstream::pos_type startPos;
 		unsigned char data[8192];
 		std::streamsize count;
 	    } rb_t;
@@ -1034,6 +1035,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 	    buff1.next = &buff2;
 	    buff2.next = &buff1;
 	    curr = &buff1;
+	    buff1.startPos = updateFile.tellg();
 	    updateFile.read((char *)buff1.data, 8192);
 	    updateFile.clear();
 	    buff1.count = updateFile.gcount();
@@ -1053,7 +1055,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 	    }
 	    while (notDone) {
 		m_isDirty = false;
+		int messageStartOffset;
 		updateFile.seekg(lastGetPos);
+		curr->next->startPos = updateFile.tellg();
 		updateFile.read((char *)curr->next->data, 8192);
 		updateFile.clear();
 		curr->next->count = updateFile.gcount();
@@ -1114,6 +1118,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 
 		    case 5:
 			if (' ' == curr->data[i]) {
+			    messageStartOffset = i - 4;
 			    parseState = 6;
 			    // When I get here, I know that I'm in a new message, so I have to
 			    // do new message processing
@@ -1168,7 +1173,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					    messageMetaData.flags = flagsFromMessage;
 					    // SYZYGY working here
 					    messageMetaData.imapLength = 0;; // SYZYGY -- how do I determine this?
-					    messageMetaData.start = 0;  //SYZYGY -- how do I determine this?
+					    messageMetaData.start = curr->startPos + (std::streamoff)messageStartOffset;
 					    messageMetaData.isDirty = true;
 					    m_messageIndex.push_back(messageMetaData);
 					}
@@ -1192,7 +1197,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					    ss << 'R';
 					}
 					ss << '\n';
-					if (8192 < (charactersAdded + ss.str().length())) {
+					if (8192 > (charactersAdded + ss.str().length())) {
 					    charactersAdded += ss.str().length();
 					    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
 					    updateFile.write(ss.str().c_str(), ss.str().length());
@@ -1274,8 +1279,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 
 					messageMetaData.uid = ++m_uidLast;
 					messageMetaData.flags = flagsFromMessage;
-					messageMetaData.imapLength = 0;; // SYZYGY -- how do I determine this?
-					messageMetaData.start = 0;  //SYZYGY -- how do I determine this?
+					messageMetaData.imapLength = 0; // SYZYGY -- how do I determine this?
+					messageMetaData.start = curr->startPos + (std::streamoff)messageStartOffset;
 					messageMetaData.isDirty = true;
 					m_messageIndex.push_back(messageMetaData);
 				    }
@@ -1299,7 +1304,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					ss << 'R';
 				    }
 				    ss << '\n';
-				    if (8192 < (charactersAdded + ss.str().length())) {
+				    if (8192 > (charactersAdded + ss.str().length())) {
 					charactersAdded += ss.str().length();
 					// std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
 					updateFile.write(ss.str().c_str(), ss.str().length());
@@ -1318,6 +1323,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			    }
 			    flagsFromMessage = 0;
 			    ++messageIndex;
+			    messageStartOffset = i - 4;
 			}
 			parseState = 6;
 			updateFile.write("From", 4);
@@ -1691,6 +1697,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 	    }
 
 	    updateFile.close();
+	    m_lastMtime = time(NULL);
 	}
     }
     else {
