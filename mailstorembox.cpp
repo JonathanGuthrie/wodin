@@ -1012,7 +1012,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 
     struct stat stat_buf;
     if (0 == lstat(fullPath.c_str(), &stat_buf)) {
-	if (m_isDirty || (stat_buf.st_mtime <= m_lastMtime)) {
+	while (m_isDirty || (stat_buf.st_mtime <= m_lastMtime)) {
 	    std::ifstream::pos_type lastGetPos, lastPutPos;
 
 	    std::fstream updateFile(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
@@ -1052,7 +1052,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 		messageIndex = -1;
 	    }
 	    while (notDone) {
-		// SYZYGY -- I need to mark the open file as "clean" if everything went okay
+		m_isDirty = false;
 		updateFile.seekg(lastGetPos);
 		updateFile.read((char *)curr->next->data, 8192);
 		updateFile.clear();
@@ -1064,7 +1064,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 		    // std::cout << "In state " << parseState << " message " << messageIndex << " reading character " << i << " which happens to be " << curr->data[i] << std::endl;
 		    // I have several jobs to do here.  I have to find the beginnings of messages and I have
 		    // to find the X-Status, Status, X-IMAP, X-IMAPbase, and X-UID header lines
-		    // SYZYGY working here
 		    switch(parseState) {
 		    case 0:
 			if ('F' == curr->data[i]) {
@@ -1167,6 +1166,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 
 					    messageMetaData.uid = ++m_uidLast;
 					    messageMetaData.flags = flagsFromMessage;
+					    // SYZYGY working here
 					    messageMetaData.imapLength = 0;; // SYZYGY -- how do I determine this?
 					    messageMetaData.start = 0;  //SYZYGY -- how do I determine this?
 					    messageMetaData.isDirty = true;
@@ -1192,10 +1192,16 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					    ss << 'R';
 					}
 					ss << '\n';
-					charactersAdded += ss.str().length();
-					// std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
-					updateFile.write(ss.str().c_str(), ss.str().length());
-					updateFile.flush();
+					if (8192 < (charactersAdded + ss.str().length())) {
+					    charactersAdded += ss.str().length();
+					    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
+					    updateFile.write(ss.str().c_str(), ss.str().length());
+					    updateFile.flush();
+					    m_messageIndex[messageIndex].isDirty = false;
+					}
+					else {
+					    m_isDirty = true;
+					}
 				    }
 				    else {
 					std::cout << "ABORT:  when flushing buffers, m_messageIndex[" << messageIndex << "].uid = " << m_messageIndex[messageIndex].uid <<
@@ -1293,10 +1299,16 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					ss << 'R';
 				    }
 				    ss << '\n';
-				    charactersAdded += ss.str().length();
-				    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
-				    updateFile.write(ss.str().c_str(), ss.str().length());
-				    updateFile.flush();
+				    if (8192 < (charactersAdded + ss.str().length())) {
+					charactersAdded += ss.str().length();
+					// std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
+					updateFile.write(ss.str().c_str(), ss.str().length());
+					updateFile.flush();
+					m_messageIndex[messageIndex].isDirty = false;
+				    }
+				    else {
+					m_isDirty = true;
+				    }
 				}
 				else {
 				    std::cout << "ABORT:  when flushing buffers, m_messageIndex[" << messageIndex << "].uid = " << m_messageIndex[messageIndex].uid <<
