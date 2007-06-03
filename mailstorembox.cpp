@@ -386,7 +386,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 }
 
 void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
-    // m_outFile->write((char *)data, length);  // SYZYGY -- I need to actually parse the message as it goes out, but this is okay until I get my stuff together
     for (int i=0; i<length; ++i) {
 	switch(m_appendState) {
 	case 0:
@@ -590,9 +589,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
     }
 
     if (SUCCESS == result) {
-	// SYZYGY -- what's wrong with this, well, I need to look at the incoming data and see if it's got header fields in it already
-	// SYZYGY -- which I have to suppress or ignore.  I also have to do "From " line quoting and I need to suppress carriage returns
-	// SYZYGY -- because this file, by definition, only has linefeeds.  That's just off the top of my head.
 	try {
 	    struct stat stat_buf;
 
