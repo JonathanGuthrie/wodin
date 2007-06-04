@@ -1182,7 +1182,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				// If I'm done purging this message, remove the message from the index and 
 				// record messageIndex in the list of purged messages
 				if (purgeThisMessage) {
-				    nowGone->push_back(messageIndex+1);
+				    if (NULL != nowGone) {
+					nowGone->push_back(messageIndex+1);
+				    }
 				    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
 				    m_messageIndex.erase(message+messageIndex);
 				}
@@ -1461,7 +1463,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    // If I'm done purging this message, remove the message from the index and 
 			    // record messageIndex in the list of purged messages
 			    if (purgeThisMessage) {
-				nowGone->push_back(messageIndex+1);
+				if (NULL != nowGone) {
+				    nowGone->push_back(messageIndex+1);
+				}
 				MESSAGE_INDEX::iterator message = m_messageIndex.begin();
 				m_messageIndex.erase(message+messageIndex);
 			    }
@@ -1815,7 +1819,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		// If I'm done purging this message, remove the message from the index and 
 		// record messageIndex in the list of purged messages
 		if (purgeThisMessage) {
-		    nowGone->push_back(messageIndex+1);
+		    if (NULL != nowGone) {
+			nowGone->push_back(messageIndex+1);
+		    }
 		    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
 		    m_messageIndex.erase(message+messageIndex);
 		}

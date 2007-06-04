@@ -209,10 +209,8 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.levels[3] = false;
     symbolToInsert.handler = &ImapSession::CheckHandler;
     symbols.insert(IMAPSYMBOLS::value_type("CHECK", symbolToInsert));
-#if 0
     symbolToInsert.handler = &ImapSession::CloseHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("CLOSE"), symbolToInsert)); 
-#endif // 0
+    symbols.insert(IMAPSYMBOLS::value_type("CLOSE", symbolToInsert)); 
     symbolToInsert.handler = &ImapSession::ExpungeHandler;
     symbols.insert(IMAPSYMBOLS::value_type("EXPUNGE", symbolToInsert));
 #if 0
@@ -2816,18 +2814,16 @@ IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size
     return result;
 }
 
-#if 0
-IMAP_RESULTS ImapSession::CloseHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt)
+IMAP_RESULTS ImapSession::CloseHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt)
 {
     // If the mailbox is open, close it
     // In IMAP, deleted messages are always purged before a close
     NUMBER_LIST dummy;
-    m_msStore->PurgeDeletedMessages(&dummy);
-    m_msStore->MailboxClose();
-    m_eState = ImapAuthenticated;
+    store->PurgeDeletedMessages(&dummy);
+    store->MailboxClose();
+    state = ImapAuthenticated;
     return IMAP_OK;
 }
-#endif // 0
 
 IMAP_RESULTS ImapSession::ExpungeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
