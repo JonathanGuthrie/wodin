@@ -27,20 +27,22 @@ done)  Basic name space implementation
 10)  Do the commands available in the SELECTED state
   done) check
   b) close
-  c) expunge
+  done) expunge
   d) search
   e) fetch
   f) store
   g) copy
   h) uid (three commands)
 
-11)  Properly handle the situation where the IMAP-specific headers aren't in the messages of an mbox message base.
+done)  Properly handle the situation where the IMAP-specific headers aren't in the messages of an mbox message base.
 
-12)  Refactor the utility message creation in MailstoreMbox
+12)  Fix the case where I try a select before login and it crashes
+
+13)  Refactor the utility message creation in MailstoreMbox
 
 done)  Finish the parts of the NOOP command I've deferred
 
-14)  Asynchonous notifications
+15)  Asynchonous notifications
 
 )  Locking for multiple simultaneous access to mailboxes
 

@@ -376,6 +376,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 {
+    //SYZYGY working here
     if (NULL != m_openMailbox) {
 	MailboxFlushBuffers(NULL);
 	m_messageIndex.clear();
@@ -1033,6 +1034,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 	    // and I'm updating the file as I go.   I need to define two buffers and work with them
 	    // efficiently.
 	    int charactersAdded = 0;
+	    int charactersCopied = 0;
 
 	    typedef struct rb {
 		struct rb *next;
@@ -1076,23 +1078,28 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		lastGetPos = updateFile.tellg();
 		updateFile.seekp(lastPutPos);
 		for (int i=0; i<curr->count; ++i) {
-		    // std::cout << "In state " << parseState << " message " << messageIndex << " reading character " << i << " which happens to be " << curr->data[i] << std::endl;
+#if 0
+		    std::cout << "State " << parseState << " message " << messageIndex << " char " << i << " value "
+			      << (char) (isprint(curr->data[i]) ? curr->data[i] : '.') << " charsAdded " << charactersAdded << " charsCopied " << charactersCopied
+			      << std::endl;
+#endif // 0
 		    // I have several jobs to do here.  I have to find the beginnings of messages and I have
 		    // to find the X-Status, Status, X-IMAP, X-IMAPbase, and X-UID header lines
 		    switch(parseState) {
-			//SYZYGY working here
-			// SYZYGY the question I'm trying to answer is:  Why is expunge deleting those newlines
 		    case 0:
 			if ('F' == curr->data[i]) {
 			    parseState = 2;
 			}
-			else if ('\n' != curr->data[i]) {
-			    parseState = 1;
+			else {
 			    if (purgeThisMessage) {
 				--charactersAdded;
 			    }
 			    else {
+				++charactersCopied;
 				updateFile.write((char *)&curr->data[i], 1);
+			    }
+			    if ('\n' != curr->data[i]) {
+				parseState = 1;
 			    }
 			}
 			break;
@@ -1105,6 +1112,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    --charactersAdded;
 			}
 			else {
+			    ++charactersCopied;
 			    updateFile.write((char *)&curr->data[i], 1);
 			}
 			break;
@@ -1119,6 +1127,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 2;
 			    }
 			    else {
+				charactersCopied += 2;
 				updateFile << "F";
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1135,6 +1144,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 3;
 			    }
 			    else {
+				charactersCopied += 3;
 				updateFile << "Fr";
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1151,6 +1161,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 4;
 			    }
 			    else {
+				charactersCopied += 4;
 				updateFile << "Fro";
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1209,6 +1220,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    charactersAdded -= 5;
 			}
 			else {
+			    charactersCopied += 5;
 			    updateFile << "From";
 			    updateFile.write((char *)&curr->data[i], 1);
 			}
@@ -1223,6 +1235,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    --charactersAdded;
 			}
 			else {
+			    charactersCopied += 1;
 			    updateFile.write((char *)&curr->data[i], 1);
 			}
 			break;
@@ -1264,27 +1277,28 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 					    messageMetaData.isDirty = true;
 					    m_messageIndex.push_back(messageMetaData);
 					}
-					std::ostringstream ss;
-					ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
-					ss << "X-Status: ";
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
-					    ss << 'A';
-					}
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
-					    ss << 'F';
-					}
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
-					    ss << 'D';
-					}
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
-					    ss << 'T';
-					}
-					ss << "\nStatus: O";
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
-					    ss << 'R';
-					}
-					ss << '\n';
 					if (!purgeThisMessage) {
+					    std::ostringstream ss;
+					    ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
+					    ss << "X-Status: ";
+					    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
+						ss << 'A';
+					    }
+					    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
+						ss << 'F';
+					    }
+					    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
+						ss << 'D';
+					    }
+					    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
+						ss << 'T';
+					    }
+					    ss << "\nStatus: O";
+					    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
+						ss << 'R';
+					    }
+					    ss << '\n';
+
 					    if (8192 > (charactersAdded + ss.str().length())) {
 						charactersAdded += ss.str().length();
 						// std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
@@ -1313,6 +1327,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				--charactersAdded;
 			    }
 			    else {
+				charactersCopied += 1;
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
 			}
@@ -1329,6 +1344,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 2;
 			    }
 			    else {
+				charactersCopied += 2;
 				updateFile.write("F", 1);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1346,6 +1362,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 3;
 			    }
 			    else {
+				charactersCopied += 3;
 				updateFile.write("Fr", 2);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1363,6 +1380,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 4;
 			    }
 			    else {
+				charactersCopied += 4;
 				updateFile.write("Fro", 3);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1474,6 +1492,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    charactersAdded -= 5;
 			}
 			else {
+			    charactersCopied += 5;
 			    updateFile.write("From", 4);
 			    updateFile.write((char *)&curr->data[i], 1);
 			}
@@ -1489,6 +1508,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 2;
 			    }
 			    else {
+				charactersCopied += 2;
 				updateFile.write("X", 1);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1509,6 +1529,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 3;
 			    }
 			    else {
+				charactersCopied += 3;
 				updateFile.write("X-", 2);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1527,11 +1548,18 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				    charactersAdded -= 2;
 				}
 				else {
+				    charactersCopied += 2;
 				    updateFile.write("X-", 2);
 				}
 			    }
-			    updateFile.write("S", 1);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 2;
+			    }
+			    else {
+				charactersCopied += 2;
+				updateFile.write("S", 1);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1554,6 +1582,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 3;
 			    }
 			    else {
+				charactersCopied += 3;
 				updateFile.write("St", 2);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1572,6 +1601,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				    charactersAdded -= 2;
 				}
 				else {
+				    charactersCopied += 2;
 				    updateFile.write("X-", 2);
 				}
 			    }
@@ -1579,6 +1609,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 4;
 			    }
 			    else {
+				charactersCopied += 4;
 				updateFile.write("Sta", 3);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1597,6 +1628,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				    charactersAdded -= 2;
 				}
 				else {
+				    charactersCopied += 2;
 				    updateFile.write("X-", 2);
 				}
 			    }
@@ -1604,6 +1636,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 5;
 			    }
 			    else {
+				charactersCopied += 5;
 				updateFile.write("Stat", 4);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1622,6 +1655,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				    charactersAdded -= 2;
 				}
 				else {
+				    charactersCopied += 2;
 				    updateFile.write("X-", 2);
 				}
 			    }
@@ -1629,6 +1663,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 6;
 			    }
 			    else {
+				charactersCopied += 6;
 				updateFile.write("Statu", 5);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1651,6 +1686,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				    charactersAdded -= 2;
 				}
 				else {
+				    charactersCopied += 2;
 				    updateFile.write("X-", 2);
 				}
 			    }
@@ -1658,6 +1694,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				charactersAdded -= 7;
 			    }
 			    else {
+				charactersCopied += 7;
 				updateFile.write("Status", 6);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
@@ -1695,8 +1732,14 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    parseState = 22;
 			}
 			else {
-			    updateFile.write("X-U", 3);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 4;
+			    }
+			    else {
+				charactersCopied += 4;
+				updateFile.write("X-U", 3);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1707,8 +1750,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    parseState = 23;
 			}
 			else {
-			    updateFile.write("X-UI", 4);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 5;
+			    }
+			    else {
+				updateFile.write("X-UI", 4);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1716,13 +1764,19 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		    case 23:
 			// Seen '\nX-UID'
 			if (':' == curr->data[i]) {
-			    charactersAdded -= 5;
+			    charactersAdded -= 6;
 			    uidFromMessage == 0;
 			    parseState = 24;
 			}
 			else {
-			    updateFile.write("X-UID", 5);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 6;
+			    }
+			    else {
+				charactersCopied += 6;
+				updateFile.write("X-UID", 5);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1778,7 +1832,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		off_t length;
 		updateFile.seekg(charactersAdded, std::ios_base::end);
 		length = updateFile.tellg();
-		
+
 		updateFile.close();
 		truncate(fullPath.c_str(), length);
 		updateFile.open(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
