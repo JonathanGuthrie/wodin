@@ -856,12 +856,16 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	m_uidLast = 0;
 	m_uidValidity = 0;
 	m_hasHiddenMessage = false;
+	m_hasDeletedMessage = false;
 	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidLast, messageMetaData))) {
 	    if (countMessage) {
 		++m_mailboxMessageCount;
 		if (0 != (MailStore::IMAP_MESSAGE_RECENT & messageMetaData.flags)) {
 		    ++m_recentCount;
 		    m_isDirty = true;
+		}
+		if (0 != (MailStore::IMAP_MESSAGE_DELETED & messageMetaData.flags)) {
+		    m_hasDeletedMessage = true;
 		}
 		if ((0 == m_firstUnseen) && (0 != (MailStore::IMAP_MESSAGE_SEEN & messageMetaData.flags))) {
 		    m_firstUnseen = m_mailboxMessageCount;
@@ -1017,7 +1021,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 
     struct stat stat_buf;
     if (0 == lstat(fullPath.c_str(), &stat_buf)) {
-	while (m_isDirty || (stat_buf.st_mtime > m_lastMtime)) {
+	while (m_isDirty || (doExpunge && m_hasDeletedMessage) || (stat_buf.st_mtime > m_lastMtime)) {
 	    std::fstream::pos_type lastGetPos, lastPutPos;
 
 	    std::fstream updateFile(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
@@ -1060,6 +1064,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		messageIndex = -1;
 	    }
 	    m_isDirty = false;
+	    m_hasDeletedMessage = false;
 	    while (notDone) {
 		int messageStartOffset;
 		updateFile.seekg(lastGetPos);
@@ -1075,6 +1080,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		    // I have several jobs to do here.  I have to find the beginnings of messages and I have
 		    // to find the X-Status, Status, X-IMAP, X-IMAPbase, and X-UID header lines
 		    switch(parseState) {
+			//SYZYGY working here
+			// SYZYGY the question I'm trying to answer is:  Why is expunge deleting those newlines
 		    case 0:
 			if ('F' == curr->data[i]) {
 			    parseState = 2;
@@ -1148,7 +1155,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
 			}
-			updateFile.write((char *)&curr->data[i], 1);
 			break;
 
 		    case 5:
@@ -1165,7 +1171,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				// If I'm done purging this message, remove the message from the index and 
 				// record messageIndex in the list of purged messages
 				if (purgeThisMessage) {
-				    nowGone->push_back(messageIndex);
+				    nowGone->push_back(messageIndex+1);
 				    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
 				    m_messageIndex.erase(message+messageIndex);
 				}
@@ -1177,6 +1183,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				    ++messageIndex;
 				}
 			    }
+			    else {
+				++messageIndex;
+			    }
 			    messageStartOffset = i - 4;
 			    parseState = 6;
 			    // Okay, now I look ahead to the following message.  If it's flagged as deleted in
@@ -1186,6 +1195,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
 				if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
 				    purgeThisMessage = true;
+				}
+				else {
+				    purgeThisMessage = false;
 				}
 			    }
 			    flagsFromMessage = 0;
@@ -1381,27 +1393,27 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 					messageMetaData.isDirty = true;
 					m_messageIndex.push_back(messageMetaData);
 				    }
-				    std::ostringstream ss;
-				    ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
-				    ss << "X-Status: ";
-				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
-					ss << 'A';
-				    }
-				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
-					ss << 'F';
-				    }
-				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
-					ss << 'D';
-				    }
-				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
-					ss << 'T';
-				    }
-				    ss << "\nStatus: O";
-				    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
-					ss << 'R';
-				    }
-				    ss << '\n';
 				    if (!purgeThisMessage) {
+					std::ostringstream ss;
+					ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
+					ss << "X-Status: ";
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
+					    ss << 'A';
+					}
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
+					    ss << 'F';
+					}
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
+					    ss << 'D';
+					}
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
+					    ss << 'T';
+					}
+					ss << "\nStatus: O";
+					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
+					    ss << 'R';
+					}
+					ss << '\n';
 					if (8192 > (charactersAdded + ss.str().length())) {
 					    charactersAdded += ss.str().length();
 					    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
@@ -1431,10 +1443,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    // If I'm done purging this message, remove the message from the index and 
 			    // record messageIndex in the list of purged messages
 			    if (purgeThisMessage) {
-				nowGone->push_back(messageIndex);
+				nowGone->push_back(messageIndex+1);
 				MESSAGE_INDEX::iterator message = m_messageIndex.begin();
 				m_messageIndex.erase(message+messageIndex);
-				//SYZYGY working here
 			    }
 			    else {
 				if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
@@ -1451,6 +1462,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
 				if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
 				    purgeThisMessage = true;
+				}
+				else {
+				    purgeThisMessage = false;
 				}
 			    }
 			    flagsFromMessage = 0;
@@ -1747,7 +1761,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		// If I'm done purging this message, remove the message from the index and 
 		// record messageIndex in the list of purged messages
 		if (purgeThisMessage) {
-		    nowGone->push_back(messageIndex);
+		    nowGone->push_back(messageIndex+1);
 		    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
 		    m_messageIndex.erase(message+messageIndex);
 		}
@@ -1760,7 +1774,15 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 	    }
 
 	    // if I've shortened the message file, then truncate it
-	    //SYZYGY working here
+	    if (0 > charactersAdded) {
+		off_t length;
+		updateFile.seekg(charactersAdded, std::ios_base::end);
+		length = updateFile.tellg();
+		
+		updateFile.close();
+		truncate(fullPath.c_str(), length);
+		updateFile.open(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+	    }
 
 	    // The last thing I do is update the X-IMAP or X-IMAPbase information
 	    updateFile.seekg(0, std::ios_base::beg);

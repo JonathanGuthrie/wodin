@@ -58,6 +58,7 @@ private:
     unsigned m_uidValidity;
     unsigned m_uidLast;
     bool m_hasHiddenMessage;
+    bool m_hasDeletedMessage;
     std::string *m_openMailbox;
     bool m_isDirty;
     std::ofstream *m_outFile;
