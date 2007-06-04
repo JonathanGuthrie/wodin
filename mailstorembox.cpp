@@ -905,8 +905,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::PurgeDeletedMessages(NUMBER_LIST *nowGone) {
-    // SYZYGY working here
-    return SUCCESS;
+    return FlushAndExpunge(nowGone, true);
 }
 
 
@@ -992,7 +991,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 std::string MailStoreMbox::GetMailboxUserPath() const {
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *nowGone) {
+MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone, bool doExpunge) {
     // If there are changes, I need to flush them.  I also need to reparse the file
     // to calculate new statistics.  The thing is, although this method should always
     // write the 'O' flag to the status line, it shouldn't reset any "recent" flags in
@@ -1052,6 +1051,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 	    bool isXheader;
 	    unsigned uidFromMessage = 0;
 	    uint32_t flagsFromMessage;
+	    bool purgeThisMessage = false;
 
 	    if (m_hasHiddenMessage) {
 		messageIndex = -2;
@@ -1059,8 +1059,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 	    else {
 		messageIndex = -1;
 	    }
+	    m_isDirty = false;
 	    while (notDone) {
-		m_isDirty = false;
 		int messageStartOffset;
 		updateFile.seekg(lastGetPos);
 		curr->next->startPos = updateFile.tellg();
@@ -1081,15 +1081,25 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else if ('\n' != curr->data[i]) {
 			    parseState = 1;
+			    if (purgeThisMessage) {
+				--charactersAdded;
+			    }
+			    else {
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			}
-			updateFile.write((char *)&curr->data[i], 1);
 			break;
 
 		    case 1:
 			if ('\n' == curr->data[i]) {
 			    parseState = 0;
 			}
-			updateFile.write((char *)&curr->data[i], 1);
+			if (purgeThisMessage) {
+			    --charactersAdded;
+			}
+			else {
+			    updateFile.write((char *)&curr->data[i], 1);
+			}
 			break;
 
 		    case 2:
@@ -1098,8 +1108,14 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    parseState = 1;
+			    if (purgeThisMessage) {
+				charactersAdded -= 2;
+			    }
+			    else {
+				updateFile << "F";
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			}
-			updateFile.write((char *)&curr->data[i], 1);
 			break;
 
 		    case 3:
@@ -1108,8 +1124,14 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    parseState = 1;
+			    if (purgeThisMessage) {
+				charactersAdded -= 3;
+			    }
+			    else {
+				updateFile << "Fr";
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			}
-			updateFile.write((char *)&curr->data[i], 1);
 			break;
 
 		    case 4:
@@ -1118,23 +1140,66 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    parseState = 1;
+			    if (purgeThisMessage) {
+				charactersAdded -= 4;
+			    }
+			    else {
+				updateFile << "Fro";
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			}
 			updateFile.write((char *)&curr->data[i], 1);
 			break;
 
 		    case 5:
 			if (' ' == curr->data[i]) {
-			    messageStartOffset = i - 4;
-			    parseState = 6;
 			    // When I get here, I know that I'm in a new message, so I have to
 			    // do new message processing
-			    ++messageIndex;
+			    // The first thing to do is to finish off the old message.  If it was marked
+			    // as deleted, but it wasn't deleted this time, then the buffer is still dirty.
+			    // This could happen, say, because a message was appended with the deleted flag
+			    // set.  The point is, I purge the message if the flags from the message and the
+			    // flags in the index indicate that the message should have been purged, but the
+			    // message wasn't purged
+			    if (0 <= messageIndex) {
+				// If I'm done purging this message, remove the message from the index and 
+				// record messageIndex in the list of purged messages
+				if (purgeThisMessage) {
+				    nowGone->push_back(messageIndex);
+				    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
+				    m_messageIndex.erase(message+messageIndex);
+				}
+				else {
+				    if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
+					(0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+					m_isDirty = true;
+				    }
+				    ++messageIndex;
+				}
+			    }
+			    messageStartOffset = i - 4;
+			    parseState = 6;
+			    // Okay, now I look ahead to the following message.  If it's flagged as deleted in
+			    // the index, it gets deleted in expunge mode.  Note that the index overrides whats
+			    // in the file.  That's because what's in the file may be stale, and I have no way
+			    // of knowing whether it is or not.
+			    if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
+				if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+				    purgeThisMessage = true;
+				}
+			    }
 			    flagsFromMessage = 0;
 			}
 			else {
 			    parseState = 1;
 			}
-			updateFile.write((char *)&curr->data[i], 1);
+			if (purgeThisMessage) {
+			    charactersAdded -= 5;
+			}
+			else {
+			    updateFile << "From";
+			    updateFile.write((char *)&curr->data[i], 1);
+			}
 			break;
 
 		    case 6:
@@ -1142,7 +1207,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			if ('\n' == curr->data[i]) {
 			    parseState = 7;
 			}
-			updateFile.write((char *)&curr->data[i], 1);
+			if (purgeThisMessage) {
+			    --charactersAdded;
+			}
+			else {
+			    updateFile.write((char *)&curr->data[i], 1);
+			}
 			break;
 
 		    case 7:
@@ -1202,15 +1272,17 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					    ss << 'R';
 					}
 					ss << '\n';
-					if (8192 > (charactersAdded + ss.str().length())) {
-					    charactersAdded += ss.str().length();
-					    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
-					    updateFile.write(ss.str().c_str(), ss.str().length());
-					    updateFile.flush();
-					    m_messageIndex[messageIndex].isDirty = false;
-					}
-					else {
-					    m_isDirty = true;
+					if (!purgeThisMessage) {
+					    if (8192 > (charactersAdded + ss.str().length())) {
+						charactersAdded += ss.str().length();
+						// std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
+						updateFile.write(ss.str().c_str(), ss.str().length());
+						updateFile.flush();
+						m_messageIndex[messageIndex].isDirty = false;
+					    }
+					    else {
+						m_isDirty = true;
+					    }
 					}
 				    }
 				    else {
@@ -1225,7 +1297,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			    else {
 				parseState = 6;
 			    }
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				--charactersAdded;
+			    }
+			    else {
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			}
 			break;
 
@@ -1236,8 +1313,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    parseState = 6;
-			    updateFile.write("F", 1);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 2;
+			    }
+			    else {
+				updateFile.write("F", 1);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			}
 			break;
 
@@ -1248,8 +1330,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    parseState = 6;
-			    updateFile.write("Fr", 2);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 3;
+			    }
+			    else {
+				updateFile.write("Fr", 2);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			}
 			break;
 
@@ -1260,8 +1347,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    parseState = 6;
-			    updateFile.write("Fro", 3);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 4;
+			    }
+			    else {
+				updateFile.write("Fro", 3);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			}
 			break;
 
@@ -1309,15 +1401,17 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 					ss << 'R';
 				    }
 				    ss << '\n';
-				    if (8192 > (charactersAdded + ss.str().length())) {
-					charactersAdded += ss.str().length();
-					// std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
-					updateFile.write(ss.str().c_str(), ss.str().length());
-					updateFile.flush();
-					m_messageIndex[messageIndex].isDirty = false;
-				    }
-				    else {
-					m_isDirty = true;
+				    if (!purgeThisMessage) {
+					if (8192 > (charactersAdded + ss.str().length())) {
+					    charactersAdded += ss.str().length();
+					    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
+					    updateFile.write(ss.str().c_str(), ss.str().length());
+					    updateFile.flush();
+					    m_messageIndex[messageIndex].isDirty = false;
+					}
+					else {
+					    m_isDirty = true;
+					}
 				    }
 				}
 				else {
@@ -1326,13 +1420,49 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 				    return MailStore::GENERAL_FAILURE; // SYZYGY
 				}
 			    }
-			    flagsFromMessage = 0;
-			    ++messageIndex;
+			    // When I get here, I know that I'm in a new message, so I have to
+			    // do new message processing
+			    // The first thing to do is to finish off the old message.  If it was marked
+			    // as deleted, but it wasn't deleted this time, then the buffer is still dirty.
+			    // This could happen, say, because a message was appended with the deleted flag
+			    // set.  The point is, I purge the message if the flags from the message and the
+			    // flags in the index indicate that the message should have been purged, but the
+			    // message wasn't purged
+			    // If I'm done purging this message, remove the message from the index and 
+			    // record messageIndex in the list of purged messages
+			    if (purgeThisMessage) {
+				nowGone->push_back(messageIndex);
+				MESSAGE_INDEX::iterator message = m_messageIndex.begin();
+				m_messageIndex.erase(message+messageIndex);
+				//SYZYGY working here
+			    }
+			    else {
+				if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
+				    (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+				    m_isDirty = true;
+				}
+				++messageIndex;
+			    }
 			    messageStartOffset = i - 4;
+			    // Okay, now I look ahead to the following message.  If it's flagged as deleted in
+			    // the index, it gets deleted in expunge mode.  Note that the index overrides whats
+			    // in the file.  That's because what's in the file may be stale, and I have no way
+			    // of knowing whether it is or not.
+			    if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
+				if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+				    purgeThisMessage = true;
+				}
+			    }
+			    flagsFromMessage = 0;
 			}
 			parseState = 6;
-			updateFile.write("From", 4);
-			updateFile.write((char *)&curr->data[i], 1);
+			if (purgeThisMessage) {
+			    charactersAdded -= 5;
+			}
+			else {
+			    updateFile.write("From", 4);
+			    updateFile.write((char *)&curr->data[i], 1);
+			}
 			break;
 
 		    case 12:
@@ -1341,8 +1471,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			    parseState = 13;
 			}
 			else {
-			    updateFile.write("X", 1);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 2;
+			    }
+			    else {
+				updateFile.write("X", 1);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1356,8 +1491,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			    parseState = 21;
 			}
 			else {
-			    updateFile.write("X-", 2);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 3;
+			    }
+			    else {
+				updateFile.write("X-", 2);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1369,7 +1509,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    if (isXheader) {
-				updateFile.write("X-", 2);
+				if (purgeThisMessage) {
+				    charactersAdded -= 2;
+				}
+				else {
+				    updateFile.write("X-", 2);
+				}
 			    }
 			    updateFile.write("S", 1);
 			    updateFile.write((char *)&curr->data[i], 1);
@@ -1384,10 +1529,20 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    if (isXheader) {
-				updateFile.write("X-", 2);
+				if (purgeThisMessage) {
+				    charactersAdded -= 2;
+				}
+				else {
+				    updateFile.write("X-", 2);
+				}
 			    }
-			    updateFile.write("St", 2);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 3;
+			    }
+			    else {
+				updateFile.write("St", 2);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1399,10 +1554,20 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    if (isXheader) {
-				updateFile.write("X-", 2);
+				if (purgeThisMessage) {
+				    charactersAdded -= 2;
+				}
+				else {
+				    updateFile.write("X-", 2);
+				}
 			    }
-			    updateFile.write("Sta", 3);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 4;
+			    }
+			    else {
+				updateFile.write("Sta", 3);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1414,10 +1579,20 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    if (isXheader) {
-				updateFile.write("X-", 2);
+				if (purgeThisMessage) {
+				    charactersAdded -= 2;
+				}
+				else {
+				    updateFile.write("X-", 2);
+				}
 			    }
-			    updateFile.write("Stat", 4);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 5;
+			    }
+			    else {
+				updateFile.write("Stat", 4);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1429,10 +1604,20 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			}
 			else {
 			    if (isXheader) {
-				updateFile.write("X-", 2);
+				if (purgeThisMessage) {
+				    charactersAdded -= 2;
+				}
+				else {
+				    updateFile.write("X-", 2);
+				}
 			    }
-			    updateFile.write("Statu", 5);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 6;
+			    }
+			    else {
+				updateFile.write("Statu", 5);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1443,15 +1628,25 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 			    if (isXheader) {
 				charactersAdded -= 2;
 			    }
-			    charactersAdded -= 6;
+			    charactersAdded -= 7;
 			    parseState = 20;
 			}
 			else {
 			    if (isXheader) {
-				updateFile.write("X-", 2);
+				if (purgeThisMessage) {
+				    charactersAdded -= 2;
+				}
+				else {
+				    updateFile.write("X-", 2);
+				}
 			    }
-			    updateFile.write("Status", 6);
-			    updateFile.write((char *)&curr->data[i], 1);
+			    if (purgeThisMessage) {
+				charactersAdded -= 7;
+			    }
+			    else {
+				updateFile.write("Status", 6);
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
 			    parseState = 6;
 			}
 			break;
@@ -1547,6 +1742,25 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 		curr = curr->next;
 		lastPutPos = updateFile.tellp();
 	    }
+	    // The next thing to do is to handle the case where the last message was deleted
+	    if (0 <= messageIndex) {
+		// If I'm done purging this message, remove the message from the index and 
+		// record messageIndex in the list of purged messages
+		if (purgeThisMessage) {
+		    nowGone->push_back(messageIndex);
+		    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
+		    m_messageIndex.erase(message+messageIndex);
+		}
+		else {
+		    if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
+			(0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+			m_isDirty = true;
+		    }
+		}
+	    }
+
+	    // if I've shortened the message file, then truncate it
+	    //SYZYGY working here
 
 	    // The last thing I do is update the X-IMAP or X-IMAPbase information
 	    updateFile.seekg(0, std::ios_base::beg);
@@ -1710,6 +1924,10 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *now
 	result = MailStore::GENERAL_FAILURE;
     }
     return result;
+}
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *nowGone) {
+    return FlushAndExpunge(nowGone, false);
 }
 
 

@@ -71,6 +71,7 @@ private:
     bool ListAllHelper(const regex_t *compiled_regex, const char *home_directory, const char *working_dir, MAILBOX_LIST *result, int maxdepth);
     bool ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData);
     void AddDataToMessageFile(uint8_t *data, size_t length);
+    MailStore::MAIL_STORE_RESULT FlushAndExpunge(NUMBER_LIST *nowGone, bool doExpunge);
 };
 
 #endif // _MAILSTOREMBOX_HPP_INCLUDED_
