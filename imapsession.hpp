@@ -13,9 +13,13 @@
 #include "namespace.hpp"
 #include "sasl.hpp"
 #include "insensitive.hpp"
+#include "mailsearch.hpp"
+#include "mailmessage.hpp"
 
 class ImapServer;
 class SessionDriver;
+class MailSearch;
+class MailMessage;
 
 enum ImapState
 {
@@ -85,50 +89,50 @@ public:
     ~ImapSession();
     static void BuildSymbolTables(void);
     int ReceiveData(uint8_t* pData, size_t dwDataLen );
-    ImapServer *GetServer(void) const { return server; }
-    time_t GetLastCommandTime() const { return lastCommandTime; }
-    Socket *GetSocket(void) const { return s; }
-    ImapState GetState(void) const { return state; }
-    const ImapUser *GetUser(void) const { return userData; }
+    ImapServer *GetServer(void) const { return m_server; }
+    time_t GetLastCommandTime() const { return m_lastCommandTime; }
+    Socket *GetSocket(void) const { return m_s; }
+    ImapState GetState(void) const { return m_state; }
+    const ImapUser *GetUser(void) const { return m_userData; }
 
 private:
     // These are configuration items
     bool m_LoginDisabled;
-    static bool anonymousEnabled;
-    unsigned failedLoginPause;
-    SessionDriver *driver;
-    MailStore::MAIL_STORE_RESULT mboxErrorCode;
+    static bool m_anonymousEnabled;
+    unsigned m_failedLoginPause;
+    SessionDriver *m_driver;
+    MailStore::MAIL_STORE_RESULT m_mboxErrorCode;
 
-    Socket *s;
+    Socket *m_s;
     // These constitute the session's state
-    enum ImapState state;
-    enum ImapCommandInProgress inProgress;
+    enum ImapState m_state;
+    enum ImapCommandInProgress m_inProgress;
 
-    uint32_t mailFlags;
-    uint8_t *lineBuffer;			// This buffers the incoming data into lines to be processed
-    uint32_t lineBuffPtr, lineBuffLen;
+    uint32_t m_mailFlags;
+    uint8_t *m_lineBuffer;			// This buffers the incoming data into lines to be processed
+    uint32_t m_lineBuffPtr, m_lineBuffLen;
     // As lines come in from the outside world, they are processed into m_bBuffer, which holds
     // them until the entire command has been received at which point it can be processed, often
     // by the *Execute() methods.
-    uint8_t  *parseBuffer;
-    uint32_t parseBuffLen;
-    uint32_t parsePointer; 			// This points past the end of what's been put into the parse buffer
+    uint8_t  *m_parseBuffer;
+    uint32_t m_parseBuffLen;
+    uint32_t m_parsePointer; 			// This points past the end of what's been put into the parse buffer
 
     // This is associated with handling appends
-    uint32_t appendingUid;
-    Namespace *store;
-    char responseCode[MAX_RESPONSE_STRING_LENGTH+1];
-    char responseText[MAX_RESPONSE_STRING_LENGTH+1];
-    uint32_t commandString, arguments;
-    uint32_t parseStage;
-    uint32_t literalLength;
-    bool usesUid;
+    uint32_t m_appendingUid;
+    Namespace *m_store;
+    char m_responseCode[MAX_RESPONSE_STRING_LENGTH+1];
+    char m_responseText[MAX_RESPONSE_STRING_LENGTH+1];
+    uint32_t m_commandString, m_arguments;
+    uint32_t m_parseStage;
+    uint32_t m_literalLength;
+    bool m_usesUid;
 
     // These are used to send live updates in case the mailbox is accessed by multiple client simultaneously
-    uint32_t currentNextUid, currentMessageCount;
-    uint32_t currentRecentCount, currentUnseen, currentUidValidity;
+    uint32_t m_currentNextUid, m_currentMessageCount;
+    uint32_t m_currentRecentCount, m_currentUnseen, m_currentUidValidity;
 
-    static IMAPSYMBOLS symbols;
+    static IMAPSYMBOLS m_symbols;
 
     // ReceiveData processes data as it comes it.  It's primary job is to chop the incoming data into
     // lines and to pass each line to HandleOneLine, which is the core command processor for the system
@@ -142,20 +146,21 @@ private:
     void AddToParseBuffer(const uint8_t *data, size_t length, bool bNulTerminate = true);
 
     IMAP_RESULTS LoginHandlerExecute();
+    IMAP_RESULTS SearchHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
+    IMAP_RESULTS SearchKeyParse(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
-    IMAP_RESULTS SearchHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
-    IMAP_RESULTS SearchKeyParse(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS StoreHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
-    IMAP_RESULTS FetchHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
+#endif // 0
+    IMAP_RESULTS FetchHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
+#if 0
     IMAP_RESULTS CopyHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
 #endif // 0
     size_t ReadEmailFlags(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool &okay);
-#if 0
-    bool UpdateSearchTerms(CMailSearch &searchTerm, DWORD &r_dwTokenPointer, bool isSubExpression);
-    bool MsnSequenceSet(SEARCH_RESULT &r_srVector, DWORD &r_dwTokenPointer);
-    bool UidSequenceSet(SEARCH_RESULT &r_srVector, DWORD &r_dwTokenPointer);
-    bool UpdateSearchTerm(CMailSearch &searchTerm, DWORD &r_dwTokenPointer);
-#endif // 0
+    bool UpdateSearchTerms(MailSearch &searchTerm, size_t &tokenPointer, bool isSubExpression);
+    bool MsnSequenceSet(SEARCH_RESULT &r_srVector, size_t &tokenPointer);
+    bool UidSequenceSet(SEARCH_RESULT &r_srVector, size_t &tokenPointer);
+    bool UpdateSearchTerm(MailSearch &searchTerm, size_t &tokenPointer);
+
     IMAP_RESULTS SelectHandlerExecute(bool isReadWrite = true);
     IMAP_RESULTS CreateHandlerExecute();
     IMAP_RESULTS DeleteHandlerExecute();
@@ -164,9 +169,9 @@ private:
     IMAP_RESULTS ListHandlerExecute(bool listAll);
     IMAP_RESULTS StatusHandlerExecute(uint8_t *data, const size_t dataLen, size_t parsingAt);
     IMAP_RESULTS AppendHandlerExecute(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS SearchHandlerExecute(bool usingUid);
+    IMAP_RESULTS FetchHandlerExecute(bool usingUid);
 #if 0
-    IMAP_RESULTS SearchHandlerExecute(bool bUsingUid);
-    IMAP_RESULTS FetchHandlerExecute(bool bUsingUid);
     IMAP_RESULTS CopyHandlerExecute(bool bUsingUid);
 #endif // 0
 
@@ -204,31 +209,31 @@ private:
 
     IMAP_RESULTS CheckHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS CloseHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS ExpungeHandler(uint8_t *data, const size_t dataLen, size_t &r_dwParsingAt);
+    IMAP_RESULTS ExpungeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS SearchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS FetchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
-    IMAP_RESULTS SearchHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-    IMAP_RESULTS FetchHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS StoreHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS CopyHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS UidHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
+#endif // 0
 
     // These are for fetches, which are special because they can generate arbitrarily large responses
-    void FetchResponseFlags(DWORD flags, bool isRecent);
-    void FetchResponseInternalDate(CMailMessage &message);
-    void FetchResponseRfc822(DWORD uid, const CMailMessage &message);
-    void FetchResponseRfc822Header(DWORD uid, const CMailMessage &message);
-    void FetchResponseRfc822Size(const CMailMessage &message);
-    void FetchResponseRfc822Text(DWORD uid, const CMailMessage &message);
-    void FetchResponseEnvelope(const CMailMessage &message);
-    void FetchResponseBodyStructure(const CMailMessage &message);
-    void FetchResponseBody(const CMailMessage &message);
-    void FetchResponseUid(DWORD uid);
-    void SendMessageChunk(DWORD uid, DWORD offset, DWORD length);
-#endif // 0
-    ImapUser *userData;
-    ImapServer *server;
-    Sasl *auth;
-    time_t lastCommandTime;
+    void FetchResponseFlags(uint32_t flags, bool isRecent);
+    void FetchResponseInternalDate(MailMessage &message);
+    void FetchResponseRfc822(unsigned long uid, const MailMessage &message);
+    void FetchResponseRfc822Header(unsigned long uid, const MailMessage &message);
+    void FetchResponseRfc822Size(const MailMessage &message);
+    void FetchResponseRfc822Text(unsigned long uid, const MailMessage &message);
+    void FetchResponseEnvelope(const MailMessage &message);
+    void FetchResponseBodyStructure(const MailMessage &message);
+    void FetchResponseBody(const MailMessage &message);
+    void FetchResponseUid(unsigned long uid);
+    void SendMessageChunk(unsigned long uid, size_t offset, size_t length);
+    ImapUser *m_userData;
+    ImapServer *m_server;
+    Sasl *m_auth;
+    time_t m_lastCommandTime;
 };
 
 #endif //_IMAPSESSION_HPP_INCLUDED_
