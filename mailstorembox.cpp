@@ -376,7 +376,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 {
-    //SYZYGY working here
+    m_uidGivenMsn.clear();
     if (NULL != m_openMailbox) {
 	MailboxFlushBuffers(NULL);
 	m_messageIndex.clear();
@@ -625,6 +625,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 		    if (0 != (m_uidLast)) {
 			*m_outFile << "X-UID: " << ++m_uidLast;
 			*m_outFile << '\n';
+			m_uidGivenMsn.push_back(m_uidLast);
 		    }
 		    if (NULL != newUid) {
 			*newUid = m_uidLast;
@@ -875,6 +876,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 		    messageMetaData.uid = ++m_uidLast;
 		    m_isDirty = true;
 		}
+		m_uidGivenMsn.push_back(messageMetaData.uid);
 		m_messageIndex.push_back(messageMetaData);
 	    }
 	    else {
@@ -893,7 +895,15 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	    }
 	    std::cout << std::endl;
 	}
+
+	int count = 1;
+	for (MSN_TO_UID::const_iterator i = m_uidGivenMsn.begin(); i!=m_uidGivenMsn.end(); ++i) {
+	    std::cout << "Message " << count << " has uid " << *i;
+	    ++count;
+	    std::cout << std::endl;
+	}
 #endif // 0
+
 	struct stat stat_buf;
 
 	if (0 == lstat(fullPath.c_str(), &stat_buf)) {
@@ -997,12 +1007,16 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags) {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     unsigned long msn = MailboxUidToMsn(uid);
-    if (msn < m_messageIndex.size()) {
-	flags = m_messageIndex[msn].flags;
+    // Since the user isn't allowed to update the recent flag, I need to reset the recent flag in the
+    // or mask and set it in the and mask
+    andMask |= MailStore::IMAP_MESSAGE_RECENT;
+    orMask &= ~MailStore::IMAP_MESSAGE_RECENT;
+    if ((0 != msn) && (msn <= m_messageIndex.size())) {
+	flags = m_messageIndex[msn-1].flags;
 	flags = orMask | (andMask & flags);
-	if (m_messageIndex[msn].flags != flags) {
-	    m_messageIndex[msn].flags = flags;
-	    m_messageIndex[msn].isDirty = true;
+	if (m_messageIndex[msn-1].flags != flags) {
+	    m_messageIndex[msn-1].flags = flags;
+	    m_messageIndex[msn-1].isDirty = true;
 	    m_isDirty = true;
 	}
     }

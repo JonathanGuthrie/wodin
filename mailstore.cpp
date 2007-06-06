@@ -50,8 +50,8 @@ NUMBER_LIST MailStore::MailboxMsnToUid(const NUMBER_LIST &msns) {
 
 unsigned long MailStore::MailboxMsnToUid(const unsigned long msn) {
     unsigned long result = 0;
-    if (msn < m_uidGivenMsn.size()) {
-	result = m_uidGivenMsn[msn];
+    if (msn <= m_uidGivenMsn.size()) {
+	result = m_uidGivenMsn[msn-1];
     }
     return result;
 }
@@ -68,7 +68,7 @@ unsigned long MailStore::MailboxUidToMsn(unsigned long uid) {
 
     MSN_TO_UID::const_iterator i = find(m_uidGivenMsn.begin(), m_uidGivenMsn.end(), uid);
     if (i != m_uidGivenMsn.end()) {
-	result = *i;
+	result = (i - m_uidGivenMsn.begin()) + 1;
     }
     return result;
 }

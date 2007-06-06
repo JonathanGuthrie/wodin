@@ -148,9 +148,7 @@ private:
     IMAP_RESULTS LoginHandlerExecute();
     IMAP_RESULTS SearchHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
     IMAP_RESULTS SearchKeyParse(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-#if 0
-    IMAP_RESULTS StoreHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
-#endif // 0
+    IMAP_RESULTS StoreHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
     IMAP_RESULTS FetchHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
 #if 0
     IMAP_RESULTS CopyHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
@@ -212,14 +210,14 @@ private:
     IMAP_RESULTS ExpungeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS SearchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS FetchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS StoreHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
-    IMAP_RESULTS StoreHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS CopyHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS UidHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
 #endif // 0
 
     // These are for fetches, which are special because they can generate arbitrarily large responses
-    void FetchResponseFlags(uint32_t flags, bool isRecent);
+    void FetchResponseFlags(uint32_t flags);
     void FetchResponseInternalDate(MailMessage &message);
     void FetchResponseRfc822(unsigned long uid, const MailMessage &message);
     void FetchResponseRfc822Header(unsigned long uid, const MailMessage &message);

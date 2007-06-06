@@ -215,9 +215,9 @@ void ImapSession::BuildSymbolTables()
     m_symbols.insert(IMAPSYMBOLS::value_type("SEARCH", symbolToInsert));
     symbolToInsert.handler = &ImapSession::FetchHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("FETCH", symbolToInsert));
-#if 0
     symbolToInsert.handler = &ImapSession::StoreHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("STORE"), symbolToInsert));
+    m_symbols.insert(IMAPSYMBOLS::value_type("STORE", symbolToInsert));
+#if 0
     symbolToInsert.handler = &ImapSession::CopyHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("COPY"), symbolToInsert));
     symbolToInsert.handler = &ImapSession::UidHandler;
@@ -3506,7 +3506,7 @@ void ImapSession::SendMessageChunk(unsigned long uid, size_t offset, size_t leng
 #endif // 0
 }
 
-void ImapSession::FetchResponseFlags(uint32_t flags, bool isRecent) {
+void ImapSession::FetchResponseFlags(uint32_t flags) {
     std::string result("FLAGS ("), separator;
     if (MailStore::IMAP_MESSAGE_SEEN & flags) {
 	result += "\\Seen";
@@ -3532,7 +3532,7 @@ void ImapSession::FetchResponseFlags(uint32_t flags, bool isRecent) {
 	result += "\\Draft";
 	separator = " ";
     }
-    if (isRecent) {
+    if (MailStore::IMAP_MESSAGE_RECENT & flags) {
 	result += separator;
 	result += "\\Recent";
     }
@@ -4570,7 +4570,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 		    blankLen = 1;
 		    switch(which->second) {
 		    case FETCH_ALL:
-			FetchResponseFlags(message.GetMessageFlags(), message.IsRecent());
+			FetchResponseFlags(message.GetMessageFlags());
 			SendBlank();
 			FetchResponseInternalDate(message);
 			SendBlank();
@@ -4580,7 +4580,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			break;
 
 		    case FETCH_FAST:
-			FetchResponseFlags(message.GetMessageFlags(), message.IsRecent());
+			FetchResponseFlags(message.GetMessageFlags());
 			SendBlank();
 			FetchResponseInternalDate(message);
 			SendBlank();
@@ -4588,7 +4588,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			break;
 
 		    case FETCH_FULL:
-			FetchResponseFlags(message.GetMessageFlags(), message.IsRecent());
+			FetchResponseFlags(message.GetMessageFlags());
 			SendBlank();
 			FetchResponseInternalDate(message);
 			SendBlank();
@@ -4613,7 +4613,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			break;
 
 		    case FETCH_FLAGS:
-			FetchResponseFlags(message.GetMessageFlags(), message.IsRecent());
+			FetchResponseFlags(message.GetMessageFlags());
 			break;
 
 		    case FETCH_INTERNALDATE:
@@ -5001,7 +5001,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 		    uint32_t updatedFlags;
 		    if (MailStore::SUCCESS == m_store->MessageUpdateFlags(srVector[i], ~0, MailStore::IMAP_MESSAGE_SEEN, updatedFlags)) {
 			SendBlank();
-			FetchResponseFlags(updatedFlags, message.IsRecent());
+			FetchResponseFlags(updatedFlags);
 			blankLen = 1;
 		    }
 		}
@@ -5145,236 +5145,181 @@ IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, const size_t dataLen, size
     return FetchHandlerInternal(data, dataLen, parsingAt, false);
 }
 
-#if 0
-IMAP_RESULTS ImapSession::StoreHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid)
-{
+IMAP_RESULTS ImapSession::StoreHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid) {
     IMAP_RESULTS result = IMAP_OK;
-    DWORD execute_pointer = m_dwParsePointer;
+    size_t executePointer = m_parsePointer;
     int update = '=';
 
-    while((r_dwParsingAt < dwDataLen) && (' ' != pData[r_dwParsingAt]))
-    {
-	AddToParseBuffer(&pData[r_dwParsingAt++], 1, false);
+    while((parsingAt < dataLen) && (' ' != data[parsingAt])) {
+	AddToParseBuffer(&data[parsingAt++], 1, false);
     }
     AddToParseBuffer(NULL, 0);
-    if ((r_dwParsingAt < dwDataLen) && (' ' == pData[r_dwParsingAt]))
-    {
-	++r_dwParsingAt;
+    if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
+	++parsingAt;
     }
-    else
-    {
-	strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+    else {
+	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_BAD;
     }
 
-    if ((IMAP_OK == result) && (('-' == pData[r_dwParsingAt]) || ('+' == pData[r_dwParsingAt])))
-    {
-	update = pData[r_dwParsingAt++];
+    if ((IMAP_OK == result) && (('-' == data[parsingAt]) || ('+' == data[parsingAt]))) {
+	update = data[parsingAt++];
     }
-    while((IMAP_OK == result) && (r_dwParsingAt < dwDataLen) && (' ' != pData[r_dwParsingAt]))
-    {
-	byte temp = toupper(data[parsingAt++]);
+    while((IMAP_OK == result) && (parsingAt < dataLen) && (' ' != data[parsingAt])) {
+	uint8_t temp = toupper(data[parsingAt++]);
 	AddToParseBuffer(&temp, 1, false);
     }
     AddToParseBuffer(NULL, 0);
-    if ((r_dwParsingAt < dwDataLen) && (' ' == pData[r_dwParsingAt]))
-    {
-	++r_dwParsingAt;
+    if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
+	++parsingAt;
     }
-    else
-    {
-	strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+    else {
+	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_BAD;
     }
 
-    DWORD my_dwDataLen = dwDataLen;
-    if ((IMAP_OK == result) && (r_dwParsingAt < dwDataLen) && ('(' == pData[r_dwParsingAt]))
-    {
-	++r_dwParsingAt;
-	if (')' == pData[dwDataLen-1])
-	{
-	    --my_dwDataLen;
+    size_t myDataLen = dataLen;
+    if ((IMAP_OK == result) && (parsingAt < dataLen) && ('(' == data[parsingAt])) {
+	++parsingAt;
+	if (')' == data[dataLen-1]) {
+	    --myDataLen;
 	}
-	else
-	{
-	    strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+	else {
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	    result = IMAP_BAD;
 	}
     }
 
-    while((IMAP_OK == result) && (r_dwParsingAt < my_dwDataLen))
-    {
+    while((IMAP_OK == result) && (parsingAt < myDataLen)) {
 	// These can only be spaces, backslashes, or alpha
-	if (isalpha(pData[r_dwParsingAt]) || (' ' == pData[r_dwParsingAt]) || ('\\' == pData[r_dwParsingAt]))
-	{
-	    if (' ' == pData[r_dwParsingAt])
-	    {
-		++r_dwParsingAt;
+	if (isalpha(data[parsingAt]) || (' ' == data[parsingAt]) || ('\\' == data[parsingAt])) {
+	    if (' ' == data[parsingAt]) {
+		++parsingAt;
 		AddToParseBuffer(NULL, 0);
 	    }
-	    else
-	    {
-		byte temp = toupper(pData[r_dwParsingAt++]);
+	    else {
+		uint8_t temp = toupper(data[parsingAt++]);
 		AddToParseBuffer(&temp, 1, false);
 	    }
 	}
-	else
-	{
-	    strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+	else {
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	    result = IMAP_BAD;
 	}
     }
     AddToParseBuffer(NULL, 0);
-    if (r_dwParsingAt != my_dwDataLen)
-    {
-	strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+    if (parsingAt != myDataLen) {
+	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_BAD;
     }
 
-    if (IMAP_OK == result)
-    {
+    if (IMAP_OK == result) {
 	SEARCH_RESULT srVector;
-	bool bSequenceOk;
-	if (bUsingUid)
-	{
-	    bSequenceOk = UidSequenceSet(srVector, execute_pointer);
+	bool sequenceOk;
+	if (usingUid) {
+	    sequenceOk = UidSequenceSet(srVector, executePointer);
 	}
-	else
-	{
-	    bSequenceOk = MsnSequenceSet(srVector, execute_pointer);
+	else {
+	    sequenceOk = MsnSequenceSet(srVector, executePointer);
 	}
-	if (bSequenceOk)
-	{
-	    execute_pointer += (DWORD) strlen((char *)&m_pParseBuffer[execute_pointer]) + 1;
-	    if (0 == strncmp((char *)&m_pParseBuffer[execute_pointer], _T("FLAGS"), 5))
-	    {
-		bool bSilentFlag = false;
+	if (sequenceOk) {
+	    executePointer += strlen((char *)&m_parseBuffer[executePointer]) + 1;
+	    if (0 == strncmp((char *)&m_parseBuffer[executePointer], "FLAGS", 5)) {
+		bool silentFlag = false;
 		// I'm looking for "FLAGS.SILENT and the "+5" is because FLAGS is five characters long
-		if ('.' == m_pParseBuffer[execute_pointer+5])
-		{
-		    if (0 == strcmp((char *)&m_pParseBuffer[execute_pointer+6], _T("SILENT")))
-		    {
-			bSilentFlag = true;
+		if ('.' == m_parseBuffer[executePointer+5]) {
+		    if (0 == strcmp((char *)&m_parseBuffer[executePointer+6], "SILENT")) {
+			silentFlag = true;
 		    }
-		    else
-		    {
-			strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+		    else {
+			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 			result = IMAP_BAD;
 		    }
 		}
-		if (IMAP_OK == result)
-		{
-		    DWORD flagSet = 0;
+		if (IMAP_OK == result) {
+		    uint32_t flagSet = 0;
 
-		    execute_pointer += (DWORD) strlen((char *)&m_pParseBuffer[execute_pointer]) + 1;
-		    while((IMAP_OK == result) && (m_dwParsePointer > execute_pointer))
-		    {
-			if ('\\' == m_pParseBuffer[execute_pointer])
-			{
-			    FLAG_SYMBOL_T::iterator found = sFlagSymbolTable.find((char *)&m_pParseBuffer[execute_pointer+1]);
-			    if (sFlagSymbolTable.end() != found)
-			    {
+		    executePointer += strlen((char *)&m_parseBuffer[executePointer]) + 1;
+		    while((IMAP_OK == result) && (m_parsePointer > executePointer)) {
+			if ('\\' == m_parseBuffer[executePointer]) {
+			    FLAG_SYMBOL_T::iterator found = flagSymbolTable.find((char *)&m_parseBuffer[executePointer+1]);
+			    if (flagSymbolTable.end() != found) {
 				flagSet |= found->second;
 			    }
-			    else
-			    {
-				strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+			    else {
+				strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 				result = IMAP_BAD;
 			    }
 			}
-			else
-			{
-			    strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+			else {
+			    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 			    result = IMAP_BAD;
 			}
-			execute_pointer += (DWORD) strlen((char *)&m_pParseBuffer[execute_pointer]) + 1;
+			executePointer += strlen((char *)&m_parseBuffer[executePointer]) + 1;
 		    }
-		    if (IMAP_OK == result)
-		    {
-			DWORD dwAndMask, dwOrMask;
-			switch (update)
-			{
+		    if (IMAP_OK == result) {
+			uint32_t andMask, orMask;
+			switch (update) {
 			case '+':
 			    // Add these flags
-			    dwAndMask = ~0;
-			    dwOrMask = flagSet;
+			    andMask = ~0;
+			    orMask = flagSet;
 			    break;
 	
 			case '-':
 			    // Remove these flags
-			    dwAndMask = ~flagSet;
-			    dwOrMask = 0;
+			    andMask = ~flagSet;
+			    orMask = 0;
 			    break;
 	
 			default:
 			    // Set these flags
-			    dwAndMask = 0;
-			    dwOrMask = flagSet;
+			    andMask = 0;
+			    orMask = flagSet;
 			    break;
 			}
-			for (int i=0; i < srVector.GetSize(); ++i)
-			{
-			    if (0 != srVector[i])
-			    {
-				DWORD flags;
-				switch (m_msStore->MessageUpdateFlags(srVector[i], dwAndMask, dwOrMask, flags))
-				{
-				case CMailStore::SUCCESS:
-				    if (!bSilentFlag)
-				    {
-					CStdString fetch;
-					fetch.AppendFormat(_T("* %d FETCH ("), m_msStore->MailboxUidToMsn(srVector[i]));
-					Send((void *)fetch.c_str(), (int)fetch.GetLength());
-					FetchResponseFlags(flags, srVector[i] >= m_msStore->GetFirstRecentUid());
-					if (bUsingUid)
-					{
-					    Send((void *)_T(" "), 1);
+			for (int i=0; i < srVector.size(); ++i) {
+			    if (0 != srVector[i]) {
+				uint32_t flags;
+				if (MailStore::SUCCESS == m_store->MessageUpdateFlags(srVector[i], andMask, orMask, flags)) {
+				    if (!silentFlag) {
+					std::ostringstream fetch;
+					fetch << "* " << m_store->MailboxUidToMsn(srVector[i]) << " FETCH (";
+					m_s->Send((uint8_t *)fetch.str().c_str(), fetch.str().size());
+					FetchResponseFlags(flags);
+					if (usingUid) {
+					    m_s->Send((uint8_t *)" ", 1);
 					    FetchResponseUid(srVector[i]);
 					}
-					Send((void *)_T(")\r\n"), 3);
+					m_s->Send((uint8_t *)")\r\n", 3);
 				    }
-				    break;
-
-				case CMailStore::MAILBOX_READ_ONLY:
-				    strncpy(m_pResponseText, _T("Mailbox Read Only"), MAX_RESPONSE_STRING_LENGTH);
-				    result = IMAP_NO;
-				    break;
-
-				case CMailStore::MESSAGE_NOT_FOUND:
-				    strncpy(m_pResponseText, _T("Message Not Found"), MAX_RESPONSE_STRING_LENGTH);
-				    result = IMAP_NO;
-				    break;
-
-				default:
-				    strncpy(m_pResponseText, _T("Unable to set flags"), MAX_RESPONSE_STRING_LENGTH);
-				    result = IMAP_NO;
-				    break;
+				}
+				else {
+				    result = IMAP_MBOX_ERROR;
 				}
 			    }
 			}
 		    }
 		}
 	    }
-	    else
-	    {
-		strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+	    else {
+		strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 		result = IMAP_BAD;
 	    }
 	}
-	else
-	{
-	    strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+	else {
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	    result = IMAP_BAD;
 	}
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::StoreHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt)
-{
-    return StoreHandlerInternal(pData, dwDataLen, r_dwParsingAt, false);
+IMAP_RESULTS ImapSession::StoreHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+    return StoreHandlerInternal(data, dataLen, parsingAt, false);
 }
 
+#if 0
 IMAP_RESULTS ImapSession::CopyHandlerExecute(bool bUsingUid)
 {
     IMAP_RESULTS result = IMAP_OK;
