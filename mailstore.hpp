@@ -14,9 +14,9 @@ typedef struct
 } MAILBOX_NAME; 
 
 typedef std::list<MAILBOX_NAME> MAILBOX_LIST;
-typedef std::list<unsigned> NUMBER_LIST;
-typedef std::vector<unsigned> MSN_TO_UID;
-typedef std::vector<unsigned> SEARCH_RESULT;
+typedef std::list<unsigned long> NUMBER_LIST;
+typedef std::vector<unsigned long> MSN_TO_UID;
+typedef std::vector<unsigned long> SEARCH_RESULT;
 
 class ImapSession;
 
@@ -87,6 +87,21 @@ public:
     virtual unsigned MailboxMessageCount() = 0;
     virtual unsigned MailboxRecentCount() = 0;
     virtual unsigned MailboxFirstUnseen() = 0;
+
+    virtual NUMBER_LIST MailboxMsnToUid(const NUMBER_LIST &msns);
+    virtual unsigned long MailboxMsnToUid(const unsigned long msn);
+    virtual NUMBER_LIST MailboxUidToMsn(const NUMBER_LIST &uids);
+    virtual unsigned long MailboxUidToMsn(const unsigned long uid);
+
+    // This stores a list of all UIDs in the system into msns
+    virtual MAIL_STORE_RESULT MessageList(SEARCH_RESULT &msns) const;
+
+    // This updates the flags associated with the email message
+    // of 'orig' is the original flag set, then the final flag set is 
+    // orMask | (andMask & orig)
+    // The final flag set is returned in flags
+    virtual MAIL_STORE_RESULT MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags) = 0;
+
     virtual std::string GetMailboxUserPath() const = 0;
     // MailboxFlushBuffers and MailboxUpdateStats updates statistics and also handles expunges on some
     // mail stores, which is why it has to return a list of expunged MSN's.  However, MailboxUpdateStats
@@ -108,10 +123,13 @@ public:
     std::string TurnErrorCodeIntoString(MAIL_STORE_RESULT code);
     // This deletes a message in a mail box
     virtual MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, size_t uid) = 0;
+    bool IsMailboxOpen(void) { return NULL != m_openMailbox; }
 
 protected:
+    MSN_TO_UID m_uidGivenMsn;
     ImapSession *m_session;
     int m_errnoFromLibrary;
+    std::string *m_openMailbox;
 };
 
 #endif // _MAILSTORE_HPP_INCLUDED_

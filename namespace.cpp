@@ -208,6 +208,49 @@ unsigned Namespace::MailboxFirstUnseen() {
     return result;
 }
 
+NUMBER_LIST Namespace::MailboxMsnToUid(const NUMBER_LIST &msns) {
+    NUMBER_LIST result;
+
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->MailboxMsnToUid(msns);
+    }
+    return result;
+}
+
+unsigned long Namespace::MailboxMsnToUid(unsigned long msn) {
+    unsigned long result = 0;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->MailboxMsnToUid(msn);
+    }
+    return result;
+}
+
+NUMBER_LIST Namespace::MailboxUidToMsn(const NUMBER_LIST &uids) {
+    NUMBER_LIST result;
+
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->MailboxUidToMsn(uids);
+    }
+    return result;
+}
+
+unsigned long Namespace::MailboxUidToMsn(unsigned long uid) {
+    unsigned long result = 0;
+
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->MailboxUidToMsn(uid);
+    }
+    return result;
+}
+
+MailStore::MAIL_STORE_RESULT Namespace::MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->MessageUpdateFlags(uid, andMask, orMask, flags);
+    }
+    return result;
+}
+
 std::string Namespace::GetMailboxUserPath() const {
     std::string result = "";
     if (NULL != selectedNamespace) {

@@ -147,9 +147,7 @@ IMAPSYMBOLS ImapSession::m_symbols;
 
 void ImapSession::BuildSymbolTables()
 {
-#if 0
-    CMailMessage::BuildSymbolTable();
-#endif // 0
+    MailMessage::BuildSymbolTable();
 
     symbol symbolToInsert;
     symbolToInsert.levels[0] = true;
@@ -3419,8 +3417,8 @@ IMAP_RESULTS ImapSession::SearchHandler(uint8_t *data, const size_t dataLen, siz
 }
 
 // RemoveRfc822Comments assumes that the lines have already been unfolded
-static std::string RemoveRfc822Comments(const std::string &headerLine) {
-    std::string result;
+static insensitiveString RemoveRfc822Comments(const insensitiveString &headerLine) {
+    insensitiveString result;
     bool inComment = false;
     bool inQuotedString = false;
     bool escapeFlag = false;
@@ -3597,9 +3595,8 @@ void ImapSession::FetchResponseRfc822Text(unsigned long uid, const MailMessage &
     }
 }
 
-static std::string QuotifyString(const std::string &input)
-{
-    std::string result("\"");
+static insensitiveString QuotifyString(const insensitiveString &input) {
+    insensitiveString result("\"");
 
     for (int i=0; i<input.size(); ++i) {
 	if (('"' == input[i]) || ('\\' == input[i])) {
@@ -3613,21 +3610,26 @@ static std::string QuotifyString(const std::string &input)
 }
 
 
-static std::string trim(std::string &input) {
-    const char *whitespace = " \t\r\f\n\013";
+#define SPACE " \t\v\r\n\f"
+
+#if 0
+static insensitiveString trim(insensitiveString &input) {
     int first = input.find_first_not_of(whitespace);
     int last = input.find_last_not_of(whitespace);
 
     input = input.substr(0, last).substr(first);
     return input;
 }
+#endif // 0
 
-static std::string Rfc822DotAtom(std::string &input)
+static insensitiveString Rfc822DotAtom(insensitiveString &input)
 {
-    std::string result;
+    insensitiveString result;
     bool notdone = true;
-    
-    trim(input);
+
+    int begin = input.find_first_not_of(SPACE);
+    int end = input.find_last_not_of(SPACE);
+    input = input.substr(begin, end-begin);
 
     if ('"' == input[0]) {
 	input = input.substr(1);
@@ -3657,8 +3659,9 @@ static std::string Rfc822DotAtom(std::string &input)
     else {
 	int pos = input.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&'*+-/=?^_`{|}~. ");
 	if (std::string::npos != pos) {
-	    result = input.substr(0, pos);
-	    trim(result);
+	    int begin = input.find_first_not_of(SPACE);
+	    int end = input.find_last_not_of(SPACE, pos);
+	    result = input.substr(begin, end-begin);
 	    input = input.substr(pos);
 	}
 	else {
@@ -3670,8 +3673,8 @@ static std::string Rfc822DotAtom(std::string &input)
 }
 
 
-static std::string ParseRfc822Domain(std::string &input) {
-    std::string result;
+static insensitiveString ParseRfc822Domain(insensitiveString &input) {
+    insensitiveString result;
 
     if ('[' == input[1]) {
 	input = input.substr(1);
@@ -3701,14 +3704,14 @@ static std::string ParseRfc822Domain(std::string &input) {
 	input = input.substr(i+1);
     }
     else {
-	std::string token = Rfc822DotAtom(input);
+	insensitiveString token = Rfc822DotAtom(input);
 	result += QuotifyString(token);
     }
     return result;
 }
 
-static std::string ParseRfc822AddrSpec(std::string &input) {
-    std::string result;
+static insensitiveString ParseRfc822AddrSpec(insensitiveString &input) {
+    insensitiveString result;
 
     if ('@' != input[0]) {
 	result += "NIL ";
@@ -3717,15 +3720,17 @@ static std::string ParseRfc822AddrSpec(std::string &input) {
 	// It's an old literal path
 	int pos = input.find(':');
 	if (std::string::npos != pos) {
-	    std::string temp = QuotifyString(input.substr(0, pos));
-	    result += trim(temp) + " ";
+	    insensitiveString temp = QuotifyString(input.substr(0, pos));
+	    int begin = temp.find_first_not_of(SPACE);
+ 	    int end = temp.find_last_not_of(SPACE, pos);
+	    result += temp.substr(begin, end-begin) + " ";
 	    input = input.substr(pos+1);
 	}
 	else {
 	    result += "NIL ";
 	}
     }
-    std::string token = Rfc822DotAtom(input);
+    insensitiveString token = Rfc822DotAtom(input);
     result += QuotifyString(token) + " ";
     if ('@' == input[0]) {
 	input = input.substr(1);
@@ -3737,21 +3742,26 @@ static std::string ParseRfc822AddrSpec(std::string &input) {
     return result;
 }
 
-static std::string ParseMailbox(std::string &input)
-{
-    std::string result("(");
-    trim(input);
+static insensitiveString ParseMailbox(insensitiveString &input) {
+    insensitiveString result("(");
+    int begin = input.find_first_not_of(SPACE);
+    int end = input.find_last_not_of(SPACE);
+    input = input.substr(begin, end-begin);
     if ('<' == input[0]) {
 	result += "NIL ";
 
-	input = input.substr(1);
-	trim(input);
+	begin = input.find_first_not_of(SPACE, 1);
+	end = input.find_last_not_of(SPACE);
+	input = input.substr(begin, end-begin);
 	// Okay, this is an easy one.  This is an "angle-addr"
 	result += ParseRfc822AddrSpec(input);
-	trim(input);
+	begin = input.find_first_not_of(SPACE);
+	end = input.find_last_not_of(SPACE);
+	input = input.substr(begin, end-begin);
 	if ('>' == input[0]) {
-	    input = input.substr(1);
-	    trim(input);
+	    begin = input.find_first_not_of(SPACE, 1);
+	    end = input.find_last_not_of(SPACE);
+	    input = input.substr(begin, end-begin);
 	}
     }
     else {
@@ -3759,8 +3769,10 @@ static std::string ParseMailbox(std::string &input)
 	    result += "NIL " + ParseRfc822AddrSpec(input);
 	}
 	else {
-	    std::string token = Rfc822DotAtom(input);
-	    trim(input);
+	    insensitiveString token = Rfc822DotAtom(input);
+	    begin = input.find_first_not_of(SPACE);
+	    end = input.find_last_not_of(SPACE);
+	    input = input.substr(begin, end-begin);
 
 	    // At this point, I don't know if I've seen a local part or an address_spec
 	    // I can tell the difference by the first character.  If it's a at sign or if I'm out of string,
@@ -3787,19 +3799,20 @@ static std::string ParseMailbox(std::string &input)
     return result;
 }
 
-static std::string ParseMailboxList(const std::string &input)
-{
-    std::string result;
+static insensitiveString ParseMailboxList(const insensitiveString &input) {
+    insensitiveString result;
 
     if (0 != input.size()) {
 	result = "(";
-	std::string work = RemoveRfc822Comments(input);
+	insensitiveString work = RemoveRfc822Comments(input);
 	do {
 	    if (',' == work[0]) {
 		work = work.substr(1);
 	    }
 	    result += ParseMailbox(work);
-	    trim(work);
+	    int end = work.find_last_not_of(SPACE);
+	    int begin = work.find_first_not_of(SPACE);
+	    work = work.substr(begin, end-begin);
 	} while (',' == work[0]);
 	result += ")";
     }
@@ -3812,22 +3825,26 @@ static std::string ParseMailboxList(const std::string &input)
 // An address is either a mailbox or a group.  A group is a display-name followed by a colon followed
 // by a mailbox list followed by a semicolon.  A mailbox is either an address specification or a name-addr.
 //  An address specification is a mailbox followed by a 
-static std::string ParseAddress(std::string &input)
-{
-    std::string result("(");
-    trim(input);
-    if ('<' == input[0])
-    {
+static insensitiveString ParseAddress(insensitiveString &input) {
+    insensitiveString result("(");
+    int end = input.find_last_not_of(SPACE);
+    int begin = input.find_first_not_of(SPACE);
+    input = input.substr(begin, end-begin);
+    if ('<' == input[0]) {
 	result += "NIL ";
 
-	input = input.substr(1);
-	trim(input);
+	end = input.find_last_not_of(SPACE);
+	begin = input.find_first_not_of(SPACE, 1);
+	input = input.substr(begin, end-begin);
 	// Okay, this is an easy one.  This is an "angle-addr"
 	result += ParseRfc822AddrSpec(input);
-	trim(input);
+	end = input.find_last_not_of(SPACE);
+	begin = input.find_first_not_of(SPACE);
+	input = input.substr(begin, end-begin);
 	if ('>' == input[0]) {
-	    input = input.substr(1);
-	    trim(input);
+	    end = input.find_last_not_of(SPACE);
+	    begin = input.find_first_not_of(SPACE, 1);
+	    input = input.substr(begin, end-begin);
 	}
     }
     else {
@@ -3835,8 +3852,11 @@ static std::string ParseAddress(std::string &input)
 	    result += "NIL " + ParseRfc822AddrSpec(input);
 	}
 	else {
-	    std::string token = Rfc822DotAtom(input);
-	    trim(input);
+	    insensitiveString token = Rfc822DotAtom(input);
+
+	    end = input.find_last_not_of(SPACE);
+	    begin = input.find_first_not_of(SPACE);
+	    input = input.substr(begin, end-begin);
 
 	    // At this point, I don't know if I've seen a local part, a display name, or an address_spec
 	    // I can tell the difference by the first character.  If it's a at sign or if I'm out of string,
@@ -3848,7 +3868,7 @@ static std::string ParseAddress(std::string &input)
 	    else {
 		if ('@' == input[0]) {
 		    input = input.substr(1);
-		    std::string domain = ParseRfc822Domain(input);
+		    insensitiveString domain = ParseRfc822Domain(input);
 		    if ('(' == input[0]) {
 			input = input.substr(1, input.find(')')-1);
 			result += QuotifyString(input) + " NIL " + QuotifyString(token) + " " + domain;
@@ -3889,18 +3909,20 @@ static std::string ParseAddress(std::string &input)
     return result;
 }
 
-static std::string ParseAddressList(const std::string &input) {
-    std::string result;
+static insensitiveString ParseAddressList(const insensitiveString &input) {
+    insensitiveString result;
 
     if (0 != input.size()) {
 	result = "(";
-	std::string work = input; // RemoveRfc822Comments(input);
+	insensitiveString work = input; // RemoveRfc822Comments(input);
 	do {
 	    if (',' == work[0]) {
 		work = work.substr(1);
 	    }
 	    result += ParseAddress(work);
-	    trim(work);
+	    int end = work.find_last_not_of(SPACE);
+	    int begin = work.find_first_not_of(SPACE);
+	    work = work.substr(begin, end-begin);
 	} while (',' == work[0]);
 	result += ")";
     }
@@ -3919,9 +3941,8 @@ static std::string ParseAddressList(const std::string &input) {
 // m_csReplyToLine), to (parenthesized list of addresses from m_csToLine), cc (parenthesized
 // list of addresses from m_csCcLine), bcc (parenthesized list of addresses from m_csBccLine)
 // in-reply-to (string from m_csInReplyTo), and message-id (string from m_csMessageId)
-void ImapSession::FetchResponseEnvelope(const MailMessage &message)
-{
-    std::string result("ENVELOPE ("); 
+void ImapSession::FetchResponseEnvelope(const MailMessage &message) {
+    insensitiveString result("ENVELOPE ("); 
     result += QuotifyString(message.GetDateLine()) + " ";
     if (0 != message.GetSubject().size()) {
 	result += QuotifyString(message.GetSubject()) + " ";
@@ -3929,7 +3950,7 @@ void ImapSession::FetchResponseEnvelope(const MailMessage &message)
     else {
 	result += "NIL ";
     }
-    std::string from = ParseAddressList(message.GetFrom()) + " ";
+    insensitiveString from = ParseAddressList(message.GetFrom()) + " ";
     result += from;
     if (0 != message.GetSender().size()) {
 	result += ParseAddressList(message.GetSender()) + " ";
@@ -3965,9 +3986,8 @@ void ImapSession::FetchResponseEnvelope(const MailMessage &message)
 
 // The part before the slash is the body type
 // The default type is "TEXT"
-static std::string ParseBodyType(const std::string &typeLine)
-{	
-    std::string result = RemoveRfc822Comments(typeLine);
+static insensitiveString ParseBodyType(const insensitiveString &typeLine) {	
+    insensitiveString result = RemoveRfc822Comments(typeLine);
     if (0 == result.size()) {
 	result = "\"TEXT\"";
     }
@@ -3978,12 +3998,13 @@ static std::string ParseBodyType(const std::string &typeLine)
 	}
 	else {
 	    pos = result.find(';');
-	    if (std::string::npos != pos)
-	    {
+	    if (std::string::npos != pos) {
 		result = result.substr(0, pos);
 	    }
 	}
-	trim(result);
+	int end = result.find_last_not_of(SPACE);
+	int begin = result.find_first_not_of(SPACE);
+	result = result.substr(begin, end-begin);
 	result = "\"" + result + "\"";
     }
     return result;
@@ -3991,9 +4012,8 @@ static std::string ParseBodyType(const std::string &typeLine)
 
 // the part between the slash and the semicolon (if any) is the body subtype
 // The default subtype is "PLAIN" for text types and "UNKNOWN" for others
-static std::string ParseBodySubtype(const std::string &typeLine, MIME_MEDIA_TYPES type)
-{
-    std::string result = RemoveRfc822Comments(typeLine);
+static insensitiveString ParseBodySubtype(const insensitiveString &typeLine, MIME_MEDIA_TYPES type) {
+    insensitiveString result = RemoveRfc822Comments(typeLine);
     int pos = result.find('/');
     if (std::string::npos == pos) {
 	if (MIME_TYPE_TEXT == type) {
@@ -4009,7 +4029,9 @@ static std::string ParseBodySubtype(const std::string &typeLine, MIME_MEDIA_TYPE
 	if (std::string::npos != pos) {
 	    result = result.substr(0, pos);
 	}
-	trim(result);
+	int end = result.find_last_not_of(SPACE);
+	int begin = result.find_first_not_of(SPACE);
+	result = result.substr(begin, end-begin);
 	result = "\"" + result + "\"";
     }
     return result;
@@ -4018,10 +4040,9 @@ static std::string ParseBodySubtype(const std::string &typeLine, MIME_MEDIA_TYPE
 // The parameters are all after the first semicolon
 // The default parameters are ("CHARSET" "US-ASCII") for text types, and
 // NIL for everything else
-static std::string ParseBodyParameters(const std::string &typeLine, MIME_MEDIA_TYPES type)
-{
-    std::string uncommented = RemoveRfc822Comments(typeLine);
-    std::string result;
+static insensitiveString ParseBodyParameters(const insensitiveString &typeLine, MIME_MEDIA_TYPES type) {
+    insensitiveString uncommented = RemoveRfc822Comments(typeLine);
+    insensitiveString result;
 	
     int pos = uncommented.find(';'); 
     if (std::string::npos == pos) {
@@ -4033,7 +4054,7 @@ static std::string ParseBodyParameters(const std::string &typeLine, MIME_MEDIA_T
 	}
     }
     else {
-	std::string residue = uncommented.substr(pos+1);
+	insensitiveString residue = uncommented.substr(pos+1);
 	bool inQuotedString = false;
 	bool escapeFlag = false;
 
@@ -4093,9 +4114,9 @@ static std::string ParseBodyParameters(const std::string &typeLine, MIME_MEDIA_T
 // m_csReplyToLine), to (parenthesized list of addresses from m_csToLine), cc (parenthesized
 // list of addresses from m_csCcLine), bcc (parenthesized list of addresses from m_csBccLine)
 // in-reply-to (string from m_csInReplyTo), and message-id (string from m_csMessageId)
-static std::string FetchSubpartEnvelope(const MESSAGE_BODY &body)
+static insensitiveString FetchSubpartEnvelope(const MESSAGE_BODY &body)
 {
-    std::string result("(");
+    insensitiveString result("(");
     HEADER_FIELDS::const_iterator field = body.fieldList.find("date");
     if (body.fieldList.end() != field) {
 	result += QuotifyString(field->second.c_str()) + " ";
@@ -4111,7 +4132,7 @@ static std::string FetchSubpartEnvelope(const MESSAGE_BODY &body)
 	result += "NIL ";
     }
     field = body.fieldList.find("from");
-    std::string from;
+    insensitiveString from;
     if (body.fieldList.end() != field)
     {
 	from = ParseAddressList(field->second.c_str()) + " ";
@@ -4200,69 +4221,69 @@ static std::string FetchResponseBodyStructureHelper(const MESSAGE_BODY &body, bo
 		result << FetchResponseBodyStructureHelper(part, includeExtensionData);
 	    }
 	}
-	result << " " << ParseBodySubtype(body.contentTypeLine, body.bodyMediaType);
+	result << " " << ParseBodySubtype(body.contentTypeLine, body.bodyMediaType).c_str();
 	break;
 
     case MIME_TYPE_MESSAGE:
-	result << ParseBodyType(body.contentTypeLine);
-	result << " " << ParseBodySubtype(body.contentTypeLine, body.bodyMediaType);
+	result << ParseBodyType(body.contentTypeLine).c_str();
+	result << " " << ParseBodySubtype(body.contentTypeLine, body.bodyMediaType).c_str();
 	{
-	    std::string uncommented = RemoveRfc822Comments(body.contentTypeLine);
+	    insensitiveString uncommented = RemoveRfc822Comments(body.contentTypeLine);
 	    int pos = uncommented.find(';');
 	    if (std::string::npos == pos) {
 		result << " NIL";
 	    }
 	    else {
-		result << " " + ParseBodyParameters(body.contentTypeLine, body.bodyMediaType);
+		result << " " << ParseBodyParameters(body.contentTypeLine, body.bodyMediaType).c_str();
 	    }
 	}
 	if (0 == body.contentIdLine.size()) {
 	    result << " NIL";
 	}
 	else {
-	    result << " \"" << body.contentIdLine << "\"";
+	    result << " \"" << body.contentIdLine.c_str() << "\"";
 	}
 	if (0 == body.contentDescriptionLine.size()) {
 	    result << " NIL";
 	}
 	else {
-	    result << " \"" << body.contentDescriptionLine << "\"";
+	    result << " \"" << body.contentDescriptionLine.c_str() << "\"";
 	}
 	if (0 == body.contentEncodingLine.size()) {
 	    result << " \"7BIT\"";
 	}
 	else {
-	    result << " \"" << body.contentEncodingLine << "\"";
+	    result << " \"" << body.contentEncodingLine.c_str() << "\"";
 	}
 	if ((NULL != body.subparts) && (0<body.subparts->size())) {
 	    result << " " << (body.bodyOctets - body.headerOctets);
 	    MESSAGE_BODY part = (*body.subparts)[0];
-	    result << " " << FetchSubpartEnvelope(part);
+	    result << " " << FetchSubpartEnvelope(part).c_str();
 	    result << " " << FetchResponseBodyStructureHelper(part, includeExtensionData);
 	}
 	break;
 
     default:
-	result << ParseBodyType(body.contentTypeLine);
-	result << " " << ParseBodySubtype(body.contentTypeLine, body.bodyMediaType);
-	result << " " << ParseBodyParameters(body.contentTypeLine, body.bodyMediaType);
+	result << ParseBodyType(body.contentTypeLine).c_str();
+	result << " " << ParseBodySubtype(body.contentTypeLine, body.bodyMediaType).c_str();
+	result << " " << ParseBodyParameters(body.contentTypeLine, body.bodyMediaType).c_str();
 	if (0 == body.contentIdLine.size()) {
 	    result << " NIL";
 	}
 	else {
-	    result << " \"" << body.contentIdLine << "\"";
+	    result << " \"" << body.contentIdLine.c_str() << "\"";
 	}
 	if (0 == body.contentDescriptionLine.size()) {
 	    result << " NIL";
 	}
 	else {
-	    result << " \"" << body.contentDescriptionLine << "\"";
+	    result << " \"" << body.contentDescriptionLine.c_str() << "\"";
 	}
 	if (0 == body.contentEncodingLine.size()) {
 	    result << " \"7BIT\"";
 	}
 	else {
-	    result << " \"" << body.contentEncodingLine << "\"";
+	    result << " \"" << body.contentEncodingLine.c_str() << "\"";
 	}
 	result << " " << (body.bodyOctets - body.headerOctets);
 	break;

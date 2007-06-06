@@ -75,6 +75,10 @@ unsigned MailStoreInvalid::MailboxFirstUnseen() {
     return 0;
 }
 
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags) {
+    return GENERAL_FAILURE;
+}
+
 std::string MailStoreInvalid::GetMailboxUserPath() const {
     return "";
 }

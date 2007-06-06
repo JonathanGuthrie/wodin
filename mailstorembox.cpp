@@ -993,6 +993,27 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
     return result;
 }
 
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags) {
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+    unsigned long msn = MailboxUidToMsn(uid);
+    if (msn < m_messageIndex.size()) {
+	flags = m_messageIndex[msn].flags;
+	flags = orMask | (andMask & flags);
+	if (m_messageIndex[msn].flags != flags) {
+	    m_messageIndex[msn].flags = flags;
+	    m_messageIndex[msn].isDirty = true;
+	    m_isDirty = true;
+	}
+    }
+    else {
+	result = MailStore::MESSAGE_NOT_FOUND;
+    }
+
+    return result;
+}
+
+
 std::string MailStoreMbox::GetMailboxUserPath() const {
 }
 

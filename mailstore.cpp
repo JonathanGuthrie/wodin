@@ -40,3 +40,50 @@ std::string MailStore::TurnErrorCodeIntoString(MAIL_STORE_RESULT code) {
     }
 }
 
+NUMBER_LIST MailStore::MailboxMsnToUid(const NUMBER_LIST &msns) {
+    NUMBER_LIST result;
+    for (NUMBER_LIST::const_iterator i=msns.begin(); i!=msns.end(); ++i) {
+	result.push_back(MailboxMsnToUid(*i));
+    }
+    return result;
+}
+
+unsigned long MailStore::MailboxMsnToUid(const unsigned long msn) {
+    unsigned long result = 0;
+    if (msn < m_uidGivenMsn.size()) {
+	result = m_uidGivenMsn[msn];
+    }
+    return result;
+}
+
+NUMBER_LIST MailStore::MailboxUidToMsn(const NUMBER_LIST &uids) {
+    NUMBER_LIST result;
+    for (NUMBER_LIST::const_iterator i=uids.begin(); i!=uids.end(); ++i) {
+	result.push_back(MailboxUidToMsn(*i));
+    }
+}
+
+unsigned long MailStore::MailboxUidToMsn(unsigned long uid) {
+    unsigned long result = 0;
+
+    MSN_TO_UID::const_iterator i = find(m_uidGivenMsn.begin(), m_uidGivenMsn.end(), uid);
+    if (i != m_uidGivenMsn.end()) {
+	result = *i;
+    }
+    return result;
+}
+
+
+MailStore::MAIL_STORE_RESULT MailStore::MessageList(SEARCH_RESULT &msns) const {
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+    msns.clear(); 
+    if (NULL != m_openMailbox) {
+	for (int i=0; i<m_uidGivenMsn.size(); ++i) {
+	    msns.push_back(m_uidGivenMsn[i]);
+	}
+    }
+    else {
+	result = MAILBOX_NOT_OPEN;
+    }
+    return result;
+}

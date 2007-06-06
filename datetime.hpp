@@ -17,6 +17,10 @@ public:
     ~DateTime();
     bool IsValid(void) { return valid; }
     const std::string str(void) const throw(DateTimeInvalidDateTime);
+    bool operator< (DateTime right);
+    bool operator<= (DateTime right);
+    void AddDays(int days);
+    struct tm GetTm(void) const { return tm; }
 
 private:
     bool valid;

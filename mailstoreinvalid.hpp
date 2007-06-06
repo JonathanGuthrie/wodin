@@ -34,6 +34,13 @@ public:
     virtual unsigned MailboxMessageCount();
     virtual unsigned MailboxRecentCount();
     virtual unsigned MailboxFirstUnseen();
+
+    // This updates the flags associated with the email message
+    // of 'orig' is the original flag set, then the final flag set is 
+    // orMask | (andMask & orig)
+    // The final flag set is returned in flags
+    virtual MailStore::MAIL_STORE_RESULT MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags);
+
     virtual std::string GetMailboxUserPath() const ;
     virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone);
     virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);

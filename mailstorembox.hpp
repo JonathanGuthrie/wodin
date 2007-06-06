@@ -31,6 +31,13 @@ public:
     virtual unsigned MailboxMessageCount() { return m_mailboxMessageCount; }
     virtual unsigned MailboxRecentCount() { return m_recentCount; }
     virtual unsigned MailboxFirstUnseen() { return m_firstUnseen; }
+
+    // This updates the flags associated with the email message
+    // of 'orig' is the original flag set, then the final flag set is 
+    // orMask | (andMask & orig)
+    // The final flag set is returned in flags
+    virtual MailStore::MAIL_STORE_RESULT MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags);
+
     virtual std::string GetMailboxUserPath() const ;
     virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone);
     virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
@@ -59,7 +66,6 @@ private:
     unsigned m_uidLast;
     bool m_hasHiddenMessage;
     bool m_hasDeletedMessage;
-    std::string *m_openMailbox;
     bool m_isDirty;
     std::ofstream *m_outFile;
     // Appendstate is used as part of the append process.  It's used to detect any "\n>*From " strings in messages so that I can 

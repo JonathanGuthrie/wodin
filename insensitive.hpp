@@ -1,6 +1,8 @@
 #if !defined(_INSENSITIVE_HPP_INCLUDED_)
 #define _INSENSITIVE_HPP_INCLUDED_
 
+#include <string>
+
 struct caseInsensitiveTraits : public std::char_traits<char> {
     // return whether c1 and c2 are equal
     static bool eq(const char& c1, const char& c2) {

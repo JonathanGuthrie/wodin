@@ -230,3 +230,24 @@ const std::string DateTime::str(void) const throw(DateTimeInvalidDateTime) {
 	std::setw(5) << std::setfill('0') << std::internal << std::showpos << zone;
     return ss.str();
 }
+
+
+bool DateTime::operator< (DateTime right) {
+    time_t tr = mktime(&right.tm);
+    time_t tl = mktime(&tm);
+    return tl < tr;
+}
+
+
+bool DateTime::operator<= (DateTime right) {
+    struct tm tm_right = right.GetTm();
+    time_t tr = mktime(&tm_right);
+    time_t tl = mktime(&tm);
+    return tl <= tr;
+}
+
+void DateTime::AddDays(int days) {
+    time_t t = mktime(&tm);
+    t += (86400 * days);
+    localtime_r(&t, &tm);
+}

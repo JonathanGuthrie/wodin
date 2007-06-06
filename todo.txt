@@ -55,6 +55,8 @@ done)  Finish the parts of the NOOP command I've deferred
 
 )  Overwrite the strings that hold passwords
 
+)  Handle search charsets other than US-ASCII
+
 )  Re-do the boyer-moore-pratt search so it's not downloaded code
 
 )  Add anonymous authentication to the capability string (availability should be known by the server class--make that so as well)
