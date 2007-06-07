@@ -218,14 +218,14 @@ private:
 
     // These are for fetches, which are special because they can generate arbitrarily large responses
     void FetchResponseFlags(uint32_t flags);
-    void FetchResponseInternalDate(MailMessage &message);
-    void FetchResponseRfc822(unsigned long uid, const MailMessage &message);
-    void FetchResponseRfc822Header(unsigned long uid, const MailMessage &message);
-    void FetchResponseRfc822Size(const MailMessage &message);
-    void FetchResponseRfc822Text(unsigned long uid, const MailMessage &message);
-    void FetchResponseEnvelope(const MailMessage &message);
-    void FetchResponseBodyStructure(const MailMessage &message);
-    void FetchResponseBody(const MailMessage &message);
+    void FetchResponseInternalDate(const MailMessage *message);
+    void FetchResponseRfc822(unsigned long uid, const MailMessage *message);
+    void FetchResponseRfc822Header(unsigned long uid, const MailMessage *message);
+    void FetchResponseRfc822Size(const MailMessage *message);
+    void FetchResponseRfc822Text(unsigned long uid, const MailMessage *message);
+    void FetchResponseEnvelope(const MailMessage *message);
+    void FetchResponseBodyStructure(const MailMessage *message);
+    void FetchResponseBody(const MailMessage *message);
     void FetchResponseUid(unsigned long uid);
     void SendMessageChunk(unsigned long uid, size_t offset, size_t length);
     ImapUser *m_userData;

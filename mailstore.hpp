@@ -6,6 +6,7 @@
 #include <string>
 
 #include "datetime.hpp"
+#include "mailmessage.hpp"
 
 typedef struct
 {
@@ -115,15 +116,19 @@ public:
     // SYZYGY -- in a separate worker thread.  Or do I?  I need to try again when I'm farther
     // SYZYGY -- along and see what I need
     // If BuildMailboxList fails, it returns nothing, which is fine for IMAP
-    // If bListAll is true, it will return all matching mailboxes, otherwise, it will return 
+    // If listAll is true, it will return all matching mailboxes, otherwise, it will return
     // the mailboxes using the IMAP LSUB semantics, which may not be what you expect.
     // You have been warned.
     virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll) = 0;
     virtual ~MailStore();
     std::string TurnErrorCodeIntoString(MAIL_STORE_RESULT code);
     // This deletes a message in a mail box
-    virtual MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, size_t uid) = 0;
+    virtual MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid) = 0;
     bool IsMailboxOpen(void) { return NULL != m_openMailbox; }
+    virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid) = 0;
+    virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid) = 0;
+    virtual bool ReadMessageLine(char buff[1001]) = 0;
+    virtual void CloseMessageFile(void) = 0;
 
 protected:
     MSN_TO_UID m_uidGivenMsn;

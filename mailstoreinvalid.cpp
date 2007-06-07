@@ -95,6 +95,23 @@ MailStoreInvalid::~MailStoreInvalid() {
 }
 
 
-MailStore::MAIL_STORE_RESULT MailStoreInvalid::DeleteMessage(const std::string &MailboxName, size_t uid) {
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::DeleteMessage(const std::string &MailboxName, unsigned long uid) {
     return GENERAL_FAILURE;
+}
+
+MailMessage::MAIL_MESSAGE_RESULT MailStoreInvalid::GetMessageData(MailMessage **message, unsigned long uid) {
+    *message = NULL;
+    return MailMessage::MESSAGE_DOESNT_EXIST;
+}
+
+
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::OpenMessageFile(unsigned long uid) {
+    return MailStore::GENERAL_FAILURE;
+}
+
+bool MailStoreInvalid::ReadMessageLine(char buff[1001]) {
+    return false;
+}
+
+void MailStoreInvalid::CloseMessageFile(void) {
 }

@@ -47,7 +47,11 @@ public:
     virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~MailStoreInvalid();
     // This deletes a message in a mail box
-    virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, size_t uid);
+    virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid);
+    virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid);
+    virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid);
+    virtual bool ReadMessageLine(char buff[1001]);
+    virtual void CloseMessageFile(void);
 
 private:
 };

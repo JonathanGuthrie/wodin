@@ -44,14 +44,18 @@ public:
     virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~MailStoreMbox();
     // This deletes a message in a mail box
-    virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, size_t uid);
+    virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid);
+    virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid);
+    virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid);
+    virtual bool ReadMessageLine(char buff[1001]);
+    virtual void CloseMessageFile(void);
 
 private:
     typedef struct {
 	unsigned uid;
 	uint32_t flags;
 	std::fstream::pos_type start;
-	unsigned imapLength;
+	MailMessage *messageData;
 	bool isDirty;
     } MessageIndex_t;
 
@@ -79,6 +83,8 @@ private:
     bool ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData);
     void AddDataToMessageFile(uint8_t *data, size_t length);
     MailStore::MAIL_STORE_RESULT FlushAndExpunge(NUMBER_LIST *nowGone, bool doExpunge);
+    std::ifstream m_inFile;
+    bool m_readingNewMessage;
 };
 
 #endif // _MAILSTOREMBOX_HPP_INCLUDED_

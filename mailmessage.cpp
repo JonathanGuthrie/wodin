@@ -1,4 +1,5 @@
 #include "mailmessage.hpp"
+#include "mailstore.hpp"
 
 typedef enum
 {
@@ -49,64 +50,6 @@ void MailMessage::BuildSymbolTable() {
     mediaTypeSymbolTable.insert(MEDIA_SYMBOL_T::value_type("APPLICATION", MIME_TYPE_APPLICATION));
     mediaTypeSymbolTable.insert(MEDIA_SYMBOL_T::value_type("MULTIPART",   MIME_TYPE_MULTIPART));
     mediaTypeSymbolTable.insert(MEDIA_SYMBOL_T::value_type("MESSAGE",     MIME_TYPE_MESSAGE));
-}
-
-// The buffering logic works like this:  If m_nLineBuffPtr is not less than m_nLineBuffEnd, then I 
-// reset the value of m_nLineBuffPtr to zero, try to read m_nLineBufferLen characters worth of data
-// and put the number of characters actually read into m_nLineBuffend
-// Then, if m_nLineBuffPtr is less than m_nLineBuffEnd I set the 'c' value and return true, otherwise,
-// I return false
-#if 0
-// SYZYGY move ReadOneLine to a callback in MailStore
-bool MailMessage::ReadOneChar(CSimFile *infile, char &c) {
-    bool result = false;
-
-    if (m_lineBuffPtr >= m_lineBuffEnd) {
-		m_lineBuffPtr = 0;
-		m_lineBuffEnd = infile->Read(m_lineBuffer, m_lineBufferLen);
-    }
-    if (m_lineBuffPtr < m_lineBuffEnd) {
-		c = m_lineBuffer[m_lineBuffPtr++];
-		result = true;
-    }
-    return result;
-}
-
-// SYZYGY move ReadOneLine to a callback in MailStore
-#endif // 0
-bool ReadOneLine(void *infile, char buff[1001]) {
-    bool result = false;
-#if 0
-    int buffptr = 0;
-    bool cr_seen = false;
-    bool notdone = true;
-    while ((1000 > buffptr) && notdone) {
-        char c;
-        if (ReadOneChar(infile, c)) {
-	    result = true;
-	    buff[buffptr] = c;
-	    if ('\r' == c) {
-		cr_seen = true;
-	    }
-	    else {
-		if (('\n' == c) && cr_seen) {
-		    notdone = false;
-		    result = true;
-		}
-		cr_seen = false;
-	    }
-	    ++buffptr;
-	}
-	else {
-	    notdone = false;
-        }
-    }
-    buff[buffptr] = '\0';
-    if (0 < buffptr) {
-		++m_textLines;
-    }
-    return result;
-#endif // 0
 }
 
 int month_name_to_month(const char *name) {
@@ -414,7 +357,13 @@ bool MailMessage::ProcessHeaderLine(const insensitiveString &line) {
         if (std::string::npos != colon) {
 	    int end = line.find_last_not_of(SPACE);
 	    int begin = line.find_first_not_of(SPACE, colon+1);
-	    insensitiveString right = line.substr(begin, end-begin);
+	    insensitiveString right;
+	    if (std::string::npos != begin) {
+		right = line.substr(begin, end-begin);
+	    }
+	    else {
+		right = "";
+	    }
 	    FIELD_SYMBOL_T::iterator field = fieldSymbolTable.find(line.substr(0, colon));
 	    if (field != fieldSymbolTable.end()) {
 		// None of these fields permit multiple values.
@@ -497,7 +446,13 @@ bool ProcessSubpartHeaderLine(const insensitiveString &line, MESSAGE_BODY &body)
         if (std::string::npos != colon) {
 	    int begin = line.find_first_not_of(SPACE, colon+1);
 	    int end = line.find_last_not_of(SPACE);
-	    insensitiveString right = line.substr(begin, end-begin);
+	    insensitiveString right;
+	    if (std::string::npos != begin) {
+		right = line.substr(begin, end-begin);
+	    }
+	    else {
+		right = "";
+	    }
 	    FIELD_SYMBOL_T::iterator field = fieldSymbolTable.find(line.substr(0, colon));
 	    if (field != fieldSymbolTable.end()) {
 		// None of these fields permit multiple values.
@@ -533,7 +488,7 @@ bool ProcessSubpartHeaderLine(const insensitiveString &line, MESSAGE_BODY &body)
 }
 
 
-void MailMessage::ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY &parentBody, char messageBuffer[1001],
+void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE_BODY &parentBody, char messageBuffer[1001],
     		       const char *parentSeparator, size_t sectionStartOffset)
 {
     parentBody.bodyMediaType = GetMediaType(parentBody.contentTypeLine);
@@ -548,7 +503,7 @@ void MailMessage::ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY 
 	    int notdone = true;
 	    while (notdone) {
 		notdone = false;
-		if (ReadOneLine(file, messageBuffer)) {
+		if (store->ReadMessageLine(messageBuffer)) {
 		    parentBody.bodyOctets += strlen(messageBuffer);
 		    parentBody.bodyLines++;
 		    if (('-' != messageBuffer[0]) ||
@@ -562,64 +517,79 @@ void MailMessage::ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY 
 	    // the end of the subparts with this separator
 	    notdone = true;
 	    while (notdone) {
-		if ((4 + separator.size() > (int)strlen(messageBuffer)) ||
-		    ('-' != messageBuffer[2+separator.size()]) ||
-		    ('-' != messageBuffer[3+separator.size()])) {
-		    // If I'm here, I know that it is not the final terminator.   I need to accumulate lines of
-		    // the subpart header until I see the blank line that ends them.
-		    insensitiveString unfoldedLine;
-		    MESSAGE_BODY childBody;
+		if (0 < strlen(messageBuffer)) {
+		    if ((4 + separator.size() > (int)strlen(messageBuffer)) ||
+			('-' != messageBuffer[2+separator.size()]) ||
+			('-' != messageBuffer[3+separator.size()])) {
+			// If I'm here, I know that it is not the final terminator.   I need to accumulate lines of
+			// the subpart header until I see the blank line that ends them.
+			insensitiveString unfoldedLine;
+			MESSAGE_BODY childBody;
 
-		    childBody.subparts = NULL;
-		    childBody.bodyLines = 0;
-		    childBody.bodyOctets = 0;
-		    childBody.headerOctets = 0;
-		    childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
-		    while (ReadOneLine(file, messageBuffer) &&
-			   (('-' != messageBuffer[0]) ||
-			    ('-' != messageBuffer[1]) ||
-			    (0 != strncmp(messageBuffer+2, separator.c_str(), separator.size())))) {
-			childBody.bodyOctets += strlen(messageBuffer);
-			childBody.bodyLines++;
-			insensitiveString line(messageBuffer);
-			if (2 >= line.size()) {
-			    ProcessSubpartHeaderLine(unfoldedLine, childBody);
-			    if (NULL == parentBody.subparts) {
-				parentBody.subparts = new std::vector<MESSAGE_BODY>;
-			    }
-			    childBody.headerOctets = childBody.bodyOctets;
-			    childBody.headerLines = childBody.bodyLines;
-			    ParseBodyParts(file, loadBinaryParts, childBody, messageBuffer, separator.c_str(),
-					   sectionStartOffset + parentBody.bodyOctets);
-			    // This part here is because the separator line is considered to
-			    // be "CRLF--<separator>CRLF, so I've got an extra line and an extra
-			    // CRLF sequence that I need to not account for twice.
-			    childBody.bodyOctets -= 2;
-			    childBody.bodyLines--;
-			    parentBody.subparts->push_back(childBody);
-			    // But I do have to account for it once
-			    parentBody.bodyOctets += childBody.bodyOctets + 2;
-			    parentBody.bodyLines += childBody.bodyLines + 1;
-			    break;
-			}
-			else {
-			    if ((' ' == line[0]) || ('\t' == line[0])) {
-				int begin = line.find_first_not_of(SPACE);
-				int end = line.find_last_not_of(SPACE);
-				unfoldedLine += ' ' + line.substr(begin, end-begin);
+			childBody.subparts = NULL;
+			childBody.bodyLines = 0;
+			childBody.bodyOctets = 0;
+			childBody.headerOctets = 0;
+			childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
+			while (store->ReadMessageLine(messageBuffer) &&
+			       (('-' != messageBuffer[0]) ||
+				('-' != messageBuffer[1]) ||
+				(0 != strncmp(messageBuffer+2, separator.c_str(), separator.size())))) {
+			    childBody.bodyOctets += strlen(messageBuffer);
+			    childBody.bodyLines++;
+			    insensitiveString line(messageBuffer);
+			    if (2 >= line.size()) {
+				ProcessSubpartHeaderLine(unfoldedLine, childBody);
+				if (NULL == parentBody.subparts) {
+				    parentBody.subparts = new std::vector<MESSAGE_BODY>;
+				}
+				childBody.headerOctets = childBody.bodyOctets;
+				childBody.headerLines = childBody.bodyLines;
+				ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, separator.c_str(),
+					       sectionStartOffset + parentBody.bodyOctets);
+				// This part here is because the separator line is considered to
+				// be "CRLF--<separator>CRLF, so I've got an extra line and an extra
+				// CRLF sequence that I need to not account for twice.
+				childBody.bodyOctets -= 2;
+				childBody.bodyLines--;
+				parentBody.subparts->push_back(childBody);
+				// But I do have to account for it once
+				parentBody.bodyOctets += childBody.bodyOctets + 2;
+				parentBody.bodyLines += childBody.bodyLines + 1;
+				break;
 			    }
 			    else {
-				if (0 < unfoldedLine.size()) {
-				    notdone = ProcessSubpartHeaderLine(unfoldedLine, childBody);
+				if ((' ' == line[0]) || ('\t' == line[0])) {
+				    int begin = line.find_first_not_of(SPACE);
+				    int end = line.find_last_not_of(SPACE);
+				    if (std::string::npos != begin) {
+					unfoldedLine += ' ' + line.substr(begin, end-begin);
+				    }
+				    else {
+					unfoldedLine += ' ';
+				    }
 				}
-				int begin = line.find_first_not_of(SPACE);
-				int end = line.find_last_not_of(SPACE);
-				unfoldedLine = line.substr(begin, end-begin);
+				else {
+				    if (0 < unfoldedLine.size()) {
+					notdone = ProcessSubpartHeaderLine(unfoldedLine, childBody);
+				    }
+				    int begin = line.find_first_not_of(SPACE);
+				    int end = line.find_last_not_of(SPACE);
+				    if (std::string::npos != begin) {
+					unfoldedLine = line.substr(begin, end-begin);
+				    }
+				    else {
+					unfoldedLine = "";
+				    }
+				}
 			    }
 			}
+			parentBody.bodyOctets += strlen(messageBuffer);
+			parentBody.bodyLines++;
 		    }
-		    parentBody.bodyOctets += strlen(messageBuffer);
-		    parentBody.bodyLines++;
+		    else {
+			notdone = false;
+		    }
 		}
 		else {
 		    notdone = false;
@@ -631,7 +601,7 @@ void MailMessage::ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY 
 	('-' != messageBuffer[0]) ||
 	('-' != messageBuffer[1]) ||
 	(0 != strncmp(messageBuffer+2, parentSeparator, strlen(parentSeparator)))) {
-	while (ReadOneLine(file, messageBuffer) &&
+	while (store->ReadMessageLine(messageBuffer) &&
 	       ((NULL == parentSeparator) || 
 		('-' != messageBuffer[0]) ||
 		('-' != messageBuffer[1]) ||
@@ -657,7 +627,7 @@ void MailMessage::ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY 
 	childBody.bodyOctets = 0;
 	childBody.headerOctets = 0;
 	childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
-	while (ReadOneLine(file, messageBuffer) &&
+	while (store->ReadMessageLine(messageBuffer) &&
 	       (('-' != messageBuffer[0]) ||
 		('-' != messageBuffer[1]) ||
 		(0 != strncmp(messageBuffer+2, parentSeparator, strlen(parentSeparator))))) {
@@ -671,7 +641,7 @@ void MailMessage::ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY 
 		}
 		childBody.headerOctets = childBody.bodyOctets;
 		childBody.headerLines = childBody.bodyLines;
-		ParseBodyParts(file, loadBinaryParts, childBody, messageBuffer, parentSeparator,
+		ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, parentSeparator,
 			       sectionStartOffset + parentBody.bodyOctets);
 		childBody.bodyOctets -= 2;
 		childBody.bodyLines--;
@@ -684,7 +654,12 @@ void MailMessage::ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY 
 		if ((' ' == line[0]) || ('\t' == line[0])) {
 		    int begin = line.find_first_not_of(SPACE);
 		    int end = line.find_last_not_of(SPACE);
-		    unfoldedLine += ' ' + line.substr(begin, end-begin);
+		    if (std::string::npos != begin) {
+			unfoldedLine += ' ' + line.substr(begin, end-begin);
+		    }
+		    else {
+			unfoldedLine += ' ';
+		    }
 		}
 		else {
 		    if (0 < unfoldedLine.size()) {
@@ -692,7 +667,12 @@ void MailMessage::ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY 
 		    }
 		    int begin = line.find_first_not_of(SPACE);
 		    int end = line.find_last_not_of(SPACE);
-		    unfoldedLine = line.substr(begin, end-begin);
+		    if (std::string::npos != begin) {
+			unfoldedLine = line.substr(begin, end-begin);
+		    }
+		    else {
+			unfoldedLine = "";
+		    }
 		}
 	    }
 	}
@@ -705,7 +685,7 @@ void MailMessage::ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY 
 		('-' != messageBuffer[0]) ||
 		('-' != messageBuffer[1]) ||
 		(0 != strncmp(messageBuffer+2, parentSeparator, strlen(parentSeparator)))) {
-		while (ReadOneLine(file, messageBuffer) &&
+		while (store->ReadMessageLine(messageBuffer) &&
 		       ((NULL == parentSeparator) || 
 			('-' != messageBuffer[0]) ||
 			('-' != messageBuffer[1]) ||
@@ -733,97 +713,84 @@ MailMessage::MailMessage() {
 }
 
 
-// SYZYGY working here on converting the file open and readline stuff to be in the mailstore class
-MailMessage::MAIL_MESSAGE_RESULT MailMessage::parse(MailStore *store, unsigned long uid, bool readBody, bool loadBinaryParts) {
-#if 0
+MailMessage::MAIL_MESSAGE_RESULT MailMessage::Parse(MailStore *store, unsigned long uid, unsigned long msn, bool readBody, bool loadBinaryParts) {
     m_uid = uid;
-    std::string file_name = store->GetMessagePhysicalPath(uid, m_flagsWhenRead, m_internalDate, m_isRecent);
-    if (0 < file_name.size()) {
-	m_msn = store->MailboxUidToMsn(uid);
-	CSimFile file;
-	if (file.Open(file_name, CSimFile::modeRead))
-	{
- 	    bool notdone = true;
-	    CStdString csUnfoldedLine;
+    m_msn = msn;
+    bool notdone = true;
+    insensitiveString unfoldedLine;
 
-	    while(notdone)
-	    {
-		char message_buffer[1001];
-		if (ReadOneLine(&file, message_buffer))
-		{
-		    int line_length = (int) strlen(message_buffer);
-		    m_mbMainBody.dwBodyOctets += line_length;
-		    m_mbMainBody.dwBodyLines++;
-		    if ((2 <= line_length) && ('\r' == message_buffer[line_length-2]) && ('\n' == message_buffer[line_length -1]))
-		    {
- 			if (2 == line_length)
-			{
-			    // process the last unfolded line here
-			    ProcessHeaderLine(csUnfoldedLine);
-			    // And then convert the fields that we need converted
-			    m_tmDate = ParseDateField(m_csDateLine.c_str());
-			    m_mbMainBody.dwHeaderOctets = m_mbMainBody.dwBodyOctets;
-				m_mbMainBody.dwHeaderLines = m_mbMainBody.dwBodyLines;
-			    if (bReadBody)
-			    {
-				ParseBodyParts(&file, bLoadBinaryParts, m_mbMainBody, message_buffer, NULL, 0);
-				while(ReadOneLine(&file, message_buffer))
-				{
-				    m_mbMainBody.dwBodyOctets += (DWORD) strlen(message_buffer);
-				    m_mbMainBody.dwBodyLines++;
-				}
-			    }
-			    notdone = false;
-			}
-			else
-		        {
-			    if ((' ' == message_buffer[0]) || ('\t' == message_buffer[0]))
-			    {
-				csUnfoldedLine += ' ' + ((CStdString)message_buffer).Trim();
-			    }
-			    else
-			    {
-				if (0 < csUnfoldedLine.GetLength())
-				{
-				    ProcessHeaderLine(csUnfoldedLine);
-				}
-				csUnfoldedLine = ((CStdString)message_buffer).Trim();
-			    }
+    while(notdone) {
+	char messageBuffer[1001];
+	if (store->ReadMessageLine(messageBuffer)) {
+	    int lineLength = (int) strlen(messageBuffer);
+	    m_mainBody.bodyOctets += lineLength;
+	    m_mainBody.bodyLines++;
+	    if ((2 <= lineLength) && ('\r' == messageBuffer[lineLength-2]) && ('\n' == messageBuffer[lineLength -1])) {
+		if (2 == lineLength) {
+		    // process the last unfolded line here
+		    ProcessHeaderLine(unfoldedLine);
+		    // And then convert the fields that we need converted
+		    m_date = ParseDateField(m_dateLine.c_str());
+		    m_mainBody.headerOctets = m_mainBody.bodyOctets;
+		    m_mainBody.headerLines = m_mainBody.bodyLines;
+		    if (readBody) {
+			ParseBodyParts(store, loadBinaryParts, m_mainBody, messageBuffer, NULL, 0);
+			while(store->ReadMessageLine(messageBuffer)) {
+			    m_mainBody.bodyOctets += strlen(messageBuffer);
+			    m_mainBody.bodyLines++;
 			}
 		    }
-		    else
-		    {
-			notdone = false;
-			// m_eMessageStatus = MailMessage::MESSAGE_MALFORMED_NO_BODY;
-			msStore->GetClient()->Log("In MailMessage::parse, message \"%s\" has no body\n", file_name.c_str());
-			m_eMessageStatus = MailMessage::SUCCESS;
-		    }
-		}
-		else
-		{
-		    ProcessHeaderLine(csUnfoldedLine);
 		    notdone = false;
-		    // m_eMessageStatus = MailMessage::MESSAGE_MALFORMED_NO_BODY;
-		    msStore->GetClient()->Log("In MailMessage::parse, message \"%s\" has no body\n", file_name.c_str());
-		    m_eMessageStatus = MailMessage::SUCCESS;
+		}
+		else {
+		    if ((' ' == messageBuffer[0]) || ('\t' == messageBuffer[0])) {
+			insensitiveString temp(messageBuffer);
+			int begin = 0;
+			while (('\0' != messageBuffer[begin]) && isspace(messageBuffer[begin])) {
+			    ++begin;
+			}
+			int end = strlen(messageBuffer) - 1;
+			while ((0 < end) && isspace(messageBuffer[end])) {
+			    messageBuffer[end] = '\0';
+			    --end;
+			}
+			unfoldedLine += ' ' + (insensitiveString) (messageBuffer + begin);
+		    }
+		    else {
+			if (0 < unfoldedLine.size()) {
+			    ProcessHeaderLine(unfoldedLine);
+			}
+			int begin = 0;
+			while (('\0' != messageBuffer[begin]) && isspace(messageBuffer[begin])) {
+			    ++begin;
+			}
+			int end = strlen(messageBuffer) - 1;
+			while ((0 < end) && isspace(messageBuffer[end])) {
+			    messageBuffer[end] = '\0';
+			    --end;
+			}
+			unfoldedLine = messageBuffer + begin;
+		    }
 		}
 	    }
-	    file.Close();
+	    else {
+		notdone = false;
+		// m_messageStatus = MailMessage::MESSAGE_MALFORMED_NO_BODY;
+		// SYZGY Log
+		// store->GetClient()->Log("In MailMessage::parse, message \"%s\" has no body\n", file_name.c_str());
+		m_messageStatus = MailMessage::SUCCESS;
+	    }
 	}
-	else
-	{
-	    msStore->GetClient()->Log("In MailMessage::parse, file open \"%s\" failed\n", file_name.c_str());
-	    m_eMessageStatus = MailMessage::MESSAGE_FILE_OPEN_FAILED;
+	else {
+	    ProcessHeaderLine(unfoldedLine);
+	    notdone = false;
+	    // m_messageStatus = MailMessage::MESSAGE_MALFORMED_NO_BODY;
+	    // SYZYGY Log
+	    // store->GetClient()->Log("In MailMessage::parse, message \"%s\" has no body\n", file_name.c_str());
+	    m_messageStatus = MailMessage::SUCCESS;
 	}
     }
-    else
-    {
-		m_eMessageStatus = MailMessage::MESSAGE_DOESNT_EXIST;
-    }
-    return m_eMessageStatus;
-#else // !0 
-    return MailMessage::SUCCESS;
-#endif //
+    return m_messageStatus;
 }
 
 void

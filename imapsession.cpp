@@ -3360,7 +3360,6 @@ IMAP_RESULTS ImapSession::SearchHandlerInternal(uint8_t *data, const size_t data
 	result = SearchKeyParse(data, dataLen, parsingAt);
     }
     else {
-	// SYZYGY working here
 	atom(data, dataLen, parsingAt);
 	if (0 == strcmp("CHARSET", (char *)&m_parseBuffer[firstArgOffset])) {
 	    if ((2 < (dataLen - parsingAt)) && (' ' == data[parsingAt])) {
@@ -3475,35 +3474,44 @@ static insensitiveString RemoveRfc822Comments(const insensitiveString &headerLin
 }
 
 void ImapSession::SendMessageChunk(unsigned long uid, size_t offset, size_t length) {
-#if 0 // SYZYGY -- advanced features
-    CSimFile message;
-    DWORD dwDummy;
-    CSimpleDate sdDummy(MMDDYYYY, true);
-    bool bDummy;
-    CStdString csPhysicalFileName = m_msStore->GetMessagePhysicalPath(uid, dwDummy, sdDummy, bDummy);
+    if (MailStore::SUCCESS == m_store->OpenMessageFile(uid)) {
+	char buff[1001];
+	char *xmitBuffer = new char[length+1];
+	size_t accumulatedChars = 0;
+	bool notDone = true;
 
-    if (message.Open(csPhysicalFileName, CSimFile::modeRead))
-    {
-	DWORD buffLen = offset;
-	if (buffLen < length)
-	{
-	    buffLen = length;
+	xmitBuffer[0] = '\0';
+	while(notDone) {
+	    if (m_store->ReadMessageLine(buff)) {
+		int len = strlen(buff);
+		if (offset < len) {
+		    if (len > (length - accumulatedChars)) {
+			len = length - accumulatedChars;
+		    }
+		    strncat(xmitBuffer, buff+offset, len);
+		    accumulatedChars += len;
+		    xmitBuffer[length] = '\0';
+		    offset = 0;
+		    if (accumulatedChars >= length) {
+			notDone = false;
+		    }
+		}
+		else {
+		    offset -= len;
+		}
+	    }
+	    else {
+		notDone = false;
+	    }
 	}
-	char *buffer;
+	m_store->CloseMessageFile();
 
-	buffer = new char[buffLen];
-	message.Read(buffer, offset);
-
-	DWORD dwAmountRead;
-	dwAmountRead = message.Read(buffer, length);
-
-	CStdString csLiteral;
-	csLiteral.Format(_T("{%u}\r\n"), dwAmountRead);
-	Send((void *)csLiteral.c_str(), csLiteral.GetLength());
-	Send(buffer, dwAmountRead);
-	delete[] buffer;
+	std::ostringstream literal;
+	literal << "{" << accumulatedChars << "}\r\n";
+	m_s->Send((uint8_t *)literal.str().c_str(), literal.str().size());
+	m_s->Send((uint8_t *)xmitBuffer, accumulatedChars);
+	delete[] xmitBuffer;
     }
-#endif // 0
 }
 
 void ImapSession::FetchResponseFlags(uint32_t flags) {
@@ -3540,9 +3548,9 @@ void ImapSession::FetchResponseFlags(uint32_t flags) {
     m_s->Send((uint8_t *) result.c_str(), result.size());
 }
 
-void ImapSession::FetchResponseInternalDate(MailMessage &message) {
+void ImapSession::FetchResponseInternalDate(const MailMessage *message) {
     std::string result;
-    DateTime when = message.GetInternalDate(); 
+    DateTime when = message->GetInternalDate();
 
 #if 0 // SYZYGY -- advanced features of DateTime
     when.SetFormat(IMAPDATEFORMAT);
@@ -3552,43 +3560,41 @@ void ImapSession::FetchResponseInternalDate(MailMessage &message) {
     m_s->Send((uint8_t *)result.c_str(), result.size());
 }
 
-void ImapSession::FetchResponseRfc822(unsigned long uid, const MailMessage &message)
-{
+void ImapSession::FetchResponseRfc822(unsigned long uid, const MailMessage *message) {
     m_s->Send((uint8_t *) "RFC822 ", 7);
-    SendMessageChunk(uid, 0, message.GetMessageBody().bodyOctets);
+    SendMessageChunk(uid, 0, message->GetMessageBody().bodyOctets);
 }
 
-void ImapSession::FetchResponseRfc822Header(unsigned long uid, const MailMessage &message) {
+void ImapSession::FetchResponseRfc822Header(unsigned long uid, const MailMessage *message) {
     size_t length;
-    if (0 != message.GetMessageBody().headerOctets) {
-	length = message.GetMessageBody().headerOctets;
+    if (0 != message->GetMessageBody().headerOctets) {
+	length = message->GetMessageBody().headerOctets;
     }
     else {
-	length = message.GetMessageBody().bodyOctets;
+	length = message->GetMessageBody().bodyOctets;
     }
     m_s->Send((uint8_t *) "RFC822.HEADER ", 14);
     SendMessageChunk(uid, 0, length);
 }
 
-void ImapSession::FetchResponseRfc822Size(const MailMessage &message)
-{
+void ImapSession::FetchResponseRfc822Size(const MailMessage *message) {
     std::ostringstream result;
-    result << "RFC822.SIZE " << message.GetMessageBody().bodyOctets;
+    result << "RFC822.SIZE " << message->GetMessageBody().bodyOctets;
     m_s->Send((uint8_t *) result.str().c_str(), result.str().size());
 }
 
-void ImapSession::FetchResponseRfc822Text(unsigned long uid, const MailMessage &message) {
+void ImapSession::FetchResponseRfc822Text(unsigned long uid, const MailMessage *message) {
     std::string result;
-    if (0 < message.GetMessageBody().headerOctets) {
+    if (0 < message->GetMessageBody().headerOctets) {
 	size_t length;
-	if (message.GetMessageBody().bodyOctets > message.GetMessageBody().headerOctets) {
-	    length = message.GetMessageBody().bodyOctets - message.GetMessageBody().headerOctets;
+	if (message->GetMessageBody().bodyOctets > message->GetMessageBody().headerOctets) {
+	    length = message->GetMessageBody().bodyOctets - message->GetMessageBody().headerOctets;
 	}
 	else {
 	    length = 0;
 	}
 	m_s->Send((uint8_t *) "RFC822.TEXT ", 12);
-	SendMessageChunk(uid, message.GetMessageBody().headerOctets, length);
+	SendMessageChunk(uid, message->GetMessageBody().headerOctets, length);
     }
     else {
 	m_s->Send((uint8_t *) "RFC822.TEXT {0}\r\n", 17);
@@ -3629,7 +3635,12 @@ static insensitiveString Rfc822DotAtom(insensitiveString &input)
 
     int begin = input.find_first_not_of(SPACE);
     int end = input.find_last_not_of(SPACE);
-    input = input.substr(begin, end-begin);
+    if (std::string::npos != begin) {
+	input = input.substr(begin, end-begin);
+    }
+    else {
+	input = "";
+    }
 
     if ('"' == input[0]) {
 	input = input.substr(1);
@@ -3941,41 +3952,41 @@ static insensitiveString ParseAddressList(const insensitiveString &input) {
 // m_csReplyToLine), to (parenthesized list of addresses from m_csToLine), cc (parenthesized
 // list of addresses from m_csCcLine), bcc (parenthesized list of addresses from m_csBccLine)
 // in-reply-to (string from m_csInReplyTo), and message-id (string from m_csMessageId)
-void ImapSession::FetchResponseEnvelope(const MailMessage &message) {
+void ImapSession::FetchResponseEnvelope(const MailMessage *message) {
     insensitiveString result("ENVELOPE ("); 
-    result += QuotifyString(message.GetDateLine()) + " ";
-    if (0 != message.GetSubject().size()) {
-	result += QuotifyString(message.GetSubject()) + " ";
+    result += QuotifyString(message->GetDateLine()) + " ";
+    if (0 != message->GetSubject().size()) {
+	result += QuotifyString(message->GetSubject()) + " ";
     }
     else {
 	result += "NIL ";
     }
-    insensitiveString from = ParseAddressList(message.GetFrom()) + " ";
+    insensitiveString from = ParseAddressList(message->GetFrom()) + " ";
     result += from;
-    if (0 != message.GetSender().size()) {
-	result += ParseAddressList(message.GetSender()) + " ";
+    if (0 != message->GetSender().size()) {
+	result += ParseAddressList(message->GetSender()) + " ";
     }
     else {
 	result += from;
     }
-    if (0 != message.GetReplyTo().size()) {
-        result += ParseAddressList(message.GetReplyTo()) + " ";
+    if (0 != message->GetReplyTo().size()) {
+        result += ParseAddressList(message->GetReplyTo()) + " ";
     }
     else {
 	result += from;
     }
-    result += ParseAddressList(message.GetTo()) + " ";
-    result += ParseAddressList(message.GetCc()) + " ";
-    result += ParseAddressList(message.GetBcc()) + " ";
-    if (0 != message.GetInReplyTo().size()) {
-	result += QuotifyString(message.GetInReplyTo()) + " ";
+    result += ParseAddressList(message->GetTo()) + " ";
+    result += ParseAddressList(message->GetCc()) + " ";
+    result += ParseAddressList(message->GetBcc()) + " ";
+    if (0 != message->GetInReplyTo().size()) {
+	result += QuotifyString(message->GetInReplyTo()) + " ";
     }
     else
     {
 	result += "NIL ";
     }
-    if (0 != message.GetMessageId().size()) {
-	result += QuotifyString(message.GetMessageId());
+    if (0 != message->GetMessageId().size()) {
+	result += QuotifyString(message->GetMessageId());
     }
     else {
 	result += "NIL ";
@@ -4198,13 +4209,13 @@ static insensitiveString FetchSubpartEnvelope(const MESSAGE_BODY &body)
 // FetchResponseBodyStructure builds a bodystructure response.  The body structure is a representation
 // of the MIME structure of the message.  It starts at the main part and goes from there.
 // The results for each part are a parenthesized list of values.  For non-multipart parts, the
-// fields are the body type (derived from the csContentTypeLine), the body subtype (derived from the
-// csContentTypeLine), the body parameter parenthesized list (derived from the csContentTypeLine), the
-// body id (from csContentIdLine), the body description (from csContentDescriptionLine), the body
-// encoding (from csContentEncodingLine) and the body size (from csText.GetLength()).  Text sections
-// also have the number of lines (taken from dwBodyLines)
+// fields are the body type (derived from the contentTypeLine), the body subtype (derived from the
+// contentTypeLine), the body parameter parenthesized list (derived from the contentTypeLine), the
+// body id (from contentIdLine), the body description (from contentDescriptionLine), the body
+// encoding (from contentEncodingLine) and the body size (from text.GetLength()).  Text sections
+// also have the number of lines (taken from bodyLines)
 //
-// Multipart parts are the list of subparts followed by the subtype (from csContentTypeLine)
+// Multipart parts are the list of subparts followed by the subtype (from contentTypeLine)
 // Note that even though I'm passing a parameter about whether or not I want to include the 
 // extension data, I'm not actually putting extension data in the response
 //
@@ -4295,17 +4306,17 @@ static std::string FetchResponseBodyStructureHelper(const MESSAGE_BODY &body, bo
     return result.str();
 }
 
-void ImapSession::FetchResponseBodyStructure(const MailMessage &message)
+void ImapSession::FetchResponseBodyStructure(const MailMessage *message)
 {
     std::string result("BODYSTRUCTURE ");
-    result +=  FetchResponseBodyStructureHelper(message.GetMessageBody(), true);
+    result +=  FetchResponseBodyStructureHelper(message->GetMessageBody(), true);
     m_s->Send((uint8_t *)result.c_str(), result.size());
 }
 
-void ImapSession::FetchResponseBody(const MailMessage &message)
+void ImapSession::FetchResponseBody(const MailMessage *message)
 {
     std::string result("BODY ");
-    result +=  FetchResponseBodyStructureHelper(message.GetMessageBody(), false);
+    result +=  FetchResponseBodyStructureHelper(message->GetMessageBody(), false);
     m_s->Send((uint8_t *)result.c_str(), result.size());
 }
 
@@ -4337,9 +4348,9 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 
     for (int i = 0; (IMAP_BAD != finalResult) && (i < srVector.size()); ++i) {
 	int blankLen = 0;
-	MailMessage message;
+	MailMessage *message;
 
-	MailMessage::MAIL_MESSAGE_RESULT messageReadResult = message.parse(m_store, srVector[i]);
+	MailMessage::MAIL_MESSAGE_RESULT messageReadResult = m_store->GetMessageData(&message, srVector[i]);
 	unsigned long uid = srVector[i];
 	if (MailMessage::SUCCESS == messageReadResult) {
 	    IMAP_RESULTS result = IMAP_OK;
@@ -4385,7 +4396,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 			result = IMAP_BAD;
 		    }
-		    MESSAGE_BODY body = message.GetMessageBody();
+		    MESSAGE_BODY body = message->GetMessageBody();
 		    while ((IMAP_OK == result) && isdigit(m_parseBuffer[specificationBase])) {
 			char *end;
 			unsigned long section = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
@@ -4560,7 +4571,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 		    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
 		}
 		std::ostringstream fetchResult;
-		fetchResult << "* " << message.GetMsn() << " FETCH (";
+		fetchResult << "* " << message->GetMsn() << " FETCH (";
 		m_s->Send((uint8_t *)fetchResult.str().c_str(), fetchResult.str().size());
 	    }
 	    while ((IMAP_OK == result) && (specificationBase < m_parsePointer)) {
@@ -4570,7 +4581,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 		    blankLen = 1;
 		    switch(which->second) {
 		    case FETCH_ALL:
-			FetchResponseFlags(message.GetMessageFlags());
+			FetchResponseFlags(message->GetMessageFlags());
 			SendBlank();
 			FetchResponseInternalDate(message);
 			SendBlank();
@@ -4580,7 +4591,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			break;
 
 		    case FETCH_FAST:
-			FetchResponseFlags(message.GetMessageFlags());
+			FetchResponseFlags(message->GetMessageFlags());
 			SendBlank();
 			FetchResponseInternalDate(message);
 			SendBlank();
@@ -4588,7 +4599,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			break;
 
 		    case FETCH_FULL:
-			FetchResponseFlags(message.GetMessageFlags());
+			FetchResponseFlags(message->GetMessageFlags());
 			SendBlank();
 			FetchResponseInternalDate(message);
 			SendBlank();
@@ -4613,7 +4624,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			break;
 
 		    case FETCH_FLAGS:
-			FetchResponseFlags(message.GetMessageFlags());
+			FetchResponseFlags(message->GetMessageFlags());
 			break;
 
 		    case FETCH_INTERNALDATE:
@@ -4681,7 +4692,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 			result = IMAP_BAD;
 		    }
-		    MESSAGE_BODY body = message.GetMessageBody();
+		    MESSAGE_BODY body = message->GetMessageBody();
 		    // I need a part number flag because, for a single part message, body[1] is
 		    // different from body[], but later on, when I determine what part to fetch,
 		    // I won't know whether I've got body[1] or body[], and bPartNumberFlag 
@@ -4894,7 +4905,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			    {
 				std::string interesting;
 
-				// For each element in field_list, look up the corresponding entries in body.fieldList
+				// For each element in fieldList, look up the corresponding entries in body.fieldList
 				// and display
 				for(int i=0; i<fieldList.size(); ++i) {
 				    for (HEADER_FIELDS::const_iterator iter = body.fieldList.lower_bound(fieldList[i]);
@@ -4927,17 +4938,15 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				body = (*body.subparts)[0];
 			    }
 			    {
-				std::string interesting;
+				insensitiveString interesting;
 
 				for (HEADER_FIELDS::const_iterator i = body.fieldList.begin(); body.fieldList.end() != i; ++i) {
-				    // SYZYGY -- I HATE simarray and all the idiots who invented it and pushed it on me
-#if 0 // SYZYGY
-				    int dummy;
-
-				    if (!field_list.Find(i->first, dummy, CompareStringsNoCase))  {
-					interesting += i->first + _T(": ") + i->second + _T("\r\n");
+				    if (fieldList.end() == std::find(fieldList.begin(), fieldList.end(), i->first)) {
+					interesting += i->first;
+					interesting += ": ";
+					interesting += i->second;
+					interesting += "\r\n";
 				    }
-#endif // 0
 				}
 				interesting += "\r\n";
 				if (firstByte < interesting.size()) {
@@ -4945,7 +4954,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 
 				    std::ostringstream headerFields;
 				    headerFields << " {" << length << "}\r\n";
-				    headerFields << interesting.substr(firstByte, length);
+				    headerFields << interesting.substr(firstByte, length).c_str();
 				    m_s->Send((uint8_t *)headerFields.str().c_str(), headerFields.str().size());
 				}
 				else {
@@ -4997,7 +5006,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 	    // Here, I update the SEEN flag, if that is necessary, and send the flags if that flag has
 	    // changed state
 	    if (IMAP_OK == result) {
-		if (seenFlag && (0 == (MailStore::IMAP_MESSAGE_SEEN & message.GetMessageFlags()))) {
+		if (seenFlag && (0 == (MailStore::IMAP_MESSAGE_SEEN & message->GetMessageFlags()))) {
 		    uint32_t updatedFlags;
 		    if (MailStore::SUCCESS == m_store->MessageUpdateFlags(srVector[i], ~0, MailStore::IMAP_MESSAGE_SEEN, updatedFlags)) {
 			SendBlank();
@@ -5319,6 +5328,7 @@ IMAP_RESULTS ImapSession::StoreHandler(uint8_t *data, const size_t dataLen, size
     return StoreHandlerInternal(data, dataLen, parsingAt, false);
 }
 
+// SYZYGY working here
 #if 0
 IMAP_RESULTS ImapSession::CopyHandlerExecute(bool bUsingUid)
 {

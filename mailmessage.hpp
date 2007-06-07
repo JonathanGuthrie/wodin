@@ -28,8 +28,7 @@ typedef enum
     MIME_TYPE_MESSAGE
 } MIME_MEDIA_TYPES;
 
-struct MessageBody
-{
+struct MessageBody {
     HEADER_FIELDS fieldList;
     insensitiveString contentTypeLine;
     insensitiveString contentEncodingLine;
@@ -54,7 +53,7 @@ public:
     } MAIL_MESSAGE_RESULT;
     MailMessage();
     ~MailMessage();
-    MAIL_MESSAGE_RESULT parse(MailStore *store, unsigned long uid, bool readBody = true, bool loadBinaryParts = true);
+    MAIL_MESSAGE_RESULT Parse(MailStore *store, unsigned long uid, unsigned long msn, bool readBody = true, bool loadBinaryParts = true);
     static void BuildSymbolTable();
     MAIL_MESSAGE_RESULT GetStatus() const { return m_messageStatus; }
     const insensitiveString &GetSubject() const { return m_subject; }
@@ -76,6 +75,7 @@ public:
     const insensitiveString &GetReplyTo() const { return m_replyToLine; }
     const insensitiveString &GetInReplyTo() const { return m_inReplyTo; }
     const insensitiveString &GetMessageId() const { return m_messageId; }
+    void SetMessageFlags(uint32_t newFlags) { m_flagsWhenRead = newFlags; }
     
 private:
 #if 0
@@ -83,7 +83,7 @@ private:
     bool ReadOneLine(CSimFile *infile, char buff[1001]);
 #endif // 0
     bool ProcessHeaderLine(const insensitiveString &line);
-    void ParseBodyParts(void *file, bool loadBinaryParts, MESSAGE_BODY &parentBody,
+    void ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE_BODY &parentBody,
 			char messageBuffer[1001], const char *parentSeparator, size_t sectionStartOffset);
     struct tm m_date;
     insensitiveString m_dateLine, m_subject, m_inReplyTo, m_messageId;

@@ -349,7 +349,7 @@ const std::string Namespace::ListNamespaces(void) const {
     return result;
 }
 
-MailStore::MAIL_STORE_RESULT Namespace::DeleteMessage(const std::string &MailboxName, size_t uid) {
+MailStore::MAIL_STORE_RESULT Namespace::DeleteMessage(const std::string &MailboxName, unsigned long uid) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     MailStore *store = getNameSpace(MailboxName);
     if (NULL != store) {
@@ -357,4 +357,34 @@ MailStore::MAIL_STORE_RESULT Namespace::DeleteMessage(const std::string &Mailbox
 	result = store->DeleteMessage(MailboxName, uid);
     }
     return result;
+}
+
+MailMessage::MAIL_MESSAGE_RESULT Namespace::GetMessageData(MailMessage **message, unsigned long uid) {
+    MailMessage::MAIL_MESSAGE_RESULT result = MailMessage::GENERAL_FAILURE;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->GetMessageData(message, uid);
+    }
+    return result;
+}
+
+MailStore::MAIL_STORE_RESULT Namespace::OpenMessageFile(unsigned long uid) {
+    MailStore::MAIL_STORE_RESULT result = MailStore::GENERAL_FAILURE;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->OpenMessageFile(uid);
+    }
+    return result;
+}
+
+bool Namespace::ReadMessageLine(char buff[1001]) {
+    bool result = false;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->ReadMessageLine(buff);
+    }
+    return result;
+}
+
+void Namespace::CloseMessageFile(void) {
+    if (NULL != selectedNamespace) {
+	selectedNamespace->CloseMessageFile();
+    }
 }

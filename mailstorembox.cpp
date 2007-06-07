@@ -784,7 +784,7 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
     if (result && countMessage) {
 	messageMetaData.uid = uid;
 	messageMetaData.flags = flags;
-	messageMetaData.imapLength = 0; // SYZYGY -- Finding this could be complicated
+	messageMetaData.messageData = NULL;
 	messageMetaData.isDirty = !seenStatus || !seenUid;
     }
 
@@ -846,11 +846,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
     }
 
     if (result == SUCCESS) {
-	std::ifstream inFile(fullPath.c_str());
+	std::ifstream inFile(fullPath.c_str(), std::ios_base::in|std::ios_base::binary);
 	bool firstMessage = true;
-	bool parseSuccess;
 	bool countMessage;
 	MessageIndex_t messageMetaData;
+	bool parseSuccess;
 
 	m_mailboxMessageCount = 0;
 	m_recentCount = 0;
@@ -859,7 +859,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	m_uidValidity = 0;
 	m_hasHiddenMessage = false;
 	m_hasDeletedMessage = false;
-	while(!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidLast, messageMetaData))) {
+	MailMessage *message = new MailMessage();
+	while (!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidLast, messageMetaData))) {
 	    if (countMessage) {
 		++m_mailboxMessageCount;
 		if (0 != (MailStore::IMAP_MESSAGE_RECENT & messageMetaData.flags)) {
@@ -882,10 +883,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	    else {
 		m_hasHiddenMessage = true;
 	    }
-	    firstMessage = false;
 	}
 	inFile.close();
-	// SYZYGY -- if parseSuccess is not true, it should return an error
 
 #if 0
 	for (int i=0; i < m_messageIndex.size(); ++i) {
@@ -912,6 +911,10 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	}
 	else {
 	    m_errnoFromLibrary = errno;
+	    result = MailStore::GENERAL_FAILURE;
+	}
+
+	if (!parseSuccess) {
 	    result = MailStore::GENERAL_FAILURE;
 	}
     }
@@ -998,7 +1001,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 	    firstMessage = false;
 	}
 	inFile.close();
-	// SYZYGY -- if parseSuccess is not true, it should return an error
+	if (!parseSuccess) {
+	    result = MailStore::GENERAL_FAILURE;
+	}
     }
     return result;
 }
@@ -1309,7 +1314,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 
 					    messageMetaData.uid = ++m_uidLast;
 					    messageMetaData.flags = flagsFromMessage;
-					    messageMetaData.imapLength = 0;; // SYZYGY -- how do I determine this?
+					    messageMetaData.messageData = NULL;
 					    messageMetaData.start = curr->startPos + (std::streamoff)messageStartOffset;
 					    messageMetaData.isDirty = true;
 					    m_messageIndex.push_back(messageMetaData);
@@ -1351,7 +1356,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				    else {
 					std::cout << "ABORT:  when flushing buffers, m_messageIndex[" << messageIndex << "].uid = " << m_messageIndex[messageIndex].uid <<
 					    " but the message claims to have uid " << uidFromMessage << std::endl;
-					return MailStore::GENERAL_FAILURE; // SYZYGY
+					return MailStore::GENERAL_FAILURE;
 				    }
 				}
 				// Go back to looking for "from"
@@ -1443,7 +1448,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 
 					messageMetaData.uid = ++m_uidLast;
 					messageMetaData.flags = flagsFromMessage;
-					messageMetaData.imapLength = 0; // SYZYGY -- how do I determine this?
+					messageMetaData.messageData = NULL;
 					messageMetaData.start = curr->startPos + (std::streamoff)messageStartOffset;
 					messageMetaData.isDirty = true;
 					m_messageIndex.push_back(messageMetaData);
@@ -1484,7 +1489,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				else {
 				    std::cout << "ABORT:  when flushing buffers, m_messageIndex[" << messageIndex << "].uid = " << m_messageIndex[messageIndex].uid <<
 					" but the message claims to have uid " << uidFromMessage << std::endl;
-				    return MailStore::GENERAL_FAILURE; // SYZYGY
+				    return MailStore::GENERAL_FAILURE;
 				}
 			    }
 			    // When I get here, I know that I'm in a new message, so I have to
@@ -2535,7 +2540,178 @@ MailStoreMbox::~MailStoreMbox()
 }
 
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMessage(const std::string &MailboxName, size_t uid) {
-    return MailStore::SUCCESS; // SYZYGY
+MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMessage(const std::string &MailboxName, unsigned long uid) {
+    return MailStore::SUCCESS;
 }
 
+MailMessage::MAIL_MESSAGE_RESULT MailStoreMbox::GetMessageData(MailMessage **message, unsigned long uid) {
+    MailMessage::MAIL_MESSAGE_RESULT result = MailMessage::SUCCESS;
+
+    unsigned long msn = MailboxUidToMsn(uid);
+    if ((msn > 0) && (msn <= m_messageIndex.size())) {
+	if (NULL == m_messageIndex[msn-1].messageData) {
+	    m_messageIndex[msn-1].messageData = new MailMessage();
+	    OpenMessageFile(uid);
+	    m_messageIndex[msn-1].messageData->Parse(this, uid, msn);
+	    CloseMessageFile();
+	}
+	*message = m_messageIndex[msn-1].messageData;
+	(*message)->SetMessageFlags(m_messageIndex[msn-1].flags);
+    }
+    else {
+	result = MailMessage::MESSAGE_DOESNT_EXIST;
+    }
+    return result;
+}
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::OpenMessageFile(unsigned long uid) {
+    CloseMessageFile();
+    if (NULL != m_openMailbox) {
+	std::string fullPath;
+	if ((('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
+	    (('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
+	    (('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
+	    (('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
+	    (('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
+	    ('\0' == (*m_openMailbox)[5])) {
+	    fullPath = m_inboxPath;
+	}
+	else {
+	    fullPath = m_homeDirectory;
+	    fullPath += "/";
+	    fullPath += *m_openMailbox;
+	}
+
+	// std::cout << "Attempting to open the file \"" << fullPath << "\"" << std::endl;
+	m_inFile.open(fullPath.c_str(), std::ios_base::in|std::ios_base::binary);
+	// std::cout << "The state of the read stream is " << m_inFile.rdstate() << std::endl;
+	unsigned long msn = MailboxUidToMsn(uid);
+	m_inFile.seekg(m_messageIndex[msn-1].start);
+	m_readingNewMessage = true;
+    }
+}
+
+// This function must replace LF's with CRLF's and it must ignore the headers that don't belong,
+// it must return false at EOF or when it read's a "From" line, and it must un-quote quoted "From" lines
+bool MailStoreMbox::ReadMessageLine(char buff[1001]) {
+    std::string temp;
+    bool result = false;
+
+    buff[0] = '\0';
+    // std::cout << "The state of the read stream is " << m_inFile.rdstate() << std::endl;
+    if (!m_inFile.eof()) {
+	result = false;
+	m_inFile.getline(buff, 1000);
+	// std::cout << "ReadMessageLine read \"" << buff << "\"" << std::endl;
+	if (m_readingNewMessage) {
+	    // Throw the first line away if it's the first line because it's "From <crud>"
+	    m_inFile.getline(buff, 1000);
+	    // std::cout << "No, just kidding ReadMessageLine read \"" << buff << "\"" << std::endl;
+	}
+	buff[1000] = '\0';
+	if (0 != strncmp(buff, "From ", 5)) {
+	    if (998 > strlen(buff)) {
+		strcat(buff, "\r\n");
+	    }
+	    if ((0 == strncmp(buff, "X-Status:", 9))
+		|| (0 == strncmp(buff, "Status:", 7))
+		|| (0 == strncmp(buff, "X-UID:", 6))
+		|| (0 == strncmp(buff, "X-IMAP:", 7))
+		|| (0 == strncmp(buff, "X-IMAPbase:", 11))) {
+		while (((0 == strncmp(buff, "X-Status:", 9))
+			|| (0 == strncmp(buff, "Status:", 7))
+			|| (0 == strncmp(buff, "X-UID:", 6))
+			|| (0 == strncmp(buff, "X-IMAP:", 7))
+			|| (0 == strncmp(buff, "X-IMAPbase:", 11)))
+		       && (0 != strncmp(buff, "From ", 5))
+		       && (!m_inFile.eof())) {
+		    m_inFile.getline(buff, 1000);
+		    buff[1000] = '\0';
+		    // std::cout << "The line is \"" << buff << "\"" << std::endl;
+		}
+		if (!m_inFile.eof() && (0 != strncmp(buff, "From ", 5))) {
+		    // std::cout << "The final line is \"" << buff << "\"" << std::endl;
+		    if (998 > strlen(buff)) {
+			strcat(buff, "\r\n");
+		    }
+		    result = true;
+		}
+	    }
+	    else {
+		result = true;
+	    }
+	}
+    }
+
+    if (result) {
+	int state = 0;
+	int offset = 0;
+	while (state < 5) {
+	    switch(state) {
+	    case 0:
+		if ('>' != buff[offset]) {
+		    if ('F' == buff[offset]) {
+			state = 1;
+		    }
+		    else {
+			state = 999;
+		    }
+		}
+		break;
+
+	    case 1:
+		if ('r' == buff[offset]) {
+		    state = 2;
+		}
+		else {
+		    state = 999;
+		}
+		break;
+
+	    case 2:
+		if ('o' == buff[offset]) {
+		    state = 3;
+		}
+		else {
+		    state = 999;
+		}
+		break;
+
+	    case 3:
+		if ('m' == buff[offset]) {
+		    state = 4;
+		}
+		else {
+		    state = 999;
+		}
+		break;
+
+	    case 4:
+		if (' ' == buff[offset]) {
+		    state = 5;
+		}
+		else {
+		    state = 999;
+		}
+		break;
+
+	    default:
+		state = 999;
+		break;
+	    }
+	    ++offset;
+	}
+	// std::cout << "The final state is " << state << std::endl;
+	if (5 == state) {
+	    // std::cout << "Removing the leading '>'" << std::endl;
+	    memmove(buff, buff+1, strlen(buff));
+	}
+	// std::cout << "The final line is \"" << buff << "\"" << std::endl;
+    }
+    m_readingNewMessage = false;
+    return result;
+}
+
+void MailStoreMbox::CloseMessageFile(void) {
+    m_inFile.close();
+}

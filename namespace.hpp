@@ -64,7 +64,11 @@ public:
     void AddNamespace(NAMESPACE_TYPES type, const std::string &name, MailStore *handler, char separator = '\0');
     const std::string ListNamespaces(void) const;
     // This deletes a message in a mail box
-    virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, size_t uid);
+    virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid);
+    virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid);
+    virtual MailStore::MAIL_STORE_RESULT OpenMessageFile(unsigned long uid);
+    virtual bool ReadMessageLine(char buff[1001]);
+    virtual void CloseMessageFile(void);
 
 private:
     MailStore *getNameSpace(const std::string &name);
