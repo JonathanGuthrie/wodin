@@ -3618,16 +3618,6 @@ static insensitiveString QuotifyString(const insensitiveString &input) {
 
 #define SPACE " \t\v\r\n\f"
 
-#if 0
-static insensitiveString trim(insensitiveString &input) {
-    int first = input.find_first_not_of(whitespace);
-    int last = input.find_last_not_of(whitespace);
-
-    input = input.substr(0, last).substr(first);
-    return input;
-}
-#endif // 0
-
 static insensitiveString Rfc822DotAtom(insensitiveString &input)
 {
     insensitiveString result;
