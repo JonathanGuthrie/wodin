@@ -44,6 +44,14 @@ done)  Finish the parts of the NOOP command I've deferred
 
 15)  Asynchonous notifications
 
+done)  Fix the Support for mbox mailstores to add extra linefeeds before the "From " lines.
+
+17)  Fix the "00000" in the time zone.
+
+done)  Fix the "UNSEEN 1" display where there are no unseen messages.
+
+19)  Fix the multiple simultaneous connection problem
+
 )  Locking for multiple simultaneous access to mailboxes
 
 )  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.

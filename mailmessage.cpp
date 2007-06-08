@@ -293,10 +293,11 @@ static MIME_MEDIA_TYPES GetMediaType(const insensitiveString &contentTypeLine) {
 	insensitiveString work = contentTypeLine;
 	int pos = work.find('/');
 	if (std::string::npos != pos) {
+	    --pos;
 	    int end = work.find_last_not_of(SPACE, pos);
 	    int begin = work.find_first_not_of(SPACE);
 
-	    work = work.substr(begin, end-begin);
+	    work = work.substr(begin, end-begin+1);
 	}
 	else {
 	    pos = work.find(';');
@@ -304,7 +305,7 @@ static MIME_MEDIA_TYPES GetMediaType(const insensitiveString &contentTypeLine) {
 	    // of the whole thing.  So, I don't need to see if semicolon failed here
 	    int end = work.find_last_not_of(SPACE, pos);
 	    int begin = work.find_first_not_of(SPACE);
-	    work = work.substr(begin, end-begin);
+	    work = work.substr(begin, end-begin+1);
 	}
 
 	MEDIA_SYMBOL_T::iterator which = mediaTypeSymbolTable.find(work);
@@ -327,10 +328,10 @@ std::string GetMediaBoundary(const insensitiveString &contentTypeLine) {
 
     int pos = work.find("boundary=");
     if (std::string::npos != pos) {
-	int end = work.find_last_not_of(SPACE, pos);
-	int begin = work.find_first_not_of(SPACE, 9);
+	int end = work.find_last_not_of(SPACE);
+	int begin = work.find_first_not_of(SPACE, pos+9);
 
-        result = contentTypeLine.substr(begin, end-begin).c_str();
+        result = contentTypeLine.substr(begin, end-begin+1).c_str();
         pos = result.find(';');
         if (std::string::npos != pos) {
 	    result = result.substr(0, pos);
@@ -359,7 +360,7 @@ bool MailMessage::ProcessHeaderLine(const insensitiveString &line) {
 	    int begin = line.find_first_not_of(SPACE, colon+1);
 	    insensitiveString right;
 	    if (std::string::npos != begin) {
-		right = line.substr(begin, end-begin);
+		right = line.substr(begin, end-begin+1);
 	    }
 	    else {
 		right = "";
@@ -448,7 +449,7 @@ bool ProcessSubpartHeaderLine(const insensitiveString &line, MESSAGE_BODY &body)
 	    int end = line.find_last_not_of(SPACE);
 	    insensitiveString right;
 	    if (std::string::npos != begin) {
-		right = line.substr(begin, end-begin);
+		right = line.substr(begin, end-begin+1);
 	    }
 	    else {
 		right = "";
@@ -488,7 +489,7 @@ bool ProcessSubpartHeaderLine(const insensitiveString &line, MESSAGE_BODY &body)
 }
 
 
-void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE_BODY &parentBody, char messageBuffer[1001],
+void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE_BODY &parentBody, char messageBuffer[1101],
     		       const char *parentSeparator, size_t sectionStartOffset)
 {
     parentBody.bodyMediaType = GetMediaType(parentBody.contentTypeLine);
@@ -517,79 +518,74 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 	    // the end of the subparts with this separator
 	    notdone = true;
 	    while (notdone) {
-		if (0 < strlen(messageBuffer)) {
-		    if ((4 + separator.size() > (int)strlen(messageBuffer)) ||
-			('-' != messageBuffer[2+separator.size()]) ||
-			('-' != messageBuffer[3+separator.size()])) {
-			// If I'm here, I know that it is not the final terminator.   I need to accumulate lines of
-			// the subpart header until I see the blank line that ends them.
-			insensitiveString unfoldedLine;
-			MESSAGE_BODY childBody;
+		if ((4 + separator.size() > (int)strlen(messageBuffer)) ||
+		    ('-' != messageBuffer[2+separator.size()]) ||
+		    ('-' != messageBuffer[3+separator.size()])) {
+		    // If I'm here, I know that it is not the final terminator.   I need to accumulate lines of
+		    // the subpart header until I see the blank line that ends them.
+		    insensitiveString unfoldedLine;
+		    MESSAGE_BODY childBody;
 
-			childBody.subparts = NULL;
-			childBody.bodyLines = 0;
-			childBody.bodyOctets = 0;
-			childBody.headerOctets = 0;
-			childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
-			while (store->ReadMessageLine(messageBuffer) &&
-			       (('-' != messageBuffer[0]) ||
-				('-' != messageBuffer[1]) ||
-				(0 != strncmp(messageBuffer+2, separator.c_str(), separator.size())))) {
-			    childBody.bodyOctets += strlen(messageBuffer);
-			    childBody.bodyLines++;
-			    insensitiveString line(messageBuffer);
-			    if (2 >= line.size()) {
-				ProcessSubpartHeaderLine(unfoldedLine, childBody);
-				if (NULL == parentBody.subparts) {
-				    parentBody.subparts = new std::vector<MESSAGE_BODY>;
-				}
-				childBody.headerOctets = childBody.bodyOctets;
-				childBody.headerLines = childBody.bodyLines;
-				ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, separator.c_str(),
-					       sectionStartOffset + parentBody.bodyOctets);
-				// This part here is because the separator line is considered to
-				// be "CRLF--<separator>CRLF, so I've got an extra line and an extra
-				// CRLF sequence that I need to not account for twice.
-				childBody.bodyOctets -= 2;
-				childBody.bodyLines--;
-				parentBody.subparts->push_back(childBody);
-				// But I do have to account for it once
-				parentBody.bodyOctets += childBody.bodyOctets + 2;
-				parentBody.bodyLines += childBody.bodyLines + 1;
-				break;
+		    childBody.subparts = NULL;
+		    childBody.bodyLines = 0;
+		    childBody.bodyOctets = 0;
+		    childBody.headerOctets = 0;
+		    childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
+		    while (store->ReadMessageLine(messageBuffer) &&
+			   (('-' != messageBuffer[0]) ||
+			    ('-' != messageBuffer[1]) ||
+			    (0 != strncmp(messageBuffer+2, separator.c_str(), separator.size())))) {
+			childBody.bodyOctets += strlen(messageBuffer);
+			childBody.bodyLines++;
+			insensitiveString line(messageBuffer);
+			if (2 >= line.size()) {
+			    ProcessSubpartHeaderLine(unfoldedLine, childBody);
+			    if (NULL == parentBody.subparts) {
+				parentBody.subparts = new std::vector<MESSAGE_BODY>;
 			    }
-			    else {
-				if ((' ' == line[0]) || ('\t' == line[0])) {
-				    int begin = line.find_first_not_of(SPACE);
-				    int end = line.find_last_not_of(SPACE);
-				    if (std::string::npos != begin) {
-					unfoldedLine += ' ' + line.substr(begin, end-begin);
-				    }
-				    else {
-					unfoldedLine += ' ';
-				    }
+			    childBody.headerOctets = childBody.bodyOctets;
+			    childBody.headerLines = childBody.bodyLines;
+			    ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, separator.c_str(),
+					   sectionStartOffset + parentBody.bodyOctets);
+			    // This part here is because the separator line is considered to
+			    // be "CRLF--<separator>CRLF, so I've got an extra line and an extra
+			    // CRLF sequence that I need to not account for twice.
+			    childBody.bodyOctets -= 2;
+			    childBody.bodyLines--;
+			    parentBody.subparts->push_back(childBody);
+			    // But I do have to account for it once
+			    parentBody.bodyOctets += childBody.bodyOctets + 2;
+			    parentBody.bodyLines += childBody.bodyLines + 1;
+			    break;
+			}
+			else {
+			    if ((' ' == line[0]) || ('\t' == line[0])) {
+				int begin = line.find_first_not_of(SPACE);
+				int end = line.find_last_not_of(SPACE);
+				if (std::string::npos != begin) {
+				    unfoldedLine += ' ' + line.substr(begin, end-begin+1);
 				}
 				else {
-				    if (0 < unfoldedLine.size()) {
-					notdone = ProcessSubpartHeaderLine(unfoldedLine, childBody);
-				    }
-				    int begin = line.find_first_not_of(SPACE);
-				    int end = line.find_last_not_of(SPACE);
-				    if (std::string::npos != begin) {
-					unfoldedLine = line.substr(begin, end-begin);
-				    }
-				    else {
-					unfoldedLine = "";
-				    }
+				    unfoldedLine += ' ';
+				}
+			    }
+			    else {
+				if (0 < unfoldedLine.size()) {
+				    notdone = ProcessSubpartHeaderLine(unfoldedLine, childBody);
+				}
+				int begin = line.find_first_not_of(SPACE);
+				int end = line.find_last_not_of(SPACE);
+				if (std::string::npos != begin) {
+				    unfoldedLine = line.substr(begin, end-begin+1);
+				}
+				else {
+				    unfoldedLine = "";
 				}
 			    }
 			}
-			parentBody.bodyOctets += strlen(messageBuffer);
-			parentBody.bodyLines++;
 		    }
-		    else {
-			notdone = false;
-		    }
+		    parentBody.bodyOctets += strlen(messageBuffer);
+		    parentBody.bodyLines++;
 		}
 		else {
 		    notdone = false;
@@ -655,7 +651,7 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 		    int begin = line.find_first_not_of(SPACE);
 		    int end = line.find_last_not_of(SPACE);
 		    if (std::string::npos != begin) {
-			unfoldedLine += ' ' + line.substr(begin, end-begin);
+			unfoldedLine += ' ' + line.substr(begin, end-begin+1);
 		    }
 		    else {
 			unfoldedLine += ' ';
@@ -668,7 +664,7 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 		    int begin = line.find_first_not_of(SPACE);
 		    int end = line.find_last_not_of(SPACE);
 		    if (std::string::npos != begin) {
-			unfoldedLine = line.substr(begin, end-begin);
+			unfoldedLine = line.substr(begin, end-begin+1);
 		    }
 		    else {
 			unfoldedLine = "";
