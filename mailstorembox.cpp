@@ -1854,6 +1854,42 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		curr = curr->next;
 		lastPutPos = updateFile.tellp();
 	    }
+	    if ((6 == parseState) || (7 == parseState)) {
+		// The message ended in the header, so I need to flush the header metadata
+		if (!purgeThisMessage) {
+		    if (6 == parseState) {
+			++charactersAdded;
+			updateFile.write("\n", 1);
+		    }
+		    std::ostringstream ss;
+		    ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
+		    ss << "X-Status: ";
+		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
+			ss << 'A';
+		    }
+		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
+			ss << 'F';
+		    }
+		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
+			ss << 'D';
+		    }
+		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
+			ss << 'T';
+		    }
+		    ss << "\nStatus: O";
+		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
+			ss << 'R';
+		    }
+		    ss << '\n';
+		    // I'm at the end of the file, so I need not concern myself with buffer overruns
+		    // they simply aren't possible
+		    charactersAdded += ss.str().length();
+		    updateFile.write(ss.str().c_str(), ss.str().length());
+		    updateFile.flush();
+		    m_messageIndex[messageIndex].isDirty = false;
+		}
+	    }
+
 	    // The next thing to do is to handle the case where the last message was deleted
 	    if (0 <= messageIndex) {
 		// If I'm done purging this message, remove the message from the index and 
