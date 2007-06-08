@@ -531,7 +531,8 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 		    childBody.bodyOctets = 0;
 		    childBody.headerOctets = 0;
 		    childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
-		    while (store->ReadMessageLine(messageBuffer) &&
+		    notdone = store->ReadMessageLine(messageBuffer);
+		    while (notdone &&
 			   (('-' != messageBuffer[0]) ||
 			    ('-' != messageBuffer[1]) ||
 			    (0 != strncmp(messageBuffer+2, separator.c_str(), separator.size())))) {
@@ -583,6 +584,7 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 				}
 			    }
 			}
+			notdone = store->ReadMessageLine(messageBuffer);
 		    }
 		    parentBody.bodyOctets += strlen(messageBuffer);
 		    parentBody.bodyLines++;
@@ -702,6 +704,7 @@ MailMessage::MailMessage() {
     m_mainBody.bodyStartOffset = 0;
     m_mainBody.bodyOctets = 0;
     m_mainBody.headerOctets = 0;
+    m_mainBody.headerLines = 0;
     m_mainBody.subparts = NULL;
     m_textLines = 0;
     m_lineBuffPtr = 0;
