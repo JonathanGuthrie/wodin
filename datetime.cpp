@@ -226,8 +226,15 @@ const std::string DateTime::str(void) const throw(DateTimeInvalidDateTime) {
 	std::setw(2) << std::setfill('0') << tm.tm_hour << ":" <<
 	std::setw(2) << std::setfill('0') << tm.tm_min << ":" <<
 	std::setw(2) << std::setfill('0') << tm.tm_sec << " " <<
-	(tm.tm_year + 1900) << " " <<
-	std::setw(5) << std::setfill('0') << std::internal << std::showpos << zone;
+	(tm.tm_year + 1900) << " ";
+    // I KNOW that zero is neither positive or negative, and so "00000" is mathematically correct,
+    // but it time-zonally bogus, so I work around a program broken due to correctness
+    if (0 == zone) {
+	ss << "+0000";
+    }
+    else {
+	ss << std::setw(5) << std::setfill('0') << std::internal << std::showpos << zone;
+    }
     return ss.str();
 }
 

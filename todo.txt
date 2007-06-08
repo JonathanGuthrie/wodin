@@ -46,7 +46,7 @@ done)  Finish the parts of the NOOP command I've deferred
 
 done)  Fix the Support for mbox mailstores to add extra linefeeds before the "From " lines.
 
-17)  Fix the "00000" in the time zone.
+done)  Fix the "00000" in the time zone.
 
 done)  Fix the "UNSEEN 1" display where there are no unseen messages.
 
