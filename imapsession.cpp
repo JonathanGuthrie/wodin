@@ -1691,7 +1691,7 @@ IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, const size_t dataLen, size
 
 IMAP_RESULTS ImapSession::NamespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     // SYZYGY parsingAt should be the index of a '\0'
-    std::string str = "* " + m_store->ListNamespaces();
+    std::string str = "* NAMESPACE " + m_store->ListNamespaces();
     str += "\n";
     m_s->Send((uint8_t *) str.c_str(), str.size());
     return IMAP_OK;
