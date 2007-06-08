@@ -720,7 +720,7 @@ MailMessage::MAIL_MESSAGE_RESULT MailMessage::Parse(MailStore *store, unsigned l
     insensitiveString unfoldedLine;
 
     while(notdone) {
-	char messageBuffer[1001];
+	char messageBuffer[1101];
 	if (store->ReadMessageLine(messageBuffer)) {
 	    int lineLength = (int) strlen(messageBuffer);
 	    m_mainBody.bodyOctets += lineLength;

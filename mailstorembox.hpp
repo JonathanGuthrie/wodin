@@ -47,7 +47,7 @@ public:
     virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid);
     virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid);
     virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid);
-    virtual bool ReadMessageLine(char buff[1001]);
+    virtual bool ReadMessageLine(char buff[1101]);
     virtual void CloseMessageFile(void);
 
 private:
@@ -84,7 +84,9 @@ private:
     void AddDataToMessageFile(uint8_t *data, size_t length);
     MailStore::MAIL_STORE_RESULT FlushAndExpunge(NUMBER_LIST *nowGone, bool doExpunge);
     std::ifstream m_inFile;
-    bool m_readingNewMessage;
+    char *m_messageBuffer;
+    size_t m_charsInMessageBuffer;
+    bool m_notInHeader;
 };
 
 #endif // _MAILSTOREMBOX_HPP_INCLUDED_

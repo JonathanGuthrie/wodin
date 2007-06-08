@@ -596,7 +596,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	    if (0 == lstat(fullPath.c_str(), &stat_buf)) {
 		m_outFile = new std::ofstream(fullPath.c_str(), std::ios_base::out|std::ios_base::app|std::ios_base::binary);
 
-		*m_outFile << "\nFrom " << m_session->GetUser()->GetName() << "@" << m_session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
+		*m_outFile << "\n\nFrom " << m_session->GetUser()->GetName() << "@" << m_session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
 		*m_outFile << "X-Status: ";
 		if (0 != (IMAP_MESSAGE_ANSWERED & messageFlags)) {
 		    *m_outFile << 'A';
@@ -2587,15 +2587,115 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::OpenMessageFile(unsigned long uid) {
 	// std::cout << "The state of the read stream is " << m_inFile.rdstate() << std::endl;
 	unsigned long msn = MailboxUidToMsn(uid);
 	m_inFile.seekg(m_messageIndex[msn-1].start);
-	m_readingNewMessage = true;
+	// Allocate the new buffer
+	m_messageBuffer = new char[101];
+	// Flush the first line that's going to have "From <stuff>" in it, and which the rest of the system should never see
+	char buffer[1000];
+	m_inFile.getline(buffer, 1000);
+	m_inFile.read(m_messageBuffer, 100);
+	m_charsInMessageBuffer = m_inFile.gcount();
+	m_messageBuffer[m_charsInMessageBuffer] = '\0';
+	m_notInHeader = false;
     }
 }
 
 // This function must replace LF's with CRLF's and it must ignore the headers that don't belong,
 // it must return false at EOF or when it read's a "From" line, and it must un-quote quoted "From" lines
-bool MailStoreMbox::ReadMessageLine(char buff[1001]) {
-    std::string temp;
+bool MailStoreMbox::ReadMessageLine(char buff[1101]) {
     bool result = false;
+    bool notdone = true;
+#if 1
+    while (notdone) {
+	if ((!m_inFile.eof() || (0 != m_charsInMessageBuffer)) && (0 != strncmp(m_messageBuffer, "\nFrom ", 6))) {
+
+	    // At this point, m_messageBuffer[0] is the first character of a new line
+	    if (m_notInHeader||
+		((0 != strncmp(m_messageBuffer, "X-Status:", 9))
+		 && (0 != strncmp(m_messageBuffer, "Status:", 7))
+		 && (0 != strncmp(m_messageBuffer, "X-UID:", 6))
+		 && (0 != strncmp(m_messageBuffer, "X-IMAP:", 7))
+		 && (0 != strncmp(m_messageBuffer, "X-IMAPbase:", 11)))) {
+		char *n;
+		int base = 0;
+		if ('>' == m_messageBuffer[0]) {
+		    size_t f = strspn(m_messageBuffer, ">");
+		    if (0 == strncmp(&m_messageBuffer[f], "From ", 5)) {
+			base = 1;
+		    }
+		}
+		if (NULL == (n = strchr(m_messageBuffer, '\n'))) {
+		    size_t destOffset = 0;
+		    // I don't have an entire line in the message buffer, so I fill until I've got an entire line,
+		    // until I reach the end of file, or until I've got 1000 characters in buff, whichever comes
+		    // first
+		    do {
+			memmove(destOffset+buff, &m_messageBuffer[base], m_charsInMessageBuffer-base);
+			destOffset += m_charsInMessageBuffer-base;
+			buff[destOffset] = '\0';
+			m_inFile.read(&m_messageBuffer[m_charsInMessageBuffer], 100);
+			m_charsInMessageBuffer = m_inFile.gcount();
+			m_messageBuffer[m_charsInMessageBuffer] = '\0';
+			base = 0;
+		    } while ((1000 < destOffset) && !m_inFile.eof() && (NULL == (n = strchr(m_messageBuffer, '\n'))));
+		    if ((1000 < destOffset) && (NULL != n)) {
+			size_t charsToMove = (n - m_messageBuffer)+1;
+			if (1 == charsToMove) {
+			    m_notInHeader = true;
+			}
+			memmove(buff+destOffset, m_messageBuffer, charsToMove);
+			buff[charsToMove-1] = '\r';
+			buff[charsToMove] = '\n';
+			buff[charsToMove+1] = '\0';
+			m_charsInMessageBuffer -= charsToMove;
+			memmove(m_messageBuffer, n+1, m_charsInMessageBuffer);
+			m_inFile.read(&m_messageBuffer[m_charsInMessageBuffer], 100-m_charsInMessageBuffer);
+			m_charsInMessageBuffer += m_inFile.gcount();
+			m_messageBuffer[m_charsInMessageBuffer] = '\0';
+		    }
+		}
+		else {
+		    size_t charsToMove = (n - m_messageBuffer)+1-base;
+		    if (1 == charsToMove) {
+			m_notInHeader = true;
+		    }
+		    memmove(buff, &m_messageBuffer[base], charsToMove);
+		    buff[charsToMove-1] = '\r';
+		    buff[charsToMove] = '\n';
+		    buff[charsToMove+1] = '\0';
+		    m_charsInMessageBuffer -= charsToMove+base;
+		    memmove(m_messageBuffer, n+1, m_charsInMessageBuffer);
+		    m_inFile.read(&m_messageBuffer[m_charsInMessageBuffer], 100-m_charsInMessageBuffer);
+		    m_charsInMessageBuffer += m_inFile.gcount();
+		    m_messageBuffer[m_charsInMessageBuffer] = '\0';
+		}
+		notdone = false;
+		result = true;
+	    }
+	    else {
+		char *n;
+		while (!m_inFile.eof() && (NULL == (n = strchr(m_messageBuffer, '\n')))) {
+		    m_inFile.read(m_messageBuffer, 100);
+		    m_charsInMessageBuffer = m_inFile.gcount();
+		    m_messageBuffer[m_charsInMessageBuffer] = '\0';
+		}
+		if (!m_inFile.eof()) {
+		    size_t charsToMove = (n - m_messageBuffer)+1;
+		    m_charsInMessageBuffer -= charsToMove;
+		    memmove(m_messageBuffer, n+1, m_charsInMessageBuffer);
+		    m_inFile.read(&m_messageBuffer[m_charsInMessageBuffer], 100-m_charsInMessageBuffer);
+		    m_charsInMessageBuffer += m_inFile.gcount();
+		    m_messageBuffer[m_charsInMessageBuffer] = '\0';
+		}
+		else {
+		    notdone = false;
+		}
+	    }
+	}
+	else {
+	    notdone = false;
+	}
+    }
+#else // !1
 
     buff[0] = '\0';
     // std::cout << "The state of the read stream is " << m_inFile.rdstate() << std::endl;
@@ -2603,11 +2703,6 @@ bool MailStoreMbox::ReadMessageLine(char buff[1001]) {
 	result = false;
 	m_inFile.getline(buff, 1000);
 	// std::cout << "ReadMessageLine read \"" << buff << "\"" << std::endl;
-	if (m_readingNewMessage) {
-	    // Throw the first line away if it's the first line because it's "From <crud>"
-	    m_inFile.getline(buff, 1000);
-	    // std::cout << "No, just kidding ReadMessageLine read \"" << buff << "\"" << std::endl;
-	}
 	buff[1000] = '\0';
 	if (0 != strncmp(buff, "From ", 5)) {
 	    if (998 > strlen(buff)) {
@@ -2708,7 +2803,7 @@ bool MailStoreMbox::ReadMessageLine(char buff[1001]) {
 	}
 	// std::cout << "The final line is \"" << buff << "\"" << std::endl;
     }
-    m_readingNewMessage = false;
+#endif // !1
     return result;
 }
 

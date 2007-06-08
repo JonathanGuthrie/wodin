@@ -3475,7 +3475,7 @@ static insensitiveString RemoveRfc822Comments(const insensitiveString &headerLin
 
 void ImapSession::SendMessageChunk(unsigned long uid, size_t offset, size_t length) {
     if (MailStore::SUCCESS == m_store->OpenMessageFile(uid)) {
-	char buff[1001];
+	char buff[1101];
 	char *xmitBuffer = new char[length+1];
 	size_t accumulatedChars = 0;
 	bool notDone = true;
