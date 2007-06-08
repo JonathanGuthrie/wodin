@@ -4213,7 +4213,8 @@ static insensitiveString FetchSubpartEnvelope(const MESSAGE_BODY &body)
 // and the body structure before the number of lines.
 static std::string FetchResponseBodyStructureHelper(const MESSAGE_BODY &body, bool includeExtensionData)
 {
-    std::ostringstream result("(");
+    std::ostringstream result;
+    result << "(";
     switch(body.bodyMediaType) {
     case MIME_TYPE_MULTIPART:
 	if (NULL != body.subparts) {
