@@ -3626,7 +3626,7 @@ static insensitiveString Rfc822DotAtom(insensitiveString &input)
     int begin = input.find_first_not_of(SPACE);
     int end = input.find_last_not_of(SPACE);
     if (std::string::npos != begin) {
-	input = input.substr(begin, end-begin);
+	input = input.substr(begin, end-begin+1);
     }
     else {
 	input = "";
@@ -3662,7 +3662,7 @@ static insensitiveString Rfc822DotAtom(insensitiveString &input)
 	if (std::string::npos != pos) {
 	    int begin = input.find_first_not_of(SPACE);
 	    int end = input.find_last_not_of(SPACE, pos);
-	    result = input.substr(begin, end-begin);
+	    result = input.substr(begin, end-begin+1);
 	    input = input.substr(pos);
 	}
 	else {
@@ -3724,7 +3724,7 @@ static insensitiveString ParseRfc822AddrSpec(insensitiveString &input) {
 	    insensitiveString temp = QuotifyString(input.substr(0, pos));
 	    int begin = temp.find_first_not_of(SPACE);
  	    int end = temp.find_last_not_of(SPACE, pos);
-	    result += temp.substr(begin, end-begin) + " ";
+	    result += temp.substr(begin, end-begin+1) + " ";
 	    input = input.substr(pos+1);
 	}
 	else {
@@ -3747,22 +3747,22 @@ static insensitiveString ParseMailbox(insensitiveString &input) {
     insensitiveString result("(");
     int begin = input.find_first_not_of(SPACE);
     int end = input.find_last_not_of(SPACE);
-    input = input.substr(begin, end-begin);
+    input = input.substr(begin, end-begin+1);
     if ('<' == input[0]) {
 	result += "NIL ";
 
 	begin = input.find_first_not_of(SPACE, 1);
 	end = input.find_last_not_of(SPACE);
-	input = input.substr(begin, end-begin);
+	input = input.substr(begin, end-begin+1);
 	// Okay, this is an easy one.  This is an "angle-addr"
 	result += ParseRfc822AddrSpec(input);
 	begin = input.find_first_not_of(SPACE);
 	end = input.find_last_not_of(SPACE);
-	input = input.substr(begin, end-begin);
+	input = input.substr(begin, end-begin+1);
 	if ('>' == input[0]) {
 	    begin = input.find_first_not_of(SPACE, 1);
 	    end = input.find_last_not_of(SPACE);
-	    input = input.substr(begin, end-begin);
+	    input = input.substr(begin, end-begin+1);
 	}
     }
     else {
@@ -3773,7 +3773,7 @@ static insensitiveString ParseMailbox(insensitiveString &input) {
 	    insensitiveString token = Rfc822DotAtom(input);
 	    begin = input.find_first_not_of(SPACE);
 	    end = input.find_last_not_of(SPACE);
-	    input = input.substr(begin, end-begin);
+	    input = input.substr(begin, end-begin+1);
 
 	    // At this point, I don't know if I've seen a local part or an address_spec
 	    // I can tell the difference by the first character.  If it's a at sign or if I'm out of string,
@@ -3813,7 +3813,7 @@ static insensitiveString ParseMailboxList(const insensitiveString &input) {
 	    result += ParseMailbox(work);
 	    int end = work.find_last_not_of(SPACE);
 	    int begin = work.find_first_not_of(SPACE);
-	    work = work.substr(begin, end-begin);
+	    work = work.substr(begin, end-begin+1);
 	} while (',' == work[0]);
 	result += ")";
     }
@@ -3830,22 +3830,22 @@ static insensitiveString ParseAddress(insensitiveString &input) {
     insensitiveString result("(");
     int end = input.find_last_not_of(SPACE);
     int begin = input.find_first_not_of(SPACE);
-    input = input.substr(begin, end-begin);
+    input = input.substr(begin, end-begin+1);
     if ('<' == input[0]) {
 	result += "NIL ";
 
 	end = input.find_last_not_of(SPACE);
 	begin = input.find_first_not_of(SPACE, 1);
-	input = input.substr(begin, end-begin);
+	input = input.substr(begin, end-begin+1);
 	// Okay, this is an easy one.  This is an "angle-addr"
 	result += ParseRfc822AddrSpec(input);
 	end = input.find_last_not_of(SPACE);
 	begin = input.find_first_not_of(SPACE);
-	input = input.substr(begin, end-begin);
+	input = input.substr(begin, end-begin+1);
 	if ('>' == input[0]) {
 	    end = input.find_last_not_of(SPACE);
 	    begin = input.find_first_not_of(SPACE, 1);
-	    input = input.substr(begin, end-begin);
+	    input = input.substr(begin, end-begin+1);
 	}
     }
     else {
@@ -3857,7 +3857,7 @@ static insensitiveString ParseAddress(insensitiveString &input) {
 
 	    end = input.find_last_not_of(SPACE);
 	    begin = input.find_first_not_of(SPACE);
-	    input = input.substr(begin, end-begin);
+	    input = input.substr(begin, end-begin+1);
 
 	    // At this point, I don't know if I've seen a local part, a display name, or an address_spec
 	    // I can tell the difference by the first character.  If it's a at sign or if I'm out of string,
@@ -3923,7 +3923,7 @@ static insensitiveString ParseAddressList(const insensitiveString &input) {
 	    result += ParseAddress(work);
 	    int end = work.find_last_not_of(SPACE);
 	    int begin = work.find_first_not_of(SPACE);
-	    work = work.substr(begin, end-begin);
+	    work = work.substr(begin, end-begin+1);
 	} while (',' == work[0]);
 	result += ")";
     }
@@ -4005,7 +4005,7 @@ static insensitiveString ParseBodyType(const insensitiveString &typeLine) {
 	}
 	int end = result.find_last_not_of(SPACE);
 	int begin = result.find_first_not_of(SPACE);
-	result = result.substr(begin, end-begin);
+	result = result.substr(begin, end-begin+1);
 	result = "\"" + result + "\"";
     }
     return result;
@@ -4032,7 +4032,7 @@ static insensitiveString ParseBodySubtype(const insensitiveString &typeLine, MIM
 	}
 	int end = result.find_last_not_of(SPACE);
 	int begin = result.find_first_not_of(SPACE);
-	result = result.substr(begin, end-begin);
+	result = result.substr(begin, end-begin+1);
 	result = "\"" + result + "\"";
     }
     return result;
