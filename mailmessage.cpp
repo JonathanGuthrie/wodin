@@ -604,6 +604,7 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 			    }
 			}
 		    }
+		    notdone = (NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1]));
 		    parentBody.bodyOctets += lineLength;
 		    parentBody.bodyLines++;
 		}
