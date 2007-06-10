@@ -76,6 +76,8 @@ done)  Add an idle timer
 )  Add support user-defined flags to the initial mailstore
 
 done)  Add support for a delay after a failed login (need a timer manager)
+
+)  Add extension data to the BODYSTRUCTURE command
  
 )  Really add the support for STARTTLS
 

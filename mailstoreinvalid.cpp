@@ -109,8 +109,12 @@ MailStore::MAIL_STORE_RESULT MailStoreInvalid::OpenMessageFile(unsigned long uid
     return MailStore::GENERAL_FAILURE;
 }
 
-bool MailStoreInvalid::ReadMessageLine(char buff[1001]) {
-    return false;
+size_t MailStoreInvalid::GetBufferLength(unsigned long uid) {
+    return 0;
+}
+
+size_t MailStoreInvalid::ReadMessage(char *buff, size_t offset, size_t length) {
+    return 0;
 }
 
 void MailStoreInvalid::CloseMessageFile(void) {

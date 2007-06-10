@@ -680,6 +680,7 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
     unsigned uid = 0;
     std::string line;
     countMessage = true;
+    size_t messageSize = 0; // This is an upper bound on the message size
 
     messageMetaData.start = inFile.tellg();
     inFile >> line; // Skip over the "From " line
@@ -688,6 +689,7 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
 	while (result && !inFile.eof()) {
 	    here = inFile.tellg();
 	    getline(inFile, line);
+	    messageSize += line.size() + 2;
 	    // std::cout << "The line is \"" << line << "\"" << std::endl;
 	    if (!inFile.eof()) {
 		if (inHeader) {
@@ -785,6 +787,7 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
 	messageMetaData.uid = uid;
 	messageMetaData.flags = flags;
 	messageMetaData.messageData = NULL;
+	messageMetaData.rfc822MessageSize = messageSize;
 	messageMetaData.isDirty = !seenStatus || !seenUid;
     }
 
@@ -859,7 +862,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	m_uidValidity = 0;
 	m_hasHiddenMessage = false;
 	m_hasDeletedMessage = false;
-	MailMessage *message = new MailMessage();
 	while (!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidLast, messageMetaData))) {
 	    if (countMessage) {
 		++m_mailboxMessageCount;
@@ -1046,91 +1048,114 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     std::string fullPath;
 
-    if ((('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
-	(('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
-	(('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
-	(('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
-	(('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
-	('\0' == (*m_openMailbox)[5])) {
-	fullPath = m_inboxPath;
-    }
-    else {
-	fullPath = m_homeDirectory;
-	fullPath += "/";
-	fullPath += *m_openMailbox;
-    }
+    if (NULL != m_openMailbox) {
+	if ((('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
+	    (('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
+	    (('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
+	    (('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
+	    (('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
+	    ('\0' == (*m_openMailbox)[5])) {
+	    fullPath = m_inboxPath;
+	}
+	else {
+	    fullPath = m_homeDirectory;
+	    fullPath += "/";
+	    fullPath += *m_openMailbox;
+	}
 
-    struct stat stat_buf;
-    if (0 == lstat(fullPath.c_str(), &stat_buf)) {
-	while (m_isDirty || (doExpunge && m_hasDeletedMessage) || (stat_buf.st_mtime > m_lastMtime)) {
-	    std::fstream::pos_type lastGetPos, lastPutPos;
+	struct stat stat_buf;
+	if (0 == lstat(fullPath.c_str(), &stat_buf)) {
+	    while (m_isDirty || (doExpunge && m_hasDeletedMessage) || (stat_buf.st_mtime > m_lastMtime)) {
+		std::fstream::pos_type lastGetPos, lastPutPos;
+		size_t messageSize;
 
-	    std::fstream updateFile(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
-	    updateFile.seekp(0, std::ios_base::beg);
-	    lastPutPos = updateFile.tellp();
-	    updateFile.seekg(0, std::ios_base::beg);
+		std::fstream updateFile(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+		updateFile.seekp(0, std::ios_base::beg);
+		lastPutPos = updateFile.tellp();
+		updateFile.seekg(0, std::ios_base::beg);
 
-	    // Okay, I reading through the file, working message by message until I reach the end
-	    // and I'm updating the file as I go.   I need to define two buffers and work with them
-	    // efficiently.
-	    int charactersAdded = 0;
-	    int charactersCopied = 0;
+		// Okay, I reading through the file, working message by message until I reach the end
+		// and I'm updating the file as I go.   I need to define two buffers and work with them
+		// efficiently.
+		int charactersAdded = 0;
+		int charactersCopied = 0;
 
-	    typedef struct rb {
-		struct rb *next;
-		std::fstream::pos_type startPos;
-		unsigned char data[8192];
-		std::streamsize count;
-	    } rb_t;
-	    rb_t buff1, buff2, *curr;
-	    buff1.next = &buff2;
-	    buff2.next = &buff1;
-	    curr = &buff1;
-	    buff1.startPos = updateFile.tellg();
-	    updateFile.read((char *)buff1.data, 8192);
-	    updateFile.clear();
-	    buff1.count = updateFile.gcount();
-	    bool notDone = true;
-	    int messageIndex;
-	    unsigned parseState = 0;
-	    lastGetPos = updateFile.tellg();
-	    bool isXheader;
-	    unsigned uidFromMessage = 0;
-	    uint32_t flagsFromMessage;
-	    bool purgeThisMessage = false;
-
-	    if (m_hasHiddenMessage) {
-		messageIndex = -2;
-	    }
-	    else {
-		messageIndex = -1;
-	    }
-	    m_isDirty = false;
-	    m_hasDeletedMessage = false;
-	    while (notDone) {
-		int messageStartOffset;
-		updateFile.seekg(lastGetPos);
-		curr->next->startPos = updateFile.tellg();
-		updateFile.read((char *)curr->next->data, 8192);
+		typedef struct rb {
+		    struct rb *next;
+		    std::fstream::pos_type startPos;
+		    unsigned char data[8192];
+		    std::streamsize count;
+		} rb_t;
+		rb_t buff1, buff2, *curr;
+		buff1.next = &buff2;
+		buff2.next = &buff1;
+		curr = &buff1;
+		buff1.startPos = updateFile.tellg();
+		updateFile.read((char *)buff1.data, 8192);
 		updateFile.clear();
-		curr->next->count = updateFile.gcount();
-		notDone = 8192 == curr->next->count;
+		buff1.count = updateFile.gcount();
+		bool notDone = true;
+		int messageIndex;
+		unsigned parseState = 0;
 		lastGetPos = updateFile.tellg();
-		updateFile.seekp(lastPutPos);
-		for (int i=0; i<curr->count; ++i) {
+		bool isXheader;
+		unsigned uidFromMessage = 0;
+		uint32_t flagsFromMessage;
+		bool purgeThisMessage = false;
+
+		if (m_hasHiddenMessage) {
+		    messageIndex = -2;
+		}
+		else {
+		    messageIndex = -1;
+		}
+		m_isDirty = false;
+		m_hasDeletedMessage = false;
+		while (notDone) {
+		    int messageStartOffset;
+		    updateFile.seekg(lastGetPos);
+		    curr->next->startPos = updateFile.tellg();
+		    updateFile.read((char *)curr->next->data, 8192);
+		    updateFile.clear();
+		    curr->next->count = updateFile.gcount();
+		    notDone = 8192 == curr->next->count;
+		    lastGetPos = updateFile.tellg();
+		    updateFile.seekp(lastPutPos);
+		    for (int i=0; i<curr->count; ++i) {
 #if 0
-		    std::cout << "State " << parseState << " message " << messageIndex << " char " << i << " value "
-			      << (char) (isprint(curr->data[i]) ? curr->data[i] : '.') << " charsAdded " << charactersAdded << " charsCopied " << charactersCopied
-			      << std::endl;
+			std::cout << "State " << parseState << " message " << messageIndex << " char " << i << " value "
+				  << (char) (isprint(curr->data[i]) ? curr->data[i] : '.') << " charsAdded " << charactersAdded << " charsCopied " << charactersCopied
+				  << std::endl;
 #endif // 0
-		    // I have several jobs to do here.  I have to find the beginnings of messages and I have
-		    // to find the X-Status, Status, X-IMAP, X-IMAPbase, and X-UID header lines
-		    switch(parseState) {
-		    case 0:
-			if ('F' == curr->data[i]) {
-			    parseState = 2;
+			// I have several jobs to do here.  I have to find the beginnings of messages and I have
+			// to find the X-Status, Status, X-IMAP, X-IMAPbase, and X-UID header lines
+			++messageSize;
+			if ('\n' == curr->data[i]) {
+			    ++messageSize;
 			}
-			else {
+			switch(parseState) {
+			case 0:
+			    if ('F' == curr->data[i]) {
+				parseState = 2;
+			    }
+			    else {
+				if (purgeThisMessage) {
+				    --charactersAdded;
+				}
+				else {
+				    ++charactersCopied;
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				if ('\n' != curr->data[i]) {
+				    parseState = 1;
+				}
+			    }
+			    break;
+
+			case 1:
+			    if ('\n' == curr->data[i]) {
+				parseState = 0;
+			    }
 			    if (purgeThisMessage) {
 				--charactersAdded;
 			    }
@@ -1138,176 +1163,295 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				++charactersCopied;
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
-			    if ('\n' != curr->data[i]) {
+			    break;
+
+			case 2:
+			    if ('r' == curr->data[i]) {
+				parseState = 3;
+			    }
+			    else {
 				parseState = 1;
-			    }
-			}
-			break;
-
-		    case 1:
-			if ('\n' == curr->data[i]) {
-			    parseState = 0;
-			}
-			if (purgeThisMessage) {
-			    --charactersAdded;
-			}
-			else {
-			    ++charactersCopied;
-			    updateFile.write((char *)&curr->data[i], 1);
-			}
-			break;
-
-		    case 2:
-			if ('r' == curr->data[i]) {
-			    parseState = 3;
-			}
-			else {
-			    parseState = 1;
-			    if (purgeThisMessage) {
-				charactersAdded -= 2;
-			    }
-			    else {
-				charactersCopied += 2;
-				updateFile << "F";
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			}
-			break;
-
-		    case 3:
-			if ('o' == curr->data[i]) {
-			    parseState = 4;
-			}
-			else {
-			    parseState = 1;
-			    if (purgeThisMessage) {
-				charactersAdded -= 3;
-			    }
-			    else {
-				charactersCopied += 3;
-				updateFile << "Fr";
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			}
-			break;
-
-		    case 4:
-			if ('m' == curr->data[i]) {
-			    parseState = 5;
-			}
-			else {
-			    parseState = 1;
-			    if (purgeThisMessage) {
-				charactersAdded -= 4;
-			    }
-			    else {
-				charactersCopied += 4;
-				updateFile << "Fro";
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			}
-			break;
-
-		    case 5:
-			if (' ' == curr->data[i]) {
-			    // When I get here, I know that I'm in a new message, so I have to
-			    // do new message processing
-			    // The first thing to do is to finish off the old message.  If it was marked
-			    // as deleted, but it wasn't deleted this time, then the buffer is still dirty.
-			    // This could happen, say, because a message was appended with the deleted flag
-			    // set.  The point is, I purge the message if the flags from the message and the
-			    // flags in the index indicate that the message should have been purged, but the
-			    // message wasn't purged
-			    if (0 <= messageIndex) {
-				// If I'm done purging this message, remove the message from the index and 
-				// record messageIndex in the list of purged messages
 				if (purgeThisMessage) {
-				    if (NULL != nowGone) {
-					nowGone->push_back(messageIndex+1);
-				    }
-				    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
-				    m_messageIndex.erase(message+messageIndex);
+				    charactersAdded -= 2;
 				}
 				else {
-				    if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
-					(0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
-					m_isDirty = true;
+				    charactersCopied += 2;
+				    updateFile << "F";
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 3:
+			    if ('o' == curr->data[i]) {
+				parseState = 4;
+			    }
+			    else {
+				parseState = 1;
+				if (purgeThisMessage) {
+				    charactersAdded -= 3;
+				}
+				else {
+				    charactersCopied += 3;
+				    updateFile << "Fr";
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 4:
+			    if ('m' == curr->data[i]) {
+				parseState = 5;
+			    }
+			    else {
+				parseState = 1;
+				if (purgeThisMessage) {
+				    charactersAdded -= 4;
+				}
+				else {
+				    charactersCopied += 4;
+				    updateFile << "Fro";
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 5:
+			    if (' ' == curr->data[i]) {
+				// When I get here, I know that I'm in a new message, so I have to
+				// do new message processing
+				// The first thing to do is to finish off the old message.  If it was marked
+				// as deleted, but it wasn't deleted this time, then the buffer is still dirty.
+				// This could happen, say, because a message was appended with the deleted flag
+				// set.  The point is, I purge the message if the flags from the message and the
+				// flags in the index indicate that the message should have been purged, but the
+				// message wasn't purged
+				if (0 <= messageIndex) {
+				    // If I'm done purging this message, remove the message from the index and
+				    // record messageIndex in the list of purged messages
+				    if (purgeThisMessage) {
+					if (NULL != nowGone) {
+					    nowGone->push_back(messageIndex+1);
+					}
+					MESSAGE_INDEX::iterator message = m_messageIndex.begin();
+					m_messageIndex.erase(message+messageIndex);
 				    }
+				    else {
+					if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
+					    (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+					    m_isDirty = true;
+					}
+					++messageIndex;
+				    }
+				}
+				else {
 				    ++messageIndex;
 				}
+				messageStartOffset = i - 4;
+				parseState = 6;
+				messageSize = 4;
+				// Okay, now I look ahead to the following message.  If it's flagged as deleted in
+				// the index, it gets deleted in expunge mode.  Note that the index overrides whats
+				// in the file.  That's because what's in the file may be stale, and I have no way
+				// of knowing whether it is or not.
+				if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
+				    if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+					purgeThisMessage = true;
+				    }
+				    else {
+					purgeThisMessage = false;
+				    }
+				}
+				flagsFromMessage = 0;
 			    }
 			    else {
-				++messageIndex;
+				parseState = 1;
 			    }
-			    messageStartOffset = i - 4;
-			    parseState = 6;
-			    // Okay, now I look ahead to the following message.  If it's flagged as deleted in
-			    // the index, it gets deleted in expunge mode.  Note that the index overrides whats
-			    // in the file.  That's because what's in the file may be stale, and I have no way
-			    // of knowing whether it is or not.
-			    if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
-				if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
-				    purgeThisMessage = true;
+			    if (purgeThisMessage) {
+				charactersAdded -= 5;
+			    }
+			    else {
+				charactersCopied += 5;
+				updateFile << "From";
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
+			    break;
+
+			case 6:
+			    // In the rest of a header line or a From line
+			    if ('\n' == curr->data[i]) {
+				parseState = 7;
+			    }
+			    if (purgeThisMessage) {
+				--charactersAdded;
+			    }
+			    else {
+				charactersCopied += 1;
+				updateFile.write((char *)&curr->data[i], 1);
+			    }
+			    break;
+
+			case 7:
+			    // I'm at the first character in a line in a message header
+			    if ('F' == curr->data[i]) {
+				// Could be a From line
+				parseState = 8;
+			    }
+			    else if ('X' == curr->data[i]) {
+				// Could be X-Status, X-IMAP, X-IMAPbase, or X-UID
+				parseState = 12;
+				isXheader = true;
+			    }
+			    else if ('S' == curr->data[i]) {
+				isXheader = false;
+				// Could be Status
+				parseState = 14;
+			    }
+			    else {
+				if ('\n' == curr->data[i]) {
+				    // std::cout << "Flushing the buffer" << std::endl;
+				    // Another newline means I'm at the end of a message body.
+				    // I append all the header lines I need to here
+				    if (0 <= messageIndex) {
+					// std::cout << "It's a real message" << std::endl;
+					// std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
+					if (uidFromMessage == 0 || (messageIndex >= m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) {
+					    if (messageIndex >= m_messageIndex.size()) {
+						// If it's not in the Index, it is by definition recent
+						flagsFromMessage |= IMAP_MESSAGE_RECENT;
+						MessageIndex_t messageMetaData;
+
+						messageMetaData.uid = ++m_uidLast;
+						messageMetaData.flags = flagsFromMessage;
+						messageMetaData.messageData = NULL;
+						messageMetaData.rfc822MessageSize = messageSize;
+						messageMetaData.start = curr->startPos + (std::streamoff)messageStartOffset;
+						messageMetaData.isDirty = true;
+						m_messageIndex.push_back(messageMetaData);
+					    }
+					    if (!purgeThisMessage) {
+						std::ostringstream ss;
+						ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
+						ss << "X-Status: ";
+						if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
+						    ss << 'A';
+						}
+						if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
+						    ss << 'F';
+						}
+						if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
+						    ss << 'D';
+						}
+						if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
+						    ss << 'T';
+						}
+						ss << "\nStatus: O";
+						if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
+						    ss << 'R';
+						}
+						ss << '\n';
+
+						if (8192 > (charactersAdded + ss.str().length())) {
+						    charactersAdded += ss.str().length();
+						    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
+						    updateFile.write(ss.str().c_str(), ss.str().length());
+						    updateFile.flush();
+						    m_messageIndex[messageIndex].isDirty = false;
+						}
+						else {
+						    m_isDirty = true;
+						}
+					    }
+					}
+					else {
+					    std::cout << "ABORT:  when flushing buffers, m_messageIndex[" << messageIndex << "].uid = " << m_messageIndex[messageIndex].uid <<
+						" but the message claims to have uid " << uidFromMessage << std::endl;
+					    return MailStore::GENERAL_FAILURE;
+					}
+				    }
+				    // Go back to looking for "from"
+				    parseState = 0;
 				}
 				else {
-				    purgeThisMessage = false;
+				    parseState = 6;
+				}
+				if (purgeThisMessage) {
+				    --charactersAdded;
+				}
+				else {
+				    charactersCopied += 1;
+				    updateFile.write((char *)&curr->data[i], 1);
 				}
 			    }
-			    flagsFromMessage = 0;
-			}
-			else {
-			    parseState = 1;
-			}
-			if (purgeThisMessage) {
-			    charactersAdded -= 5;
-			}
-			else {
-			    charactersCopied += 5;
-			    updateFile << "From";
-			    updateFile.write((char *)&curr->data[i], 1);
-			}
-			break;
+			    break;
 
-		    case 6:
-			// In the rest of a header line or a From line
-			if ('\n' == curr->data[i]) {
-			    parseState = 7;
-			}
-			if (purgeThisMessage) {
-			    --charactersAdded;
-			}
-			else {
-			    charactersCopied += 1;
-			    updateFile.write((char *)&curr->data[i], 1);
-			}
-			break;
+			case 8:
+			    // Seen '\nF'
+			    if ('r' == curr->data[i]) {
+				parseState = 9;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 2;
+				}
+				else {
+				    charactersCopied += 2;
+				    updateFile.write("F", 1);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
 
-		    case 7:
-			// I'm at the first character in a line in a message header
-			if ('F' == curr->data[i]) {
-			    // Could be a From line
-			    parseState = 8;
-			}
-			else if ('X' == curr->data[i]) {
-			    // Could be X-Status, X-IMAP, X-IMAPbase, or X-UID
-			    parseState = 12;
-			    isXheader = true;
-			}
-			else if ('S' == curr->data[i]) {
-			    isXheader = false;
-			    // Could be Status
-			    parseState = 14;
-			}
-			else {
-			    if ('\n' == curr->data[i]) {
+			case 9:
+			    // Seen '\nFr'
+			    if ('o' == curr->data[i]) {
+				parseState = 10;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 3;
+				}
+				else {
+				    charactersCopied += 3;
+				    updateFile.write("Fr", 2);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 10:
+			    // Seen '\nFro'
+			    if ('m' == curr->data[i]) {
+				parseState = 11;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 4;
+				}
+				else {
+				    charactersCopied += 4;
+				    updateFile.write("Fro", 3);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 11:
+			    // Seen '\nFrom'
+			    if (' ' == curr->data[i]) {
+				// When I get here, I know that I'm in a new message, so I have to
+				// do new message processing
+				// I also know that I didn't get out of the header of the message
+				// so I have to flush header fields
 				// std::cout << "Flushing the buffer" << std::endl;
-				// Another newline means I'm at the end of a message body.
-				// I append all the header lines I need to here
 				if (0 <= messageIndex) {
 				    // std::cout << "It's a real message" << std::endl;
 				    // std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
-				    if (uidFromMessage == 0 || (messageIndex >= m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) {
-					if (messageIndex >= m_messageIndex.size()) {
+				    if (uidFromMessage == 0 || (messageIndex > m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) {
+					if (messageIndex > m_messageIndex.size()) {
 					    // If it's not in the Index, it is by definition recent
 					    flagsFromMessage |= IMAP_MESSAGE_RECENT;
 					    MessageIndex_t messageMetaData;
@@ -1315,6 +1459,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 					    messageMetaData.uid = ++m_uidLast;
 					    messageMetaData.flags = flagsFromMessage;
 					    messageMetaData.messageData = NULL;
+					    messageMetaData.rfc822MessageSize = messageSize;
 					    messageMetaData.start = curr->startPos + (std::streamoff)messageStartOffset;
 					    messageMetaData.isDirty = true;
 					    m_messageIndex.push_back(messageMetaData);
@@ -1340,7 +1485,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 						ss << 'R';
 					    }
 					    ss << '\n';
-
 					    if (8192 > (charactersAdded + ss.str().length())) {
 						charactersAdded += ss.str().length();
 						// std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
@@ -1359,727 +1503,596 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 					return MailStore::GENERAL_FAILURE;
 				    }
 				}
-				// Go back to looking for "from"
-				parseState = 0;
-			    }
-			    else {
-				parseState = 6;
-			    }
-			    if (purgeThisMessage) {
-				--charactersAdded;
-			    }
-			    else {
-				charactersCopied += 1;
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			}
-			break;
-
-		    case 8:
-			// Seen '\nF'
-			if ('r' == curr->data[i]) {
-			    parseState = 9;
-			}
-			else {
-			    parseState = 6;
-			    if (purgeThisMessage) {
-				charactersAdded -= 2;
-			    }
-			    else {
-				charactersCopied += 2;
-				updateFile.write("F", 1);
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			}
-			break;
-
-		    case 9:
-			// Seen '\nFr'
-			if ('o' == curr->data[i]) {
-			    parseState = 10;
-			}
-			else {
-			    parseState = 6;
-			    if (purgeThisMessage) {
-				charactersAdded -= 3;
-			    }
-			    else {
-				charactersCopied += 3;
-				updateFile.write("Fr", 2);
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			}
-			break;
-
-		    case 10:
-			// Seen '\nFro'
-			if ('m' == curr->data[i]) {
-			    parseState = 11;
-			}
-			else {
-			    parseState = 6;
-			    if (purgeThisMessage) {
-				charactersAdded -= 4;
-			    }
-			    else {
-				charactersCopied += 4;
-				updateFile.write("Fro", 3);
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			}
-			break;
-
-		    case 11:
-			// Seen '\nFrom'
-			if (' ' == curr->data[i]) {
-			    // When I get here, I know that I'm in a new message, so I have to
-			    // do new message processing
-			    // I also know that I didn't get out of the header of the message
-			    // so I have to flush header fields
-			    // std::cout << "Flushing the buffer" << std::endl;
-			    if (0 <= messageIndex) {
-				// std::cout << "It's a real message" << std::endl;
-				// std::cout << "messageIndex = " << messageIndex << " and the vector is of size " << m_messageIndex.size() << std::endl;
-				if (uidFromMessage == 0 || (messageIndex > m_messageIndex.size()) || (m_messageIndex[messageIndex].uid == uidFromMessage)) {
-				    if (messageIndex > m_messageIndex.size()) {
-					// If it's not in the Index, it is by definition recent
-					flagsFromMessage |= IMAP_MESSAGE_RECENT;
-					MessageIndex_t messageMetaData;
-
-					messageMetaData.uid = ++m_uidLast;
-					messageMetaData.flags = flagsFromMessage;
-					messageMetaData.messageData = NULL;
-					messageMetaData.start = curr->startPos + (std::streamoff)messageStartOffset;
-					messageMetaData.isDirty = true;
-					m_messageIndex.push_back(messageMetaData);
+				// When I get here, I know that I'm in a new message, so I have to
+				// do new message processing
+				// The first thing to do is to finish off the old message.  If it was marked
+				// as deleted, but it wasn't deleted this time, then the buffer is still dirty.
+				// This could happen, say, because a message was appended with the deleted flag
+				// set.  The point is, I purge the message if the flags from the message and the
+				// flags in the index indicate that the message should have been purged, but the
+				// message wasn't purged
+				// If I'm done purging this message, remove the message from the index and
+				// record messageIndex in the list of purged messages
+				if (purgeThisMessage) {
+				    if (NULL != nowGone) {
+					nowGone->push_back(messageIndex+1);
 				    }
-				    if (!purgeThisMessage) {
-					std::ostringstream ss;
-					ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
-					ss << "X-Status: ";
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
-					    ss << 'A';
-					}
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
-					    ss << 'F';
-					}
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
-					    ss << 'D';
-					}
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
-					    ss << 'T';
-					}
-					ss << "\nStatus: O";
-					if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
-					    ss << 'R';
-					}
-					ss << '\n';
-					if (8192 > (charactersAdded + ss.str().length())) {
-					    charactersAdded += ss.str().length();
-					    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
-					    updateFile.write(ss.str().c_str(), ss.str().length());
-					    updateFile.flush();
-					    m_messageIndex[messageIndex].isDirty = false;
-					}
-					else {
-					    m_isDirty = true;
-					}
+				    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
+				    m_messageIndex.erase(message+messageIndex);
+				}
+				else {
+				    if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
+					(0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+					m_isDirty = true;
+				    }
+				    ++messageIndex;
+				}
+				messageStartOffset = i - 4;
+				messageSize = 4;
+				// Okay, now I look ahead to the following message.  If it's flagged as deleted in
+				// the index, it gets deleted in expunge mode.  Note that the index overrides whats
+				// in the file.  That's because what's in the file may be stale, and I have no way
+				// of knowing whether it is or not.
+				if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
+				    if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+					purgeThisMessage = true;
+				    }
+				    else {
+					purgeThisMessage = false;
 				    }
 				}
-				else {
-				    std::cout << "ABORT:  when flushing buffers, m_messageIndex[" << messageIndex << "].uid = " << m_messageIndex[messageIndex].uid <<
-					" but the message claims to have uid " << uidFromMessage << std::endl;
-				    return MailStore::GENERAL_FAILURE;
-				}
-			    }
-			    // When I get here, I know that I'm in a new message, so I have to
-			    // do new message processing
-			    // The first thing to do is to finish off the old message.  If it was marked
-			    // as deleted, but it wasn't deleted this time, then the buffer is still dirty.
-			    // This could happen, say, because a message was appended with the deleted flag
-			    // set.  The point is, I purge the message if the flags from the message and the
-			    // flags in the index indicate that the message should have been purged, but the
-			    // message wasn't purged
-			    // If I'm done purging this message, remove the message from the index and 
-			    // record messageIndex in the list of purged messages
-			    if (purgeThisMessage) {
-				if (NULL != nowGone) {
-				    nowGone->push_back(messageIndex+1);
-				}
-				MESSAGE_INDEX::iterator message = m_messageIndex.begin();
-				m_messageIndex.erase(message+messageIndex);
-			    }
-			    else {
-				if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
-				    (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
-				    m_isDirty = true;
-				}
-				++messageIndex;
-			    }
-			    messageStartOffset = i - 4;
-			    // Okay, now I look ahead to the following message.  If it's flagged as deleted in
-			    // the index, it gets deleted in expunge mode.  Note that the index overrides whats
-			    // in the file.  That's because what's in the file may be stale, and I have no way
-			    // of knowing whether it is or not.
-			    if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
-				if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
-				    purgeThisMessage = true;
-				}
-				else {
-				    purgeThisMessage = false;
-				}
-			    }
-			    flagsFromMessage = 0;
-			}
-			parseState = 6;
-			if (purgeThisMessage) {
-			    charactersAdded -= 5;
-			}
-			else {
-			    charactersCopied += 5;
-			    updateFile.write("From", 4);
-			    updateFile.write((char *)&curr->data[i], 1);
-			}
-			break;
-
-		    case 12:
-			// Seen '\nX'
-			if ('-' == curr->data[i]) {
-			    parseState = 13;
-			}
-			else {
-			    if (purgeThisMessage) {
-				charactersAdded -= 2;
-			    }
-			    else {
-				charactersCopied += 2;
-				updateFile.write("X", 1);
-				updateFile.write((char *)&curr->data[i], 1);
+				flagsFromMessage = 0;
 			    }
 			    parseState = 6;
-			}
-			break;
-
-		    case 13:
-			// Seen '\nX-'
-			if ('S' == curr->data[i]) {
-			    parseState = 14;
-			}
-			else if ('U' == curr->data[i]) {
-			    parseState = 21;
-			}
-			else {
-			    if (purgeThisMessage) {
-				charactersAdded -= 3;
-			    }
-			    else {
-				charactersCopied += 3;
-				updateFile.write("X-", 2);
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			    parseState = 6;
-			}
-			break;
-
-		    case 14:
-			// Seen '\nX-S'
-			if ('t' == curr->data[i]) {
-			    parseState = 15;
-			}
-			else {
-			    if (isXheader) {
-				if (purgeThisMessage) {
-				    charactersAdded -= 2;
-				}
-				else {
-				    charactersCopied += 2;
-				    updateFile.write("X-", 2);
-				}
-			    }
-			    if (purgeThisMessage) {
-				charactersAdded -= 2;
-			    }
-			    else {
-				charactersCopied += 2;
-				updateFile.write("S", 1);
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			    parseState = 6;
-			}
-			break;
-
-		    case 15:
-			// Seen '\nX-St'
-			if ('a' == curr->data[i]) {
-			    parseState = 16;
-			}
-			else {
-			    if (isXheader) {
-				if (purgeThisMessage) {
-				    charactersAdded -= 2;
-				}
-				else {
-				    updateFile.write("X-", 2);
-				}
-			    }
-			    if (purgeThisMessage) {
-				charactersAdded -= 3;
-			    }
-			    else {
-				charactersCopied += 3;
-				updateFile.write("St", 2);
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			    parseState = 6;
-			}
-			break;
-
-		    case 16:
-			// Seen '\nX-Sta'
-			if ('t' == curr->data[i]) {
-			    parseState = 17;
-			}
-			else {
-			    if (isXheader) {
-				if (purgeThisMessage) {
-				    charactersAdded -= 2;
-				}
-				else {
-				    charactersCopied += 2;
-				    updateFile.write("X-", 2);
-				}
-			    }
-			    if (purgeThisMessage) {
-				charactersAdded -= 4;
-			    }
-			    else {
-				charactersCopied += 4;
-				updateFile.write("Sta", 3);
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			    parseState = 6;
-			}
-			break;
-
-		    case 17:
-			// Seen '\nX-Stat'
-			if ('u' == curr->data[i]) {
-			    parseState = 18;
-			}
-			else {
-			    if (isXheader) {
-				if (purgeThisMessage) {
-				    charactersAdded -= 2;
-				}
-				else {
-				    charactersCopied += 2;
-				    updateFile.write("X-", 2);
-				}
-			    }
 			    if (purgeThisMessage) {
 				charactersAdded -= 5;
 			    }
 			    else {
 				charactersCopied += 5;
-				updateFile.write("Stat", 4);
+				updateFile.write("From", 4);
 				updateFile.write((char *)&curr->data[i], 1);
 			    }
-			    parseState = 6;
-			}
-			break;
+			    break;
 
-		    case 18:
-			// Seen '\nX-Statu'
-			if ('s' == curr->data[i]) {
-			    parseState = 19;
-			}
-			else {
-			    if (isXheader) {
-				if (purgeThisMessage) {
-				    charactersAdded -= 2;
-				}
-				else {
-				    charactersCopied += 2;
-				    updateFile.write("X-", 2);
-				}
-			    }
-			    if (purgeThisMessage) {
-				charactersAdded -= 6;
+			case 12:
+			    // Seen '\nX'
+			    if ('-' == curr->data[i]) {
+				parseState = 13;
 			    }
 			    else {
-				charactersCopied += 6;
-				updateFile.write("Statu", 5);
-				updateFile.write((char *)&curr->data[i], 1);
-			    }
-			    parseState = 6;
-			}
-			break;
-
-		    case 19:
-			// Seen '\nX-Status'
-			if (':' == curr->data[i]) {
-			    if (isXheader) {
-				charactersAdded -= 2;
-			    }
-			    charactersAdded -= 7;
-			    parseState = 20;
-			}
-			else {
-			    if (isXheader) {
 				if (purgeThisMessage) {
 				    charactersAdded -= 2;
 				}
 				else {
 				    charactersCopied += 2;
-				    updateFile.write("X-", 2);
+				    updateFile.write("X", 1);
+				    updateFile.write((char *)&curr->data[i], 1);
 				}
+				parseState = 6;
 			    }
-			    if (purgeThisMessage) {
+			    break;
+
+			case 13:
+			    // Seen '\nX-'
+			    if ('S' == curr->data[i]) {
+				parseState = 14;
+			    }
+			    else if ('U' == curr->data[i]) {
+				parseState = 21;
+			    }
+			    else {
+				if (purgeThisMessage) {
+				    charactersAdded -= 3;
+				}
+				else {
+				    charactersCopied += 3;
+				    updateFile.write("X-", 2);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
+			    }
+			    break;
+
+			case 14:
+			    // Seen '\nX-S'
+			    if ('t' == curr->data[i]) {
+				parseState = 15;
+			    }
+			    else {
+				if (isXheader) {
+				    if (purgeThisMessage) {
+					charactersAdded -= 2;
+				    }
+				    else {
+					charactersCopied += 2;
+					updateFile.write("X-", 2);
+				    }
+				}
+				if (purgeThisMessage) {
+				    charactersAdded -= 2;
+				}
+				else {
+				    charactersCopied += 2;
+				    updateFile.write("S", 1);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
+			    }
+			    break;
+
+			case 15:
+			    // Seen '\nX-St'
+			    if ('a' == curr->data[i]) {
+				parseState = 16;
+			    }
+			    else {
+				if (isXheader) {
+				    if (purgeThisMessage) {
+					charactersAdded -= 2;
+				    }
+				    else {
+					updateFile.write("X-", 2);
+				    }
+				}
+				if (purgeThisMessage) {
+				    charactersAdded -= 3;
+				}
+				else {
+				    charactersCopied += 3;
+				    updateFile.write("St", 2);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
+			    }
+			    break;
+
+			case 16:
+			    // Seen '\nX-Sta'
+			    if ('t' == curr->data[i]) {
+				parseState = 17;
+			    }
+			    else {
+				if (isXheader) {
+				    if (purgeThisMessage) {
+					charactersAdded -= 2;
+				    }
+				    else {
+					charactersCopied += 2;
+					updateFile.write("X-", 2);
+				    }
+				}
+				if (purgeThisMessage) {
+				    charactersAdded -= 4;
+				}
+				else {
+				    charactersCopied += 4;
+				    updateFile.write("Sta", 3);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
+			    }
+			    break;
+
+			case 17:
+			    // Seen '\nX-Stat'
+			    if ('u' == curr->data[i]) {
+				parseState = 18;
+			    }
+			    else {
+				if (isXheader) {
+				    if (purgeThisMessage) {
+					charactersAdded -= 2;
+				    }
+				    else {
+					charactersCopied += 2;
+					updateFile.write("X-", 2);
+				    }
+				}
+				if (purgeThisMessage) {
+				    charactersAdded -= 5;
+				}
+				else {
+				    charactersCopied += 5;
+				    updateFile.write("Stat", 4);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
+			    }
+			    break;
+
+			case 18:
+			    // Seen '\nX-Statu'
+			    if ('s' == curr->data[i]) {
+				parseState = 19;
+			    }
+			    else {
+				if (isXheader) {
+				    if (purgeThisMessage) {
+					charactersAdded -= 2;
+				    }
+				    else {
+					charactersCopied += 2;
+					updateFile.write("X-", 2);
+				    }
+				}
+				if (purgeThisMessage) {
+				    charactersAdded -= 6;
+				}
+				else {
+				    charactersCopied += 6;
+				    updateFile.write("Statu", 5);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
+			    }
+			    break;
+
+			case 19:
+			    // Seen '\nX-Status'
+			    if (':' == curr->data[i]) {
+				if (isXheader) {
+				    charactersAdded -= 2;
+				}
 				charactersAdded -= 7;
+				parseState = 20;
 			    }
 			    else {
-				charactersCopied += 7;
-				updateFile.write("Status", 6);
-				updateFile.write((char *)&curr->data[i], 1);
+				if (isXheader) {
+				    if (purgeThisMessage) {
+					charactersAdded -= 2;
+				    }
+				    else {
+					charactersCopied += 2;
+					updateFile.write("X-", 2);
+				    }
+				}
+				if (purgeThisMessage) {
+				    charactersAdded -= 7;
+				}
+				else {
+				    charactersCopied += 7;
+				    updateFile.write("Status", 6);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
 			    }
-			    parseState = 6;
-			}
-			break;
+			    break;
 
-		    case 20:
-			// Seen '\nX-Status:'
-			--charactersAdded;
-			if ('\n' == curr->data[i]) {
-			    parseState = 7;
-			    // Flush the flags from here
-			}
-			else if ('D' == curr->data[i]) {
-			    flagsFromMessage |= IMAP_MESSAGE_DELETED;
-			}
-			else if ('A' == curr->data[i]) {
-			    flagsFromMessage |= IMAP_MESSAGE_ANSWERED;
-			}
-			else if ('F' == curr->data[i]) {
-			    flagsFromMessage |= IMAP_MESSAGE_FLAGGED;
-			}
-			else if ('T' == curr->data[i]) {
-			    flagsFromMessage |= IMAP_MESSAGE_DRAFT;
-			}
-			else if ('R' == curr->data[i]) {
-			    flagsFromMessage |= IMAP_MESSAGE_SEEN;
-			}
-			break;
+			case 20:
+			    // Seen '\nX-Status:'
+			    --charactersAdded;
+			    if ('\n' == curr->data[i]) {
+				parseState = 7;
+				// Flush the flags from here
+			    }
+			    else if ('D' == curr->data[i]) {
+				flagsFromMessage |= IMAP_MESSAGE_DELETED;
+			    }
+			    else if ('A' == curr->data[i]) {
+				flagsFromMessage |= IMAP_MESSAGE_ANSWERED;
+			    }
+			    else if ('F' == curr->data[i]) {
+				flagsFromMessage |= IMAP_MESSAGE_FLAGGED;
+			    }
+			    else if ('T' == curr->data[i]) {
+				flagsFromMessage |= IMAP_MESSAGE_DRAFT;
+			    }
+			    else if ('R' == curr->data[i]) {
+				flagsFromMessage |= IMAP_MESSAGE_SEEN;
+			    }
+			    break;
 
-		    case 21:
-			// Seen '\nX-U'
-			if ('I' == curr->data[i]) {
-			    parseState = 22;
-			}
-			else {
-			    if (purgeThisMessage) {
-				charactersAdded -= 4;
+			case 21:
+			    // Seen '\nX-U'
+			    if ('I' == curr->data[i]) {
+				parseState = 22;
 			    }
 			    else {
-				charactersCopied += 4;
-				updateFile.write("X-U", 3);
-				updateFile.write((char *)&curr->data[i], 1);
+				if (purgeThisMessage) {
+				    charactersAdded -= 4;
+				}
+				else {
+				    charactersCopied += 4;
+				    updateFile.write("X-U", 3);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
 			    }
-			    parseState = 6;
-			}
-			break;
+			    break;
 
-		    case 22:
-			// Seen '\nX-UI'
-			if ('D' == curr->data[i]) {
-			    parseState = 23;
-			}
-			else {
-			    if (purgeThisMessage) {
-				charactersAdded -= 5;
+			case 22:
+			    // Seen '\nX-UI'
+			    if ('D' == curr->data[i]) {
+				parseState = 23;
 			    }
 			    else {
-				updateFile.write("X-UI", 4);
-				updateFile.write((char *)&curr->data[i], 1);
+				if (purgeThisMessage) {
+				    charactersAdded -= 5;
+				}
+				else {
+				    updateFile.write("X-UI", 4);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
 			    }
-			    parseState = 6;
-			}
-			break;
+			    break;
 
-		    case 23:
-			// Seen '\nX-UID'
-			if (':' == curr->data[i]) {
-			    charactersAdded -= 6;
-			    uidFromMessage == 0;
-			    parseState = 24;
-			}
-			else {
-			    if (purgeThisMessage) {
+			case 23:
+			    // Seen '\nX-UID'
+			    if (':' == curr->data[i]) {
 				charactersAdded -= 6;
+				uidFromMessage == 0;
+				parseState = 24;
 			    }
 			    else {
-				charactersCopied += 6;
-				updateFile.write("X-UID", 5);
-				updateFile.write((char *)&curr->data[i], 1);
+				if (purgeThisMessage) {
+				    charactersAdded -= 6;
+				}
+				else {
+				    charactersCopied += 6;
+				    updateFile.write("X-UID", 5);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+				parseState = 6;
 			    }
-			    parseState = 6;
+			    break;
+
+			case 24:
+			    // Seen '\nX-UID:'
+			    --charactersAdded;
+			    if ('\n' == curr->data[i]) {
+				parseState = 7;
+			    }
+			    else if (isdigit(curr->data[i])) {
+				uidFromMessage = curr->data[i] - '0';
+				parseState = 25;
+			    }
+			    break;
+
+			case 25:
+			    --charactersAdded;
+			    if ('\n' == curr->data[i]) {
+				parseState = 7;
+			    }
+			    else if (isdigit(curr->data[i])) {
+				uidFromMessage = 10 * uidFromMessage + curr->data[i] - '0';
+			    }
+			    else {
+				parseState = 26;
+			    }
+			    break;
+			}
+		    }
+		    curr = curr->next;
+		    lastPutPos = updateFile.tellp();
+		}
+		if ((6 == parseState) || (7 == parseState)) {
+		    // The message ended in the header, so I need to flush the header metadata
+		    if (!purgeThisMessage) {
+			if (6 == parseState) {
+			    ++charactersAdded;
+			    updateFile.write("\n", 1);
+			}
+			std::ostringstream ss;
+			ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
+			ss << "X-Status: ";
+			if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
+			    ss << 'A';
+			}
+			if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
+			    ss << 'F';
+			}
+			if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
+			    ss << 'D';
+			}
+			if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
+			    ss << 'T';
+			}
+			ss << "\nStatus: O";
+			if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
+			    ss << 'R';
+			}
+			ss << '\n';
+			// I'm at the end of the file, so I need not concern myself with buffer overruns
+			// they simply aren't possible
+			charactersAdded += ss.str().length();
+			updateFile.write(ss.str().c_str(), ss.str().length());
+			updateFile.flush();
+			m_messageIndex[messageIndex].isDirty = false;
+		    }
+		}
+
+		// The next thing to do is to handle the case where the last message was deleted
+		if (0 <= messageIndex) {
+		    // If I'm done purging this message, remove the message from the index and
+		    // record messageIndex in the list of purged messages
+		    if (purgeThisMessage) {
+			if (NULL != nowGone) {
+			    nowGone->push_back(messageIndex+1);
+			}
+			MESSAGE_INDEX::iterator message = m_messageIndex.begin();
+			m_messageIndex.erase(message+messageIndex);
+		    }
+		    else {
+			if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
+			    (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+			    m_isDirty = true;
+			}
+		    }
+		}
+
+		// if I've shortened the message file, then truncate it
+		if (0 > charactersAdded) {
+		    off_t length;
+		    updateFile.seekg(charactersAdded, std::ios_base::end);
+		    length = updateFile.tellg();
+
+		    updateFile.close();
+		    truncate(fullPath.c_str(), length);
+		    updateFile.open(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+		}
+
+		// The last thing I do is update the X-IMAP or X-IMAPbase information
+		updateFile.seekg(0, std::ios_base::beg);
+		updateFile.read((char *)buff1.data, 8192);
+		buff1.count = updateFile.gcount();
+
+		// At this point, I'm assuming that the first message's header fits inside the
+		// first 8k. That won't necessarily be true when I start doing keyword flags, or when
+		// I start using generic messages for the metadata message.
+
+		parseState = 1;
+		for (int i=0; (parseState<15) && (i<buff1.count); ++i) {
+		    // std::cout << "In state " << parseState << " message " << messageIndex << " reading character " << i << " which happens to be " << buff1.data[i] << std::endl;
+		    // This parser is simplified.  All I'm doing is looking for \nX-IMAP or \nX-IMAPbase
+		    // and then the second number after that, which I want to replace with the new number
+		    switch(parseState) {
+		    case 0:
+			if ('\n' == buff1.data[i]) {
+			    parseState = 1;
 			}
 			break;
 
-		    case 24:
-			// Seen '\nX-UID:'
-			--charactersAdded;
-			if ('\n' == curr->data[i]) {
-			    parseState = 7;
-			}
-			else if (isdigit(curr->data[i])) {
-			    uidFromMessage = curr->data[i] - '0';
-			    parseState = 25;
-			}
-			break;
-
-		    case 25:
-			--charactersAdded;
-			if ('\n' == curr->data[i]) {
-			    parseState = 7;
-			}
-			else if (isdigit(curr->data[i])) {
-			    uidFromMessage = 10 * uidFromMessage + curr->data[i] - '0';
+		    case 1:
+			if ('X' == buff1.data[i]) {
+			    parseState = 2;
 			}
 			else {
-			    parseState = 26;
+			    parseState = 0;
 			}
 			break;
-		    }
-		}
-		curr = curr->next;
-		lastPutPos = updateFile.tellp();
-	    }
-	    if ((6 == parseState) || (7 == parseState)) {
-		// The message ended in the header, so I need to flush the header metadata
-		if (!purgeThisMessage) {
-		    if (6 == parseState) {
-			++charactersAdded;
-			updateFile.write("\n", 1);
-		    }
-		    std::ostringstream ss;
-		    ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
-		    ss << "X-Status: ";
-		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
-			ss << 'A';
-		    }
-		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_FLAGGED)) {
-			ss << 'F';
-		    }
-		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED)) {
-			ss << 'D';
-		    }
-		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DRAFT)) {
-			ss << 'T';
-		    }
-		    ss << "\nStatus: O";
-		    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_SEEN)) {
-			ss << 'R';
-		    }
-		    ss << '\n';
-		    // I'm at the end of the file, so I need not concern myself with buffer overruns
-		    // they simply aren't possible
-		    charactersAdded += ss.str().length();
-		    updateFile.write(ss.str().c_str(), ss.str().length());
-		    updateFile.flush();
-		    m_messageIndex[messageIndex].isDirty = false;
-		}
-	    }
 
-	    // The next thing to do is to handle the case where the last message was deleted
-	    if (0 <= messageIndex) {
-		// If I'm done purging this message, remove the message from the index and 
-		// record messageIndex in the list of purged messages
-		if (purgeThisMessage) {
-		    if (NULL != nowGone) {
-			nowGone->push_back(messageIndex+1);
-		    }
-		    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
-		    m_messageIndex.erase(message+messageIndex);
-		}
-		else {
-		    if ((0 != (flagsFromMessage & IMAP_MESSAGE_DELETED)) &&
-			(0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
-			m_isDirty = true;
-		    }
-		}
-	    }
+		    case 2:
+			if ('-' == buff1.data[i]) {
+			    parseState = 3;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
 
-	    // if I've shortened the message file, then truncate it
-	    if (0 > charactersAdded) {
-		off_t length;
-		updateFile.seekg(charactersAdded, std::ios_base::end);
-		length = updateFile.tellg();
+		    case 3:
+			if ('I' == buff1.data[i]) {
+			    parseState = 4;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
+
+		    case 4:
+			if ('M' == buff1.data[i]) {
+			    parseState = 5;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
+
+		    case 5:
+			if ('A' == buff1.data[i]) {
+			    parseState = 6;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
+
+		    case 6:
+			if ('P' == buff1.data[i]) {
+			    parseState = 7;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
+
+		    case 7:
+			if (':' == buff1.data[i]) {
+			    parseState = 12;
+			}
+			else if ('b' == buff1.data[i]) {
+			    parseState = 8;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
+
+		    case 8:
+			if ('a' == buff1.data[i]) {
+			    parseState = 9;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
+
+		    case 9:
+			if ('s' == buff1.data[i]) {
+			    parseState = 10;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
+
+		    case 10:
+			if ('e' == buff1.data[i]) {
+			    parseState = 11;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
+
+		    case 11:
+			if (':' == buff1.data[i]) {
+			    parseState = 12;
+			}
+			else {
+			    parseState = 0;
+			}
+			break;
+
+		    case 12:
+			// Okay, I've found the header, now skip over the whitespace
+			if (isdigit(buff1.data[i])) {
+			    parseState = 13;
+			}
+			break;
+
+		    case 13:
+			if (!isdigit(buff1.data[i])) {
+			    parseState = 14;
+			}
+			break;
+
+		    case 14:
+			if (isdigit(buff1.data[i])) {
+			    // i now has the offset of the stringxb
+			    // it's guaranteed 10 characters long
+			    std::ostringstream ss;
+
+			    ss << std::setw(10) << std::setfill('0') << m_uidLast;
+			    // std::cout << "Writing the string \"" << ss.str() << "\" as the uidLast value" << std::endl;
+			    updateFile.clear();
+			    updateFile.seekp(i, std::ios_base::beg);
+
+			    updateFile.write((char *)ss.str().c_str(), 10);
+			    parseState = 999;
+			};
+		    }
+		}
 
 		updateFile.close();
-		truncate(fullPath.c_str(), length);
-		updateFile.open(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+		m_lastMtime = time(NULL);
 	    }
-
-	    // The last thing I do is update the X-IMAP or X-IMAPbase information
-	    updateFile.seekg(0, std::ios_base::beg);
-	    updateFile.read((char *)buff1.data, 8192);
-	    buff1.count = updateFile.gcount();
-
-	    // At this point, I'm assuming that the first message's header fits inside the
-	    // first 8k. That won't necessarily be true when I start doing keyword flags, or when
-	    // I start using generic messages for the metadata message.
-
-	    parseState = 1;
-	    for (int i=0; (parseState<15) && (i<buff1.count); ++i) {
-		// std::cout << "In state " << parseState << " message " << messageIndex << " reading character " << i << " which happens to be " << buff1.data[i] << std::endl;
-		// This parser is simplified.  All I'm doing is looking for \nX-IMAP or \nX-IMAPbase
-		// and then the second number after that, which I want to replace with the new number
-		switch(parseState) {
-		case 0:
-		    if ('\n' == buff1.data[i]) {
-			parseState = 1;
-		    }
-		    break;
-
-		case 1:
-		    if ('X' == buff1.data[i]) {
-			parseState = 2;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 2:
-		    if ('-' == buff1.data[i]) {
-			parseState = 3;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 3:
-		    if ('I' == buff1.data[i]) {
-			parseState = 4;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 4:
-		    if ('M' == buff1.data[i]) {
-			parseState = 5;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 5:
-		    if ('A' == buff1.data[i]) {
-			parseState = 6;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 6:
-		    if ('P' == buff1.data[i]) {
-			parseState = 7;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 7:
-		    if (':' == buff1.data[i]) {
-			parseState = 12;
-		    }
-		    else if ('b' == buff1.data[i]) {
-			parseState = 8;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 8:
-		    if ('a' == buff1.data[i]) {
-			parseState = 9;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 9:
-		    if ('s' == buff1.data[i]) {
-			parseState = 10;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 10:
-		    if ('e' == buff1.data[i]) {
-			parseState = 11;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 11:
-		    if (':' == buff1.data[i]) {
-			parseState = 12;
-		    }
-		    else {
-			parseState = 0;
-		    }
-		    break;
-
-		case 12:
-		    // Okay, I've found the header, now skip over the whitespace
-		    if (isdigit(buff1.data[i])) {
-			parseState = 13;
-		    }
-		    break;
-
-		case 13:
-		    if (!isdigit(buff1.data[i])) {
-			parseState = 14;
-		    }
-		    break;
-
-		case 14:
-		    if (isdigit(buff1.data[i])) {
-			// i now has the offset of the stringxb
-			// it's guaranteed 10 characters long
-			std::ostringstream ss;
-
-			ss << std::setw(10) << std::setfill('0') << m_uidLast;
-			// std::cout << "Writing the string \"" << ss.str() << "\" as the uidLast value" << std::endl;
-			updateFile.clear();
-			updateFile.seekp(i, std::ios_base::beg);
-
-			updateFile.write((char *)ss.str().c_str(), 10);
-			parseState = 999;
-		    };
-		}
-	    }
-
-	    updateFile.close();
-	    m_lastMtime = time(NULL);
 	}
-    }
-    else {
-	m_errnoFromLibrary = errno;
-	result = MailStore::GENERAL_FAILURE;
+	else {
+	    m_errnoFromLibrary = errno;
+	    result = MailStore::GENERAL_FAILURE;
+	}
     }
     return result;
 }
@@ -2586,10 +2599,8 @@ MailMessage::MAIL_MESSAGE_RESULT MailStoreMbox::GetMessageData(MailMessage **mes
     unsigned long msn = MailboxUidToMsn(uid);
     if ((msn > 0) && (msn <= m_messageIndex.size())) {
 	if (NULL == m_messageIndex[msn-1].messageData) {
-	    m_messageIndex[msn-1].messageData = new MailMessage();
-	    OpenMessageFile(uid);
-	    m_messageIndex[msn-1].messageData->Parse(this, uid, msn);
-	    CloseMessageFile();
+	    m_messageIndex[msn-1].messageData = new MailMessage(uid, msn);
+	    m_messageIndex[msn-1].messageData->Parse(this, true, true);
 	}
 	*message = m_messageIndex[msn-1].messageData;
 	(*message)->SetMessageFlags(m_messageIndex[msn-1].flags);
@@ -2600,247 +2611,1277 @@ MailMessage::MAIL_MESSAGE_RESULT MailStoreMbox::GetMessageData(MailMessage **mes
     return result;
 }
 
+size_t MailStoreMbox::GetBufferLength(unsigned long uid) {
+    unsigned long msn = MailboxUidToMsn(uid);
+    size_t result = 0;
+
+    if ((msn > 0) && (msn <= m_messageIndex.size())) {
+	result = m_messageIndex[msn-1].rfc822MessageSize;
+    }
+    return result;
+}
+
+
 MailStore::MAIL_STORE_RESULT MailStoreMbox::OpenMessageFile(unsigned long uid) {
     CloseMessageFile();
-    if (NULL != m_openMailbox) {
-	std::string fullPath;
-	if ((('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
-	    (('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
-	    (('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
-	    (('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
-	    (('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
-	    ('\0' == (*m_openMailbox)[5])) {
-	    fullPath = m_inboxPath;
-	}
-	else {
-	    fullPath = m_homeDirectory;
-	    fullPath += "/";
-	    fullPath += *m_openMailbox;
-	}
 
-	// std::cout << "Attempting to open the file \"" << fullPath << "\"" << std::endl;
-	m_inFile.open(fullPath.c_str(), std::ios_base::in|std::ios_base::binary);
-	// std::cout << "The state of the read stream is " << m_inFile.rdstate() << std::endl;
-	unsigned long msn = MailboxUidToMsn(uid);
-	m_inFile.seekg(m_messageIndex[msn-1].start);
-	// Allocate the new buffer
-	m_messageBuffer = new char[101];
-	// Flush the first line that's going to have "From <stuff>" in it, and which the rest of the system should never see
-	char buffer[1000];
-	m_inFile.getline(buffer, 1000);
-	m_inFile.read(m_messageBuffer, 100);
-	m_charsInMessageBuffer = m_inFile.gcount();
-	m_messageBuffer[m_charsInMessageBuffer] = '\0';
-	m_notInHeader = false;
+    std::string fullPath;
+    if ((('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
+	(('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
+	(('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
+	(('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
+	(('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
+	('\0' == (*m_openMailbox)[5])) {
+	fullPath = m_inboxPath;
     }
+    else {
+	fullPath = m_homeDirectory;
+	fullPath += "/";
+	fullPath += *m_openMailbox;
+    }
+
+    // std::cout << "Attempting to open the file \"" << fullPath << "\"" << std::endl;
+    m_inFile.open(fullPath.c_str(), std::ios_base::in|std::ios_base::binary);
+    // std::cout << "The state of the read stream is " << m_inFile.rdstate() << std::endl;
+    m_readingMsn = MailboxUidToMsn(uid);
+    m_inFile.seekg(m_messageIndex[m_readingMsn-1].start);
+    // Flush the first line that's going to have "From <stuff>" in it, and which the rest of the system should never see
+    char buffer[1000];
+    m_inFile.getline(buffer, 1000);
+
+    return MailStore::SUCCESS;
 }
+
+#define SHOULD_APPEND_CHAR ((offset <= destChar) && (destPtr < length))
 
 // This function must replace LF's with CRLF's and it must ignore the headers that don't belong,
 // it must return false at EOF or when it read's a "From" line, and it must un-quote quoted "From" lines
-bool MailStoreMbox::ReadMessageLine(char buff[1101]) {
-    bool result = false;
-    bool notdone = true;
-#if 1
-    while (notdone) {
-	if ((!m_inFile.eof() || (0 != m_charsInMessageBuffer)) && (0 != strncmp(m_messageBuffer, "\nFrom ", 6))) {
+// up to length characters are read into the buffer pointed to by buff starting at an offset of 'offset'
+// relative to the start of the message as it was originally received
+size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
+    size_t srcPtr = 0;
+    // The difference between destPtr and destChar is tht destChar counts the number of characters that
+    // would be in buff up to that point if the offset was zero, and destPtr counts the character position
+    // in buff, which is only guaranteed to be "length" long.
+    size_t destPtr = 0;
+    size_t destChar = 0;
+    char *readBuffer = new char[m_messageIndex[m_readingMsn-1].rfc822MessageSize+1];
+    m_inFile.read(readBuffer, m_messageIndex[m_readingMsn-1].rfc822MessageSize);
+    size_t charsRead = m_inFile.gcount();
+    readBuffer[charsRead] = '\0';
+    const int pushBackBufferSize = 1000;
+    char pushBackBuffer[pushBackBufferSize+5];
+    int pushBackPtr;
 
-	    // At this point, m_messageBuffer[0] is the first character of a new line
-	    if (m_notInHeader||
-		((0 != strncmp(m_messageBuffer, "X-Status:", 9))
-		 && (0 != strncmp(m_messageBuffer, "Status:", 7))
-		 && (0 != strncmp(m_messageBuffer, "X-UID:", 6))
-		 && (0 != strncmp(m_messageBuffer, "X-IMAP:", 7))
-		 && (0 != strncmp(m_messageBuffer, "X-IMAPbase:", 11)))) {
-		char *n;
-		int base = 0;
-		if ('>' == m_messageBuffer[0]) {
-		    size_t f = strspn(m_messageBuffer, ">");
-		    if (0 == strncmp(&m_messageBuffer[f], "From ", 5)) {
-			base = 1;
-		    }
-		}
-		if (NULL == (n = strchr(m_messageBuffer, '\n'))) {
-		    size_t destOffset = 0;
-		    // I don't have an entire line in the message buffer, so I fill until I've got an entire line,
-		    // until I reach the end of file, or until I've got 1000 characters in buff, whichever comes
-		    // first
-		    do {
-			memmove(destOffset+buff, &m_messageBuffer[base], m_charsInMessageBuffer-base);
-			destOffset += m_charsInMessageBuffer-base;
-			buff[destOffset] = '\0';
-			m_inFile.read(&m_messageBuffer[m_charsInMessageBuffer], 100);
-			m_charsInMessageBuffer = m_inFile.gcount();
-			m_messageBuffer[m_charsInMessageBuffer] = '\0';
-			base = 0;
-		    } while ((1000 < destOffset) && !m_inFile.eof() && (NULL == (n = strchr(m_messageBuffer, '\n'))));
-		    if ((1000 < destOffset) && (NULL != n)) {
-			size_t charsToMove = (n - m_messageBuffer)+1;
-			if (1 == charsToMove) {
-			    m_notInHeader = true;
-			}
-			memmove(buff+destOffset, m_messageBuffer, charsToMove);
-			buff[charsToMove-1] = '\r';
-			buff[charsToMove] = '\n';
-			buff[charsToMove+1] = '\0';
-			m_charsInMessageBuffer -= charsToMove;
-			memmove(m_messageBuffer, n+1, m_charsInMessageBuffer);
-			m_inFile.read(&m_messageBuffer[m_charsInMessageBuffer], 100-m_charsInMessageBuffer);
-			m_charsInMessageBuffer += m_inFile.gcount();
-			m_messageBuffer[m_charsInMessageBuffer] = '\0';
-		    }
-		}
-		else {
-		    size_t charsToMove = (n - m_messageBuffer)+1-base;
-		    if (1 == charsToMove) {
-			m_notInHeader = true;
-		    }
-		    memmove(buff, &m_messageBuffer[base], charsToMove);
-		    buff[charsToMove-1] = '\r';
-		    buff[charsToMove] = '\n';
-		    buff[charsToMove+1] = '\0';
-		    m_charsInMessageBuffer -= charsToMove+base;
-		    memmove(m_messageBuffer, n+1, m_charsInMessageBuffer);
-		    m_inFile.read(&m_messageBuffer[m_charsInMessageBuffer], 100-m_charsInMessageBuffer);
-		    m_charsInMessageBuffer += m_inFile.gcount();
-		    m_messageBuffer[m_charsInMessageBuffer] = '\0';
-		}
-		notdone = false;
-		result = true;
+    // std::cout << "Reading starting at offset " << offset << " into a buffer of size " << length << std::endl;
+
+    int state = 0;
+    // SYZYGY -- potential problem:  It only checks the destPtr against length here
+    while((state < 100) && ('\0' != readBuffer[srcPtr]) && (destPtr < length)) {
+	// std::cout << "State " << state << " srcPtr " << srcPtr << " destPtr " << destPtr << " destChar " << destChar
+        //          << " readBuffer[srcPtr] " << (char) (isprint(readBuffer[srcPtr]) ? readBuffer[srcPtr] : '.')
+	//          << " (" << (int) readBuffer[srcPtr] << ")" << std::endl;
+	// This is basically just a big state machine.  State 0 is in the header of a message at the beginning of a
+	// line.
+	// States above 27 are in a message body, and only look for '\n>*From ' and '\n From'
+	switch(state) {
+	    // Could be 'FROM ', 'X-UID:', 'X-IMAP:', 'X-IMAPbase:', 'Status:', 'X-Status:', or '\n'
+	case 0:
+	    pushBackPtr = 0;
+	    pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+	    if ('F' == readBuffer[srcPtr]) {
+		state = 3;
+	    }
+	    else if ('X' == readBuffer[srcPtr]) {
+		state = 7;
+	    }
+	    else if ('S' == readBuffer[srcPtr]) {
+		state = 19;
+	    }
+	    else if ('>' == readBuffer[srcPtr]) {
+		state = 24;
 	    }
 	    else {
-		char *n;
-		while (!m_inFile.eof() && (NULL == (n = strchr(m_messageBuffer, '\n')))) {
-		    m_inFile.read(m_messageBuffer, 100);
-		    m_charsInMessageBuffer = m_inFile.gcount();
-		    m_messageBuffer[m_charsInMessageBuffer] = '\0';
-		}
-		if (!m_inFile.eof()) {
-		    size_t charsToMove = (n - m_messageBuffer)+1;
-		    m_charsInMessageBuffer -= charsToMove;
-		    memmove(m_messageBuffer, n+1, m_charsInMessageBuffer);
-		    m_inFile.read(&m_messageBuffer[m_charsInMessageBuffer], 100-m_charsInMessageBuffer);
-		    m_charsInMessageBuffer += m_inFile.gcount();
-		    m_messageBuffer[m_charsInMessageBuffer] = '\0';
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
 		}
 		else {
-		    notdone = false;
+		    state = 1;
 		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
 	    }
-	}
-	else {
-	    notdone = false;
-	}
-    }
-#else // !1
+	    break;
 
-    buff[0] = '\0';
-    // std::cout << "The state of the read stream is " << m_inFile.rdstate() << std::endl;
-    if (!m_inFile.eof()) {
-	result = false;
-	m_inFile.getline(buff, 1000);
-	// std::cout << "ReadMessageLine read \"" << buff << "\"" << std::endl;
-	buff[1000] = '\0';
-	if (0 != strncmp(buff, "From ", 5)) {
-	    if (998 > strlen(buff)) {
-		strcat(buff, "\r\n");
-	    }
-	    if ((0 == strncmp(buff, "X-Status:", 9))
-		|| (0 == strncmp(buff, "Status:", 7))
-		|| (0 == strncmp(buff, "X-UID:", 6))
-		|| (0 == strncmp(buff, "X-IMAP:", 7))
-		|| (0 == strncmp(buff, "X-IMAPbase:", 11))) {
-		while (((0 == strncmp(buff, "X-Status:", 9))
-			|| (0 == strncmp(buff, "Status:", 7))
-			|| (0 == strncmp(buff, "X-UID:", 6))
-			|| (0 == strncmp(buff, "X-IMAP:", 7))
-			|| (0 == strncmp(buff, "X-IMAPbase:", 11)))
-		       && (0 != strncmp(buff, "From ", 5))
-		       && (!m_inFile.eof())) {
-		    m_inFile.getline(buff, 1000);
-		    buff[1000] = '\0';
-		    // std::cout << "The line is \"" << buff << "\"" << std::endl;
+	case 1:
+	    // The rest of a header line
+	    if ('\n' == readBuffer[srcPtr]) {
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = '\r';
 		}
-		if (!m_inFile.eof() && (0 != strncmp(buff, "From ", 5))) {
-		    // std::cout << "The final line is \"" << buff << "\"" << std::endl;
-		    if (998 > strlen(buff)) {
-			strcat(buff, "\r\n");
+		destChar++;
+		state = 0;
+	    }
+	    if (SHOULD_APPEND_CHAR) {
+		buff[destPtr++] = readBuffer[srcPtr];
+	    }
+	    destChar++;
+	    break;
+
+	case 2:
+	    // The rest of a header line that is not being copied
+	    if ('\n' == readBuffer[srcPtr]) {
+		state = 0;
+	    }
+	    break;
+
+	case 3:
+	    // Seen '\nF
+	    if ('r' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 4;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
 		    }
-		    result = true;
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 4:
+	    // Seen '\nFr'
+	    if ('o' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 5;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 5:
+	    // Seen '\nFro'
+	    if ('m' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 6;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 6:
+	    // Seen '\nFrom'
+	    if (' ' == readBuffer[srcPtr]) {
+		// That's it.  The start of a new message.  I'm done.
+		// Kill the last newline
+		if (2 < destPtr) {
+		    destPtr -= 2;
+		}
+		state = 99999;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 7:
+	    // Seen '\nX' could be 'X-UID:', 'X-IMAP:', 'X-IMAPbase:', or 'X-Status:'
+	    if ('-' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 8;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 8:
+	    // Seen '\nX-' could be 'X-UID:', 'X-IMAP:', 'X-IMAPbase:', or 'X-Status:'
+	    if ('I' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 9;
+	    }
+	    else if ('U' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 17;
+	    }
+	    else if ('S' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 19;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 9:
+	    // Seen '\nX-I' could be 'X-IMAP:' or 'X-IMAPbase:'
+	    if ('M' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 10;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 10:
+	    // Seen '\nX-IM' could be 'X-IMAP:' or 'X-IMAPbase:'
+	    if ('A' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 11;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 11:
+	    // Seen '\nX-IMA' could be 'X-IMAP:' or 'X-IMAPbase:'
+	    if ('P' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 12;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 12:
+	    // Seen '\nX-IMAP' could be 'X-IMAP:' or 'X-IMAPbase:'
+	    if (':' == readBuffer[srcPtr]) {
+		state = 2;
+	    }
+	    else if ('b' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 13;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 13:
+	    // Seen '\nX-IMAPb' could be 'X-IMAPbase:'
+	    if ('a' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 14;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 14:
+	    // Seen '\nX-IMAPba' could be 'X-IMAPbase:'
+	    if ('s' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 15;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 15:
+	    // Seen '\nX-IMAPba' could be 'X-IMAPbase:'
+	    if ('e' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 16;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 16:
+	    // Seen '\nX-IMAPba' could be 'X-IMAPbase:'
+	    if (':' == readBuffer[srcPtr]) {
+		state = 2;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 17:
+	    // Seen '\nX-U' could be 'X-UID:'
+	    if ('I' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 18;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 18:
+	    // Seen '\nX-UI' could be 'X-UID:'
+	    if ('D' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 16;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 19:
+	    // Seen '\nS' or '\nX-S' could be 'Status:' or 'X-Status:'
+	    if ('t' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 20;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 20:
+	    // Seen '\nSt' or '\nX-St' could be 'Status:' or 'X-Status:'
+	    if ('a' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 21;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 21:
+	    // Seen '\nSta' or '\nX-Sta' could be 'Status:' or 'X-Status:'
+	    if ('t' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 22;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 22:
+	    // Seen '\nStat' or '\nX-Stat' could be 'Status:' or 'X-Status:'
+	    if ('u' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 23;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 23:
+	    // Seen '\nStatu' or '\nX-Statu' could be 'Status:' or 'X-Status:'
+	    if ('s' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 16;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 24:
+	    // Seen '\n>*'  Could be '\n>*From '
+	    if ('>' == readBuffer[srcPtr]) {
+		if (pushBackPtr < pushBackBufferSize) {
+		    pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		}
+	    }
+	    else if ('F' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 25;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 25:
+	    // Seen '\n>*F'  Could be '\n>*From '
+	    if ('r' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 26;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 26:
+	    // Seen '\n>*Fr'  Could be '\n>*From '
+	    if ('o' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 27;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 27:
+	    // Seen '\n>*Fro'  Could be '\n>*From '
+	    if ('m' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 28;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 28:
+	    // Seen '\n>*From'  Could be '\n>*From '
+	    if (' ' == readBuffer[srcPtr]) {
+		for (int i = 1; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
 		}
 	    }
 	    else {
-		result = true;
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
 	    }
+	    if ('\n' == readBuffer[srcPtr]) {
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = '\r';
+		}
+		destChar++;
+		state = 0;
+	    }
+	    else {
+		state = 1;
+	    }
+	    if (SHOULD_APPEND_CHAR) {
+		buff[destPtr++] = readBuffer[srcPtr];
+	    }
+	    destChar++;
+	    break;
+
+	case 29:
+	    // At the beginning of a body line, could be "\n>*From " or "\nFrom "
+	    pushBackPtr = 0;
+	    pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+	    if ('>' == readBuffer[srcPtr]) {
+		state = 31;
+	    }
+	    else if ('F' == readBuffer[srcPtr]) {
+		state = 36;
+	    }
+	    else {
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 30:
+	    // The rest of a body line
+	    if ('\n' == readBuffer[srcPtr]) {
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = '\r';
+		}
+		destChar++;
+		state = 29;
+	    }
+	    if (SHOULD_APPEND_CHAR) {
+		buff[destPtr++] = readBuffer[srcPtr];
+	    }
+	    destChar++;
+	    break;
+
+	case 31:
+	    // Seen '\n>*', could be '\n>*From '
+	    if ('>' == readBuffer[srcPtr]) {
+		if (pushBackBufferSize > pushBackPtr) {
+		    pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		}
+	    }
+	    else if ('F' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 32;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 32:
+	    // Seen '\n>*F', could be '\n>*From '
+	    if ('r' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 33;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 33:
+	    // Seen '\n>*Fr', could be '\n>*From '
+	    if ('o' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 34;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 34:
+	    // Seen '\n>*Fro', could be '\n>*From '
+	    if ('m' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 35;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 35:
+	    // Seen '\n>*From', could be '\n>*From '
+	    if (' ' != readBuffer[srcPtr]) {
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = pushBackBuffer[0];
+		}
+		destChar++;
+	    }
+	    else {
+		for (int i = 1; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;		
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 36:
+	    // Seen '\nF', could be '\n>*From '
+	    if ('r' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 37;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 37:
+	    // Seen '\bFr', could be '\n>*From '
+	    if ('o' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 38;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 38:
+	    // Seen '\bFro', could be '\n>*From '
+	    if ('m' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 39;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 39:
+	    // Seen '\bFrom', could be '\n>*From '
+	    if (' ' == readBuffer[srcPtr]) {
+		// That's it.  The start of a new message.  I'm done.
+		// Kill the last newline
+		if (2 < destPtr) {
+		    destPtr -= 2;
+		}		
+		state = 99999;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 29;
+		}
+		else {
+		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	default:
+	    state  = 99999;
+	    // SYZYGY -- I need to log the state error
+	    destPtr = 0;
+	    break;
 	}
+	++srcPtr;
     }
 
-    if (result) {
-	int state = 0;
-	int offset = 0;
-	while (state < 5) {
-	    switch(state) {
-	    case 0:
-		if ('>' != buff[offset]) {
-		    if ('F' == buff[offset]) {
-			state = 1;
-		    }
-		    else {
-			state = 999;
-		    }
-		}
-		break;
-
-	    case 1:
-		if ('r' == buff[offset]) {
-		    state = 2;
-		}
-		else {
-		    state = 999;
-		}
-		break;
-
-	    case 2:
-		if ('o' == buff[offset]) {
-		    state = 3;
-		}
-		else {
-		    state = 999;
-		}
-		break;
-
-	    case 3:
-		if ('m' == buff[offset]) {
-		    state = 4;
-		}
-		else {
-		    state = 999;
-		}
-		break;
-
-	    case 4:
-		if (' ' == buff[offset]) {
-		    state = 5;
-		}
-		else {
-		    state = 999;
-		}
-		break;
-
-	    default:
-		state = 999;
-		break;
-	    }
-	    ++offset;
-	}
-	// std::cout << "The final state is " << state << std::endl;
-	if (5 == state) {
-	    // std::cout << "Removing the leading '>'" << std::endl;
-	    memmove(buff, buff+1, strlen(buff));
-	}
-	// std::cout << "The final line is \"" << buff << "\"" << std::endl;
+    if (destPtr < length) {
+	buff[destPtr] = '\0';
     }
-#endif // !1
-    return result;
+
+    // std::cout << "Returning " << destPtr << std::endl;
+    return destPtr;
 }
 
 void MailStoreMbox::CloseMessageFile(void) {

@@ -126,8 +126,9 @@ public:
     virtual MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid) = 0;
     bool IsMailboxOpen(void) { return NULL != m_openMailbox; }
     virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid) = 0;
+    virtual size_t GetBufferLength(unsigned long uid) = 0;
     virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid) = 0;
-    virtual bool ReadMessageLine(char buff[1001]) = 0;
+    virtual size_t ReadMessage(char *buff, size_t offset, size_t length) = 0;
     virtual void CloseMessageFile(void) = 0;
 
 protected:

@@ -648,6 +648,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
     std::string response;
     int result = 0;
 
+    // std::cout << "In HandleOneLine, command " << m_inProgress << " in progress" << std::endl;
     // Some commands accumulate data over multiple lines.  Since the system
     // gives us data one line at a time, I have to put a state here for each
     // command that is processed over multiple calls to ReceiveData
@@ -658,6 +659,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	size_t i;
 	dataLen -= 2;  // It's not literal data, so I can strip the CRLF off the end
 	data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	// std::cout << "In HandleOneLine, new command \"" << data << "\"" << std::endl;
 	// There's nothing magic about 10, it just seems a convenient size
 	// The initial value of parseBuffLen should be bigger than dwDataLen because
 	// if it's the same size or smaller, it WILL have to be reallocated at some point.
@@ -693,6 +695,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	    while ((i < dataLen) && (' ' == data[i])) {
 		++i;  // Lose the space between the command and the arguments
 	    }
+	    // std::cout << "Looking up the command \"" << &m_parseBuffer[m_commandString] << "\"" << std::endl;
 	    IMAPSYMBOLS::iterator found = m_symbols.find((char *)&m_parseBuffer[m_commandString]);
 	    if ((found != m_symbols.end()) && found->second.levels[m_state]) {
 		IMAP_RESULTS status;
@@ -3475,41 +3478,15 @@ static insensitiveString RemoveRfc822Comments(const insensitiveString &headerLin
 
 void ImapSession::SendMessageChunk(unsigned long uid, size_t offset, size_t length) {
     if (MailStore::SUCCESS == m_store->OpenMessageFile(uid)) {
-	char buff[1101];
 	char *xmitBuffer = new char[length+1];
-	size_t accumulatedChars = 0;
-	bool notDone = true;
-
-	xmitBuffer[0] = '\0';
-	while(notDone) {
-	    if (m_store->ReadMessageLine(buff)) {
-		int len = strlen(buff);
-		if (offset < len) {
-		    if (len > (length - accumulatedChars)) {
-			len = length - accumulatedChars;
-		    }
-		    strncat(xmitBuffer, buff+offset, len);
-		    accumulatedChars += len;
-		    xmitBuffer[length] = '\0';
-		    offset = 0;
-		    if (accumulatedChars >= length) {
-			notDone = false;
-		    }
-		}
-		else {
-		    offset -= len;
-		}
-	    }
-	    else {
-		notDone = false;
-	    }
-	}
+	size_t charsRead = m_store->ReadMessage(xmitBuffer, offset, length);
 	m_store->CloseMessageFile();
+	xmitBuffer[charsRead] = '\0';
 
 	std::ostringstream literal;
-	literal << "{" << accumulatedChars << "}\r\n";
+	literal << "{" << charsRead << "}\r\n";
 	m_s->Send((uint8_t *)literal.str().c_str(), literal.str().size());
-	m_s->Send((uint8_t *)xmitBuffer, accumulatedChars);
+	m_s->Send((uint8_t *)xmitBuffer, charsRead);
 	delete[] xmitBuffer;
     }
 }
@@ -3661,7 +3638,7 @@ static insensitiveString Rfc822DotAtom(insensitiveString &input)
 	int pos = input.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&'*+-/=?^_`{|}~. ");
 	if (std::string::npos != pos) {
 	    int begin = input.find_first_not_of(SPACE);
-	    int end = input.find_last_not_of(SPACE, pos);
+	    int end = input.find_last_not_of(SPACE, pos-1);
 	    result = input.substr(begin, end-begin+1);
 	    input = input.substr(pos);
 	}
@@ -3723,7 +3700,7 @@ static insensitiveString ParseRfc822AddrSpec(insensitiveString &input) {
 	if (std::string::npos != pos) {
 	    insensitiveString temp = QuotifyString(input.substr(0, pos));
 	    int begin = temp.find_first_not_of(SPACE);
- 	    int end = temp.find_last_not_of(SPACE, pos);
+ 	    int end = temp.find_last_not_of(SPACE, pos-1);
 	    result += temp.substr(begin, end-begin+1) + " ";
 	    input = input.substr(pos+1);
 	}
@@ -3921,9 +3898,14 @@ static insensitiveString ParseAddressList(const insensitiveString &input) {
 		work = work.substr(1);
 	    }
 	    result += ParseAddress(work);
-	    int end = work.find_last_not_of(SPACE);
 	    int begin = work.find_first_not_of(SPACE);
-	    work = work.substr(begin, end-begin+1);
+	    if (0 < begin) {
+		int end = work.find_last_not_of(SPACE);
+		work = work.substr(begin, end-begin+1);
+	    }
+	    else {
+		work = "";
+	    }
 	} while (',' == work[0]);
 	result += ")";
     }

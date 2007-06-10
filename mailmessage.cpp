@@ -1,3 +1,5 @@
+#include "iostream"
+
 #include "mailmessage.hpp"
 #include "mailstore.hpp"
 
@@ -293,8 +295,7 @@ static MIME_MEDIA_TYPES GetMediaType(const insensitiveString &contentTypeLine) {
 	insensitiveString work = contentTypeLine;
 	int pos = work.find('/');
 	if (std::string::npos != pos) {
-	    --pos;
-	    int end = work.find_last_not_of(SPACE, pos);
+	    int end = work.find_last_not_of(SPACE, pos-1);
 	    int begin = work.find_first_not_of(SPACE);
 
 	    work = work.substr(begin, end-begin+1);
@@ -303,7 +304,7 @@ static MIME_MEDIA_TYPES GetMediaType(const insensitiveString &contentTypeLine) {
 	    pos = work.find(';');
 	    // if ';' is not found, then pos = std::string:npos, which is always bigger than the string, so it will trim the spaces off the end
 	    // of the whole thing.  So, I don't need to see if semicolon failed here
-	    int end = work.find_last_not_of(SPACE, pos);
+	    int end = work.find_last_not_of(SPACE, pos-1);
 	    int begin = work.find_first_not_of(SPACE);
 	    work = work.substr(begin, end-begin+1);
 	}
@@ -489,7 +490,7 @@ bool ProcessSubpartHeaderLine(const insensitiveString &line, MESSAGE_BODY &body)
 }
 
 
-void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE_BODY &parentBody, char messageBuffer[1101],
+void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE_BODY &parentBody, char *messageBuffer, size_t &parsePointer,
     		       const char *parentSeparator, size_t sectionStartOffset)
 {
     parentBody.bodyMediaType = GetMediaType(parentBody.contentTypeLine);
@@ -498,55 +499,64 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
     {
 	std::string separator = GetMediaBoundary(parentBody.contentTypeLine);
 	if (0 < separator.size()) {
+	    char *eol;
 	    // When I get here, I know that I have a read the header for the (sub)part, that the body that I'm
 	    // reading is a multipart message, and that I have a valid separator string.  I need to read the 
 	    // lines as they come in and process them accordingly
+
+	    // This part happens before I see the first separator
 	    int notdone = true;
 	    while (notdone) {
 		notdone = false;
-		if (store->ReadMessageLine(messageBuffer)) {
-		    parentBody.bodyOctets += strlen(messageBuffer);
+		if ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1]))) {
+		    int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+		    parentBody.bodyOctets += lineLength;
 		    parentBody.bodyLines++;
-		    if (('-' != messageBuffer[0]) ||
-			('-' != messageBuffer[1]) ||
-			(0 != strncmp(messageBuffer+2, separator.c_str(), separator.size()))) {
+		    if (('-' != messageBuffer[parsePointer]) ||
+			('-' != messageBuffer[parsePointer+1]) ||
+			(0 != strncmp(&messageBuffer[parsePointer+2], separator.c_str(), separator.size()))) {
 			notdone = true;
+			parsePointer += lineLength;
 		    }
 		}
 	    }
+
 	    // If I get here, I've seen the beginning of a separator line.  I need to check to see if it marks
 	    // the end of the subparts with this separator
-	    notdone = true;
+	    notdone = (NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1]));
 	    while (notdone) {
-		if ((4 + separator.size() > (int)strlen(messageBuffer)) ||
-		    ('-' != messageBuffer[2+separator.size()]) ||
-		    ('-' != messageBuffer[3+separator.size()])) {
+		// std::cout << "Parsing at at octet " << parsePointer << std::endl;
+		int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+		if ((4 + separator.size() > lineLength) ||
+		    ('-' != messageBuffer[parsePointer+2+separator.size()]) ||
+		    ('-' != messageBuffer[parsePointer+3+separator.size()])) {
 		    // If I'm here, I know that it is not the final terminator.   I need to accumulate lines of
 		    // the subpart header until I see the blank line that ends them.
 		    insensitiveString unfoldedLine;
 		    MESSAGE_BODY childBody;
 
+		    parsePointer += lineLength;
 		    childBody.subparts = NULL;
 		    childBody.bodyLines = 0;
 		    childBody.bodyOctets = 0;
 		    childBody.headerOctets = 0;
 		    childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
-		    notdone = store->ReadMessageLine(messageBuffer);
-		    while (notdone &&
-			   (('-' != messageBuffer[0]) ||
-			    ('-' != messageBuffer[1]) ||
-			    (0 != strncmp(messageBuffer+2, separator.c_str(), separator.size())))) {
-			childBody.bodyOctets += strlen(messageBuffer);
+		    while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1])) &&
+			   (('-' != messageBuffer[parsePointer]) ||
+			    ('-' != messageBuffer[parsePointer+1]) ||
+			    (0 != strncmp(&messageBuffer[parsePointer+2], separator.c_str(), separator.size())))) {
+			int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+			childBody.bodyOctets += lineLength;
 			childBody.bodyLines++;
-			insensitiveString line(messageBuffer);
-			if (2 >= line.size()) {
+			if (2 >= lineLength) {
+			    parsePointer += lineLength;
 			    ProcessSubpartHeaderLine(unfoldedLine, childBody);
 			    if (NULL == parentBody.subparts) {
 				parentBody.subparts = new std::vector<MESSAGE_BODY>;
 			    }
 			    childBody.headerOctets = childBody.bodyOctets;
 			    childBody.headerLines = childBody.bodyLines;
-			    ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, separator.c_str(),
+			    ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, parsePointer, separator.c_str(),
 					   sectionStartOffset + parentBody.bodyOctets);
 			    // This part here is because the separator line is considered to
 			    // be "CRLF--<separator>CRLF, so I've got an extra line and an extra
@@ -560,33 +570,41 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 			    break;
 			}
 			else {
-			    if ((' ' == line[0]) || ('\t' == line[0])) {
-				int begin = line.find_first_not_of(SPACE);
-				int end = line.find_last_not_of(SPACE);
-				if (std::string::npos != begin) {
-				    unfoldedLine += ' ' + line.substr(begin, end-begin+1);
+			    if ((' ' == messageBuffer[parsePointer]) || ('\t' == messageBuffer[parsePointer])) {
+				// The initial value of "end" should point to the CR, which causes the
+				// string to be terminated
+				int end = lineLength - 2;
+				while ((0 < end) && isspace(messageBuffer[end+parsePointer])) {
+				    messageBuffer[parsePointer+end] = '\0';
+				    --end;
 				}
-				else {
-				    unfoldedLine += ' ';
+				while (('\0' != messageBuffer[parsePointer]) && isspace(messageBuffer[parsePointer])) {
+				    // Replace the tabs and such with spaces
+				    messageBuffer[parsePointer++] = ' ';
 				}
+				// Then back up one so the line will begin with a single space character
+				--parsePointer;
+				unfoldedLine += &messageBuffer[parsePointer];
+				// I can't use the lineLength value here because it's been messed up by the foregoing
+				parsePointer += 2 + (eol - &messageBuffer[parsePointer]);
 			    }
 			    else {
 				if (0 < unfoldedLine.size()) {
-				    notdone = ProcessSubpartHeaderLine(unfoldedLine, childBody);
+				    ProcessSubpartHeaderLine(unfoldedLine, childBody);
 				}
-				int begin = line.find_first_not_of(SPACE);
-				int end = line.find_last_not_of(SPACE);
-				if (std::string::npos != begin) {
-				    unfoldedLine = line.substr(begin, end-begin+1);
+				// The initial value of "end" should point to the CR, which causes the
+				// string to be terminated
+				int end = lineLength - 2;
+				while ((0 < end) && isspace(messageBuffer[end+parsePointer])) {
+				    messageBuffer[parsePointer+end] = '\0';
+				    --end;
 				}
-				else {
-				    unfoldedLine = "";
-				}
+				unfoldedLine = &messageBuffer[parsePointer];
+				parsePointer += lineLength;
 			    }
 			}
-			notdone = store->ReadMessageLine(messageBuffer);
 		    }
-		    parentBody.bodyOctets += strlen(messageBuffer);
+		    parentBody.bodyOctets += lineLength;
 		    parentBody.bodyLines++;
 		}
 		else {
@@ -595,17 +613,18 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 	    }
 	}
     }
-    if ((NULL == parentSeparator) || 
-	('-' != messageBuffer[0]) ||
-	('-' != messageBuffer[1]) ||
-	(0 != strncmp(messageBuffer+2, parentSeparator, strlen(parentSeparator)))) {
-	while (store->ReadMessageLine(messageBuffer) &&
-	       ((NULL == parentSeparator) || 
-		('-' != messageBuffer[0]) ||
-		('-' != messageBuffer[1]) ||
-		(0 != strncmp(messageBuffer+2, parentSeparator, strlen(parentSeparator))))) {
-	    parentBody.bodyOctets += strlen(messageBuffer);
+    if ((NULL == parentSeparator) ||
+	('-' != messageBuffer[parsePointer]) ||
+	('-' != messageBuffer[parsePointer+1]) ||
+	(0 != strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
+	char *eol;
+	while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r'))) && ('\n' == eol[1])
+	       && ((NULL == parentSeparator) || ('-' != messageBuffer[parsePointer]) || ('-' != messageBuffer[parsePointer+1])
+		   || (0 != strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator))))) {
+	    int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+	    parentBody.bodyOctets += lineLength;
 	    parentBody.bodyLines++;
+	    parsePointer += lineLength;
 	}
     }
     break;
@@ -619,27 +638,29 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 	// the subpart header until I see the blank line that ends them.
 	insensitiveString unfoldedLine;
 	MESSAGE_BODY childBody;
+	char *eol;
 
 	childBody.subparts = NULL;
 	childBody.bodyLines = 0;
 	childBody.bodyOctets = 0;
 	childBody.headerOctets = 0;
 	childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
-	while (store->ReadMessageLine(messageBuffer) &&
-	       (('-' != messageBuffer[0]) ||
-		('-' != messageBuffer[1]) ||
-		(0 != strncmp(messageBuffer+2, parentSeparator, strlen(parentSeparator))))) {
-	    childBody.bodyOctets += strlen(messageBuffer);
+	while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r'))) && ('\n' == eol[1]) &&
+	       (('-' != messageBuffer[parsePointer]) ||
+		('-' != messageBuffer[parsePointer+1]) ||
+		(0 != strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator))))) {
+	    int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+	    childBody.bodyOctets += lineLength;
 	    childBody.bodyLines++;
-	    insensitiveString line(messageBuffer);
-	    if (2 >= line.size()) {
+	    if (2 >= lineLength) {
+		parsePointer += lineLength;
 		ProcessSubpartHeaderLine(unfoldedLine, childBody);
 		if (NULL == parentBody.subparts) {
 		    parentBody.subparts = new std::vector<MESSAGE_BODY>;
 		}
 		childBody.headerOctets = childBody.bodyOctets;
 		childBody.headerLines = childBody.bodyLines;
-		ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, parentSeparator,
+		ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, parsePointer, parentSeparator,
 			       sectionStartOffset + parentBody.bodyOctets);
 		childBody.bodyOctets -= 2;
 		childBody.bodyLines--;
@@ -649,28 +670,37 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 		break;
 	    }
 	    else {
-		if ((' ' == line[0]) || ('\t' == line[0])) {
-		    int begin = line.find_first_not_of(SPACE);
-		    int end = line.find_last_not_of(SPACE);
-		    if (std::string::npos != begin) {
-			unfoldedLine += ' ' + line.substr(begin, end-begin+1);
+		if ((' ' == messageBuffer[parsePointer]) || ('\t' == messageBuffer[parsePointer])) {
+		    // The initial value of "end" should point to the CR, which causes the
+		    // string to be terminated
+		    int end = lineLength - 2;
+		    while ((0 < end) && isspace(messageBuffer[end+parsePointer])) {
+			messageBuffer[parsePointer+end] = '\0';
+			--end;
 		    }
-		    else {
-			unfoldedLine += ' ';
+		    while (('\0' != messageBuffer[parsePointer]) && isspace(messageBuffer[parsePointer])) {
+			// Replace the tabs and such with spaces
+			messageBuffer[parsePointer++] = ' ';
 		    }
+		    // Then back up one so the line will begin with a single space character
+		    --parsePointer;
+		    unfoldedLine += &messageBuffer[parsePointer];
+		    // I can't use the lineLength value here because it's been messed up by the foregoing
+		    parsePointer += 2 + (eol - &messageBuffer[parsePointer]);
 		}
 		else {
 		    if (0 < unfoldedLine.size()) {
 			ProcessSubpartHeaderLine(unfoldedLine, childBody);
 		    }
-		    int begin = line.find_first_not_of(SPACE);
-		    int end = line.find_last_not_of(SPACE);
-		    if (std::string::npos != begin) {
-			unfoldedLine = line.substr(begin, end-begin+1);
+		    // The initial value of "end" should point to the CR, which causes the
+		    // string to be terminated
+		    int end = lineLength - 2;
+		    while ((0 < end) && isspace(messageBuffer[end+parsePointer])) {
+			messageBuffer[parsePointer+end] = '\0';
+			--end;
 		    }
-		    else {
-			unfoldedLine = "";
-		    }
+		    unfoldedLine = &messageBuffer[parsePointer];
+		    parsePointer += lineLength;
 		}
 	    }
 	}
@@ -678,18 +708,20 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
     break;
 
     default:
+	// SYZYGY working here reworking the message parsing code
 	if (loadBinaryParts || (MIME_TYPE_TEXT == parentBody.bodyMediaType)) {
 	    if ((NULL == parentSeparator) || 
-		('-' != messageBuffer[0]) ||
-		('-' != messageBuffer[1]) ||
-		(0 != strncmp(messageBuffer+2, parentSeparator, strlen(parentSeparator)))) {
-		while (store->ReadMessageLine(messageBuffer) &&
-		       ((NULL == parentSeparator) || 
-			('-' != messageBuffer[0]) ||
-			('-' != messageBuffer[1]) ||
-			(0 != strncmp(messageBuffer+2, parentSeparator, strlen(parentSeparator))))) {
-		    parentBody.bodyOctets += strlen(messageBuffer);
+		('-' != messageBuffer[parsePointer]) ||
+		('-' != messageBuffer[parsePointer+1]) ||
+		(0 != strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
+		char *eol;
+		while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r'))) && ('\n' == eol[1])
+		       && ((NULL == parentSeparator) || ('-' != messageBuffer[parsePointer]) || ('-' != messageBuffer[parsePointer+1])
+			   || (0 != strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator))))) {
+		    int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+		    parentBody.bodyOctets += lineLength;
 		    parentBody.bodyLines++;
+		    parsePointer += lineLength;
 		}
 	    }
 	}
@@ -697,7 +729,7 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 }
 
 
-MailMessage::MailMessage() {
+MailMessage::MailMessage(unsigned long uid, unsigned long msn) : m_uid(uid), m_msn(msn) {
     m_messageStatus = MailMessage::SUCCESS;
     m_mainBody.bodyMediaType = MIME_TYPE_TEXT;
     m_mainBody.bodyLines = 0;
@@ -712,82 +744,95 @@ MailMessage::MailMessage() {
 }
 
 
-MailMessage::MAIL_MESSAGE_RESULT MailMessage::Parse(MailStore *store, unsigned long uid, unsigned long msn, bool readBody, bool loadBinaryParts) {
-    m_uid = uid;
-    m_msn = msn;
-    bool notdone = true;
+MailMessage::MAIL_MESSAGE_RESULT MailMessage::Parse(MailStore *store, bool readBody, bool loadBinaryParts) {
     insensitiveString unfoldedLine;
 
-    while(notdone) {
-	char messageBuffer[1101];
-	if (store->ReadMessageLine(messageBuffer)) {
-	    int lineLength = (int) strlen(messageBuffer);
-	    m_mainBody.bodyOctets += lineLength;
-	    m_mainBody.bodyLines++;
-	    if ((2 <= lineLength) && ('\r' == messageBuffer[lineLength-2]) && ('\n' == messageBuffer[lineLength -1])) {
-		if (2 == lineLength) {
-		    // process the last unfolded line here
-		    ProcessHeaderLine(unfoldedLine);
-		    // And then convert the fields that we need converted
-		    m_date = ParseDateField(m_dateLine.c_str());
-		    m_mainBody.headerOctets = m_mainBody.bodyOctets;
-		    m_mainBody.headerLines = m_mainBody.bodyLines;
-		    if (readBody) {
-			ParseBodyParts(store, loadBinaryParts, m_mainBody, messageBuffer, NULL, 0);
-			while(store->ReadMessageLine(messageBuffer)) {
-			    m_mainBody.bodyOctets += strlen(messageBuffer);
-			    m_mainBody.bodyLines++;
+    size_t bufferLength = store->GetBufferLength(m_uid);
+    char *messageBuffer = new char[bufferLength+1];
+    if (MailStore::SUCCESS == store->OpenMessageFile(m_uid)) {
+	size_t messageSize;
+
+	if (0 < (messageSize = store->ReadMessage(messageBuffer, 0, bufferLength))) {
+	    bool notdone = true;
+	    size_t parsePointer = 0;
+	    store->CloseMessageFile();
+	    messageBuffer[messageSize] = '\0';
+	    // std::cout << "The message is " << messageSize << " octets long" << std::endl;
+
+	    // When I get here, the entire message, of size messageSize, is in messageBuffer
+	    while (notdone) {
+		char *eol;
+		if ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1]))) {
+		    int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+		    m_mainBody.bodyOctets += lineLength;
+		    m_mainBody.bodyLines += 1;
+		    if (2 == lineLength) {
+			parsePointer += lineLength;
+			// process the last unfolded line here
+			ProcessHeaderLine(unfoldedLine);
+			// And then convert the fields that we need converted
+			m_date = ParseDateField(m_dateLine.c_str());
+			m_mainBody.headerOctets = m_mainBody.bodyOctets;
+			m_mainBody.headerLines = m_mainBody.bodyLines;
+			if (readBody) {
+			    ParseBodyParts(store, loadBinaryParts, m_mainBody, messageBuffer, parsePointer, NULL, 0);
+			    // while(store->ReadMessageLine(messageBuffer)) {
+			    while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r'))) && ('\n' == eol[1])) {
+				lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+				m_mainBody.bodyOctets += lineLength;
+				m_mainBody.bodyLines++;
+				parsePointer += lineLength;
+			    }
 			}
-		    }
-		    notdone = false;
-		}
-		else {
-		    if ((' ' == messageBuffer[0]) || ('\t' == messageBuffer[0])) {
-			insensitiveString temp(messageBuffer);
-			int begin = 0;
-			while (('\0' != messageBuffer[begin]) && isspace(messageBuffer[begin])) {
-			    ++begin;
-			}
-			int end = strlen(messageBuffer) - 1;
-			while ((0 < end) && isspace(messageBuffer[end])) {
-			    messageBuffer[end] = '\0';
-			    --end;
-			}
-			unfoldedLine += ' ' + (insensitiveString) (messageBuffer + begin);
+			notdone = false;
 		    }
 		    else {
-			if (0 < unfoldedLine.size()) {
-			    ProcessHeaderLine(unfoldedLine);
+			if ((' ' == messageBuffer[parsePointer]) || ('\t' == messageBuffer[parsePointer])) {
+			    // The initial value of "end" should point to the CR, which causes the
+			    // string to be terminated
+			    int end = lineLength - 2;
+			    while ((0 < end) && isspace(messageBuffer[end+parsePointer])) {
+				messageBuffer[parsePointer+end] = '\0';
+				--end;
+			    }
+			    while (('\0' != messageBuffer[parsePointer]) && isspace(messageBuffer[parsePointer])) {
+				// Replace the tabs and such with spaces
+				messageBuffer[parsePointer++] = ' ';
+			    }
+			    // Then back up one so the line will begin with a single space character
+			    --parsePointer;
+			    unfoldedLine += &messageBuffer[parsePointer];
+			    // I can't use the lineLength value here because it's been messed up by the foregoing
+			    parsePointer += 2 + (eol - &messageBuffer[parsePointer]);
 			}
-			int begin = 0;
-			while (('\0' != messageBuffer[begin]) && isspace(messageBuffer[begin])) {
-			    ++begin;
+			else {
+			    if (0 < unfoldedLine.size()) {
+				ProcessHeaderLine(unfoldedLine);
+			    }
+			    // The initial value of "end" should point to the CR, which causes the
+			    // string to be terminated
+			    int end = lineLength - 2;
+			    while ((0 < end) && isspace(messageBuffer[end+parsePointer])) {
+				messageBuffer[parsePointer+end] = '\0';
+				--end;
+			    }
+			    unfoldedLine = &messageBuffer[parsePointer];
+			    parsePointer += lineLength;
 			}
-			int end = strlen(messageBuffer) - 1;
-			while ((0 < end) && isspace(messageBuffer[end])) {
-			    messageBuffer[end] = '\0';
-			    --end;
-			}
-			unfoldedLine = messageBuffer + begin;
 		    }
 		}
-	    }
-	    else {
-		notdone = false;
-		// m_messageStatus = MailMessage::MESSAGE_MALFORMED_NO_BODY;
-		// SYZGY Log
-		// store->GetClient()->Log("In MailMessage::parse, message \"%s\" has no body\n", file_name.c_str());
-		m_messageStatus = MailMessage::SUCCESS;
+		else {
+		    // last line
+		    notdone = false;
+		}
 	    }
 	}
 	else {
-	    ProcessHeaderLine(unfoldedLine);
-	    notdone = false;
-	    // m_messageStatus = MailMessage::MESSAGE_MALFORMED_NO_BODY;
-	    // SYZYGY Log
-	    // store->GetClient()->Log("In MailMessage::parse, message \"%s\" has no body\n", file_name.c_str());
-	    m_messageStatus = MailMessage::SUCCESS;
+	    store->CloseMessageFile();
 	}
+    }
+    else {
+	m_messageStatus = MESSAGE_FILE_READ_FAILED;
     }
     return m_messageStatus;
 }

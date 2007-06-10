@@ -49,8 +49,9 @@ public:
     // This deletes a message in a mail box
     virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid);
     virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid);
+    virtual size_t GetBufferLength(unsigned long uid);
     virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid);
-    virtual bool ReadMessageLine(char buff[1001]);
+    virtual size_t ReadMessage(char *buff, size_t offset, size_t length);
     virtual void CloseMessageFile(void);
 
 private:

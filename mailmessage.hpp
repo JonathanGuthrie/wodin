@@ -51,9 +51,9 @@ public:
 	MESSAGE_FILE_READ_FAILED,
 	MESSAGE_MALFORMED_NO_BODY
     } MAIL_MESSAGE_RESULT;
-    MailMessage();
+    MailMessage(unsigned long uid, unsigned long msn);
     ~MailMessage();
-    MAIL_MESSAGE_RESULT Parse(MailStore *store, unsigned long uid, unsigned long msn, bool readBody = true, bool loadBinaryParts = true);
+    MAIL_MESSAGE_RESULT Parse(MailStore *store, bool readBody = true, bool loadBinaryParts = true);
     static void BuildSymbolTable();
     MAIL_MESSAGE_RESULT GetStatus() const { return m_messageStatus; }
     const insensitiveString &GetSubject() const { return m_subject; }
@@ -78,13 +78,9 @@ public:
     void SetMessageFlags(uint32_t newFlags) { m_flagsWhenRead = newFlags; }
     
 private:
-#if 0
-    bool ReadOneChar(CSimFile *infile, char &c);
-    bool ReadOneLine(CSimFile *infile, char buff[1001]);
-#endif // 0
     bool ProcessHeaderLine(const insensitiveString &line);
     void ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE_BODY &parentBody,
-			char messageBuffer[1001], const char *parentSeparator, size_t sectionStartOffset);
+			char *messageBuffer, size_t &parsePointer, const char *parentSeparator, size_t sectionStartOffset);
     struct tm m_date;
     insensitiveString m_dateLine, m_subject, m_inReplyTo, m_messageId;
     insensitiveString m_fromLine, m_senderLine, m_replyToLine, m_toLine, m_ccLine, m_bccLine;

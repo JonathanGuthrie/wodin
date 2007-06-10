@@ -375,10 +375,18 @@ MailStore::MAIL_STORE_RESULT Namespace::OpenMessageFile(unsigned long uid) {
     return result;
 }
 
-bool Namespace::ReadMessageLine(char buff[1001]) {
-    bool result = false;
+size_t Namespace::GetBufferLength(unsigned long uid) {
+    size_t result = 0;
     if (NULL != selectedNamespace) {
-	result = selectedNamespace->ReadMessageLine(buff);
+	result = selectedNamespace->GetBufferLength(uid);
+    }
+    return result;
+}
+
+size_t Namespace::ReadMessage(char *buffer, size_t offset, size_t length) {
+    size_t result = 0;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->ReadMessage(buffer, offset, length);
     }
     return result;
 }

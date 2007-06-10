@@ -46,8 +46,9 @@ public:
     // This deletes a message in a mail box
     virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid);
     virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid);
+    virtual size_t GetBufferLength(unsigned long uid);
     virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid);
-    virtual bool ReadMessageLine(char buff[1101]);
+    virtual size_t ReadMessage(char *buff, size_t offset, size_t length);
     virtual void CloseMessageFile(void);
 
 private:
@@ -56,6 +57,7 @@ private:
 	uint32_t flags;
 	std::fstream::pos_type start;
 	MailMessage *messageData;
+	size_t rfc822MessageSize;
 	bool isDirty;
     } MessageIndex_t;
 
@@ -84,9 +86,7 @@ private:
     void AddDataToMessageFile(uint8_t *data, size_t length);
     MailStore::MAIL_STORE_RESULT FlushAndExpunge(NUMBER_LIST *nowGone, bool doExpunge);
     std::ifstream m_inFile;
-    char *m_messageBuffer;
-    size_t m_charsInMessageBuffer;
-    bool m_notInHeader;
+    unsigned long m_readingMsn;
 };
 
 #endif // _MAILSTOREMBOX_HPP_INCLUDED_
