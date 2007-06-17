@@ -2866,7 +2866,7 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
 	    break;
 
 	case 7:
-	    // Seen '\nX' could be 'X-UID:', 'X-IMAP:', 'X-IMAPbase:', or 'X-Status:'
+	    // Seen '\nX' could be 'X-UID:', 'X-IMAP:', 'X-IMAPbase:', 'X-Keywords', or 'X-Status:'
 	    if ('-' == readBuffer[srcPtr]) {
 		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
 		state = 8;
@@ -2896,10 +2896,14 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
 	    break;
 
 	case 8:
-	    // Seen '\nX-' could be 'X-UID:', 'X-IMAP:', 'X-IMAPbase:', or 'X-Status:'
+	    // Seen '\nX-' could be 'X-UID:', 'X-IMAP:', 'X-IMAPbase:', 'X-Keywords', or 'X-Status:'
 	    if ('I' == readBuffer[srcPtr]) {
 		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
 		state = 9;
+	    }
+	    if ('K' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 40;
 	    }
 	    else if ('U' == readBuffer[srcPtr]) {
 		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
@@ -3859,6 +3863,216 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
 		}
 		else {
 		    state = 30;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 40:
+	    // Seen '\nX-K' could be 'X-Keywords:'
+	    if ('e' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 41;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 41:
+	    // Seen '\nX-Ke' could be 'X-Keywords:'
+	    if ('y' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 42;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 42:
+	    // Seen '\nX-Key' could be 'X-Keywords:'
+	    if ('w' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 43;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 43:
+	    // Seen '\nX-Keyw' could be 'X-Keywords:'
+	    if ('o' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 44;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 44:
+	    // Seen '\nX-Keywo' could be 'X-Keywords:'
+	    if ('r' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 45;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 45:
+	    // Seen '\nX-Keywor' could be 'X-Keywords:'
+	    if ('d' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 46;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
+		}
+		if (SHOULD_APPEND_CHAR) {
+		    buff[destPtr++] = readBuffer[srcPtr];
+		}
+		destChar++;
+	    }
+	    break;
+
+	case 46:
+	    // Seen '\nX-Keyword' could be 'X-Keywords:'
+	    if ('s' == readBuffer[srcPtr]) {
+		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
+		state = 16;
+	    }
+	    else {
+		for (int i = 0; i<pushBackPtr; ++i) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = pushBackBuffer[i];
+		    }
+		    destChar++;
+		}
+		if ('\n' == readBuffer[srcPtr]) {
+		    if (SHOULD_APPEND_CHAR) {
+			buff[destPtr++] = '\r';
+		    }
+		    destChar++;
+		    state = 0;
+		}
+		else {
+		    state = 1;
 		}
 		if (SHOULD_APPEND_CHAR) {
 		    buff[destPtr++] = readBuffer[srcPtr];

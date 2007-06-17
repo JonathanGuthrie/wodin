@@ -4668,7 +4668,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 		    MESSAGE_BODY body = message->GetMessageBody();
 		    // I need a part number flag because, for a single part message, body[1] is
 		    // different from body[], but later on, when I determine what part to fetch,
-		    // I won't know whether I've got body[1] or body[], and bPartNumberFlag 
+		    // I won't know whether I've got body[1] or body[], and partNumberFlag
 		    // records the difference
 		    bool partNumberFlag = false;
 		    while ((IMAP_OK == result) && isdigit(m_parseBuffer[specificationBase])) {

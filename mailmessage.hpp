@@ -79,8 +79,8 @@ public:
     
 private:
     bool ProcessHeaderLine(const insensitiveString &line);
-    void ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE_BODY &parentBody,
-			char *messageBuffer, size_t &parsePointer, const char *parentSeparator, size_t sectionStartOffset);
+    void ParseBodyParts(bool loadBinaryParts, MESSAGE_BODY &parentBody, char *messageBuffer, size_t &parsePointer,
+			const char *parentSeparator, int nestingDepth);
     struct tm m_date;
     insensitiveString m_dateLine, m_subject, m_inReplyTo, m_messageId;
     insensitiveString m_fromLine, m_senderLine, m_replyToLine, m_toLine, m_ccLine, m_bccLine;

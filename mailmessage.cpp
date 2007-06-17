@@ -490,21 +490,27 @@ bool ProcessSubpartHeaderLine(const insensitiveString &line, MESSAGE_BODY &body)
 }
 
 
-void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE_BODY &parentBody, char *messageBuffer, size_t &parsePointer,
-    		       const char *parentSeparator, size_t sectionStartOffset)
-{
+// When this is called, it parsePointer points to the first line of the body
+// When it returns, parsePointer must point to the line after the end of the body.  If it's a subpart, then parsePointer points to the
+//    first character of the separator line that ended everything.
+void MailMessage::ParseBodyParts(bool loadBinaryParts, MESSAGE_BODY &parentBody, char *messageBuffer, size_t &parsePointer,
+				 const char *parentSeparator, int nestingDepth) {
     parentBody.bodyMediaType = GetMediaType(parentBody.contentTypeLine);
     switch(parentBody.bodyMediaType) {
     case MIME_TYPE_MULTIPART:
     {
+	char *eol;
 	std::string separator = GetMediaBoundary(parentBody.contentTypeLine);
 	if (0 < separator.size()) {
-	    char *eol;
 	    // When I get here, I know that I have a read the header for the (sub)part, that the body that I'm
 	    // reading is a multipart message, and that I have a valid separator string.  I need to read the 
 	    // lines as they come in and process them accordingly
 
-	    // This part happens before I see the first separator
+	    // This part happens before I see the first separator.  When it's done, all the characters (including
+	    // those for the separator line) are added to the bodyOctets total of the parent and all the lines
+	    // (including the one for the separator line) are added to the bodyLines total of the parent and
+	    // parsePointer should point at the beginning of the separator line.  The next part will determine whether
+	    // it's the end separator or not.
 	    int notdone = true;
 	    while (notdone) {
 		notdone = false;
@@ -522,16 +528,20 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 	    }
 
 	    // If I get here, I've seen the beginning of a separator line.  I need to check to see if it marks
-	    // the end of the subparts with this separator
+	    // the end of the subparts with this separator.  At this point, parsePointer points to the
+	    // beginning of the separator line, but the characters in that line have already been charged to the
+	    // parent.
 	    notdone = (NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1]));
 	    while (notdone) {
 		// std::cout << "Parsing at at octet " << parsePointer << std::endl;
 		int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
-		if ((4 + separator.size() > lineLength) ||
+		if ((6 + separator.size() != lineLength) ||
 		    ('-' != messageBuffer[parsePointer+2+separator.size()]) ||
 		    ('-' != messageBuffer[parsePointer+3+separator.size()])) {
 		    // If I'm here, I know that it is not the final terminator.   I need to accumulate lines of
-		    // the subpart header until I see the blank line that ends them.
+		    // the subpart header until I see the blank line that ends them.  I've already accounted for
+		    // the characters in the separator, what I have to do now is skip past the end and begin
+		    // processing data.
 		    insensitiveString unfoldedLine;
 		    MESSAGE_BODY childBody;
 
@@ -540,7 +550,10 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 		    childBody.bodyLines = 0;
 		    childBody.bodyOctets = 0;
 		    childBody.headerOctets = 0;
-		    childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
+		    // childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
+		    childBody.bodyStartOffset = parsePointer;
+		    // When I get here, parsePointer has to point to a line that hasn't been looked at
+		    // before.
 		    while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1])) &&
 			   (('-' != messageBuffer[parsePointer]) ||
 			    ('-' != messageBuffer[parsePointer+1]) ||
@@ -549,27 +562,45 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 			childBody.bodyOctets += lineLength;
 			childBody.bodyLines++;
 			if (2 >= lineLength) {
+			    // Handle the body of the part.  First, move past the end of the header and parsePointer points
+			    // to the first character of the line before the body
 			    parsePointer += lineLength;
+			    // now parsePointer points to the first character of the body
+			    // I've still got the last header line to deal with, so I deal with it now.
 			    ProcessSubpartHeaderLine(unfoldedLine, childBody);
+			    // if I don't yet have any subparts, I create a new vector to hold them
 			    if (NULL == parentBody.subparts) {
 				parentBody.subparts = new std::vector<MESSAGE_BODY>;
 			    }
+			    // Since the body includes the header, and since I'm now done with the header, the
+			    // size of the header can be recorded as the current size of the body.
 			    childBody.headerOctets = childBody.bodyOctets;
 			    childBody.headerLines = childBody.bodyLines;
-			    ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, parsePointer, separator.c_str(),
-					   sectionStartOffset + parentBody.bodyOctets);
-			    // This part here is because the separator line is considered to
-			    // be "CRLF--<separator>CRLF, so I've got an extra line and an extra
-			    // CRLF sequence that I need to not account for twice.
-			    childBody.bodyOctets -= 2;
-			    childBody.bodyLines--;
+			    ParseBodyParts(loadBinaryParts, childBody, messageBuffer, parsePointer, separator.c_str(), nestingDepth+1);
+			    // When I get here, I've seen a separator, the characters in the separator have been included
+			    // in the count for the child body, but parsePointer points to the CRLF before the separator
+			    // line.
 			    parentBody.subparts->push_back(childBody);
-			    // But I do have to account for it once
-			    parentBody.bodyOctets += childBody.bodyOctets + 2;
-			    parentBody.bodyLines += childBody.bodyLines + 1;
+			    // Everything in the child is also part of the parent
+			    parentBody.bodyOctets += childBody.bodyOctets;
+			    parentBody.bodyLines += childBody.bodyLines;
+
+			    if (('\r' == messageBuffer[parsePointer]) &&
+				('\n' == messageBuffer[parsePointer+1]) &&
+				(NULL != (eol = strchr(&messageBuffer[parsePointer+2], '\r'))) &&
+				('\n' == eol[1])) {
+				parentBody.bodyOctets += 2 + (eol - &messageBuffer[parsePointer]);
+				parentBody.bodyLines += 2;
+				// I adjust parsePointer, but only to advance it past the CRLF before
+				// the separator.  The separator itself is advanced past elsewhere
+				parsePointer += 2;
+			    }
+			    eol = strchr(&messageBuffer[parsePointer], '\r');
+			    notdone = (eol != NULL);
 			    break;
 			}
 			else {
+			    // Handle the header of the part
 			    if ((' ' == messageBuffer[parsePointer]) || ('\t' == messageBuffer[parsePointer])) {
 				// The initial value of "end" should point to the CR, which causes the
 				// string to be terminated
@@ -604,39 +635,66 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 			    }
 			}
 		    }
-		    notdone = (NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1]));
-		    parentBody.bodyOctets += lineLength;
-		    parentBody.bodyLines++;
+		    // If I get here by breaking out of the loop, then parsePointer points to the beginning of a
+		    // separator line, but the characters in the separator line have not been accounted for in the
+		    // child body (and, therefore, in the parent body.)
+		    // If I get here by falling through the loop, then parsePointer points to the beginning of
+		    // a separator line (and there was only a header) and the characters in the string haven't
+		    // been accounted for.
+		    // notdone = (NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1]));
+		    eol = strchr(&messageBuffer[parsePointer], '\r');
 		}
 		else {
 		    notdone = false;
 		}
 	    }
 	}
-    }
-    if ((NULL == parentSeparator) ||
-	('-' != messageBuffer[parsePointer]) ||
-	('-' != messageBuffer[parsePointer+1]) ||
-	(0 != strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
-	char *eol;
-	while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r'))) && ('\n' == eol[1])
-	       && ((NULL == parentSeparator) || ('-' != messageBuffer[parsePointer]) || ('-' != messageBuffer[parsePointer+1])
-		   || (0 != strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator))))) {
-	    int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
-	    parentBody.bodyOctets += lineLength;
-	    parentBody.bodyLines++;
-	    parsePointer += lineLength;
+	// This is all the stuff in a multipart body after the last separator.  It's outside the block because
+	// I don't care about the separator for the body part I've been parsing, I only care about the separator
+	// for the parent, if any.
+	// When this finishes, parsePointer must point to the line after the end of the body.  If it's a subpart,
+	//    then parsePointer points to the first character of the separator line that ended everything.
+	// I need to not count the end header line here as I've already counted for it above
+	// but I haven't yet moved the parse beyond the line
+	eol = strchr(&messageBuffer[parsePointer], '\r');
+	if ((NULL != eol) && ('\n' == eol[1])) {
+	    parsePointer += 2 + (eol - &messageBuffer[parsePointer]);
+	}
+	if ((NULL == parentSeparator) ||
+	    ('-' != messageBuffer[parsePointer]) ||
+	    ('-' != messageBuffer[parsePointer+1]) ||
+	    (0 != strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
+	    while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r'))) && ('\n' == eol[1])
+		   && ((NULL == parentSeparator) || ('-' != messageBuffer[parsePointer]) || ('-' != messageBuffer[parsePointer+1])
+		       || (0 != strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator))))) {
+		int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+		parentBody.bodyOctets += lineLength;
+		parentBody.bodyLines++;
+		parsePointer += lineLength;
+	    }
+	    if ((NULL != parentSeparator) &&
+		('-' == messageBuffer[parsePointer]) &&
+		('-' == messageBuffer[parsePointer+1]) &&
+		(0 == strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
+		// I need to back up two characters because the CRLF that is immediately before this is considered
+		// to be part of the parent, not of the child
+		parentBody.bodyOctets -= 2;
+		parentBody.bodyLines--;
+		parsePointer -= 2;
+	    }
 	}
     }
     break;
 
     case MIME_TYPE_MESSAGE:
+	// SYZYGY working here I need a function to dump the body structure
+
 	// The MIME_TYPE_MESSAGE has characteristics of both the multipart and single part.  It's like a single part
 	// because there's no separator associated with the part.  It's like multipart because it's got a potentially
 	// multipart message in side it.  Actually, come to think of it, it's like a single part
     {
-	// If I'm here, I know that it is not the final terminator.   I need to accumulate lines of
-	// the subpart header until I see the blank line that ends them.
+	// At this point, parsePointer points to the first character of the body which, oddly enough, is actually the
+	// first character of the header.
 	insensitiveString unfoldedLine;
 	MESSAGE_BODY childBody;
 	char *eol;
@@ -645,7 +703,8 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 	childBody.bodyLines = 0;
 	childBody.bodyOctets = 0;
 	childBody.headerOctets = 0;
-	childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
+	// childBody.bodyStartOffset = sectionStartOffset + parentBody.bodyOctets;
+	childBody.bodyStartOffset = parsePointer;
 	while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r'))) && ('\n' == eol[1]) &&
 	       (('-' != messageBuffer[parsePointer]) ||
 		('-' != messageBuffer[parsePointer+1]) ||
@@ -661,13 +720,14 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 		}
 		childBody.headerOctets = childBody.bodyOctets;
 		childBody.headerLines = childBody.bodyLines;
-		ParseBodyParts(store, loadBinaryParts, childBody, messageBuffer, parsePointer, parentSeparator,
-			       sectionStartOffset + parentBody.bodyOctets);
-		childBody.bodyOctets -= 2;
-		childBody.bodyLines--;
+		ParseBodyParts(loadBinaryParts, childBody, messageBuffer, parsePointer, parentSeparator, nestingDepth+1);
+		// When I get here, I've seen a separator, the characters in the separator have been included
+		// in the count for the child body, but parsePointer points to the CRLF before the separator
+		// line.
 		parentBody.subparts->push_back(childBody);
-		parentBody.bodyOctets += childBody.bodyOctets + 2;
-		parentBody.bodyLines += childBody.bodyLines + 1;
+		// Everything in the child is also part of the parent
+		parentBody.bodyOctets += childBody.bodyOctets;
+		parentBody.bodyLines += childBody.bodyLines;
 		break;
 	    }
 	    else {
@@ -709,7 +769,6 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
     break;
 
     default:
-	// SYZYGY working here reworking the message parsing code
 	if (loadBinaryParts || (MIME_TYPE_TEXT == parentBody.bodyMediaType)) {
 	    if ((NULL == parentSeparator) || 
 		('-' != messageBuffer[parsePointer]) ||
@@ -723,6 +782,16 @@ void MailMessage::ParseBodyParts(MailStore *store, bool loadBinaryParts, MESSAGE
 		    parentBody.bodyOctets += lineLength;
 		    parentBody.bodyLines++;
 		    parsePointer += lineLength;
+		}
+		if ((NULL != parentSeparator) &&
+		    ('-' == messageBuffer[parsePointer]) &&
+		    ('-' == messageBuffer[parsePointer+1]) &&
+		    (0 == strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
+		    // I need to back up two characters because the CRLF that is immediately before this is considered
+		    // to be part of the parent, not of the child
+		    parentBody.bodyOctets -= 2;
+		    parentBody.bodyLines--;
+		    parsePointer -= 2;
 		}
 	    }
 	}
@@ -744,6 +813,8 @@ MailMessage::MailMessage(unsigned long uid, unsigned long msn) : m_uid(uid), m_m
     m_lineBuffEnd = 0;
 }
 
+
+void dumpMessageBodies(const MessageBody &body, int depth);
 
 MailMessage::MAIL_MESSAGE_RESULT MailMessage::Parse(MailStore *store, bool readBody, bool loadBinaryParts) {
     insensitiveString unfoldedLine;
@@ -776,14 +847,10 @@ MailMessage::MAIL_MESSAGE_RESULT MailMessage::Parse(MailStore *store, bool readB
 			m_mainBody.headerOctets = m_mainBody.bodyOctets;
 			m_mainBody.headerLines = m_mainBody.bodyLines;
 			if (readBody) {
-			    ParseBodyParts(store, loadBinaryParts, m_mainBody, messageBuffer, parsePointer, NULL, 0);
+			    // Do I need this?  Wouldn't the trailing terminator be accounted for as part of the multipart
+			    // section?  Shouldn't ParseBodyParts ALWAYS read the entire buffer, if it's called at all?
+			    ParseBodyParts(loadBinaryParts, m_mainBody, messageBuffer, parsePointer, NULL, 1);
 			    // while(store->ReadMessageLine(messageBuffer)) {
-			    while ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r'))) && ('\n' == eol[1])) {
-				lineLength = 2 + (eol - &messageBuffer[parsePointer]);
-				m_mainBody.bodyOctets += lineLength;
-				m_mainBody.bodyLines++;
-				parsePointer += lineLength;
-			    }
 			}
 			notdone = false;
 		    }
@@ -827,6 +894,7 @@ MailMessage::MAIL_MESSAGE_RESULT MailMessage::Parse(MailStore *store, bool readB
 		    notdone = false;
 		}
 	    }
+	    // dumpMessageBodies(m_mainBody, 0);
 	}
 	else {
 	    store->CloseMessageFile();
@@ -850,4 +918,41 @@ subpart_destructor(BODY_PARTS partsList) {
 
 MailMessage::~MailMessage() {
     subpart_destructor(m_mainBody.subparts);
+}
+
+
+void dumpMessageBodies(const MessageBody &body, int depth) {
+    static const char *types[] = {
+	"UNKNOWN",
+	"TEXT",
+	"IMAGE",
+	"AUDIO",
+	"VIDEO",
+	"APPLICATION",
+	"MULTIPART",
+	"MESSAGE"};
+
+    std::cout << "+++++++++++++++++++" << std::endl;
+    for (int i=0; i<depth; ++i) {
+	std::cout << "!-";
+    }
+    std::cout << body.contentDescriptionLine.c_str() << std::endl;
+    for (int i=0; i<depth; ++i) {
+	std::cout << "!-";
+    }
+    std::cout << types[body.bodyMediaType] << std::endl;
+    for (int i=0; i<depth; ++i) {
+	std::cout << "!-";
+    }
+    std::cout << "header lines " << body.headerLines << " octets " << body.headerOctets << std::endl;
+    for (int i=0; i<depth; ++i) {
+	std::cout << "!-";
+    }
+    std::cout << "lines " << body.bodyLines << " octets " << body.bodyOctets << " start offset " << body.bodyStartOffset << std::endl;
+    if (NULL != body.subparts) {
+	for (std::vector<MESSAGE_BODY>::const_iterator child = body.subparts->begin(); child!=body.subparts->end(); ++child) {
+	    dumpMessageBodies(*child, depth+1);
+	}
+    }
+    std::cout << "-------------------" << std::endl;
 }
