@@ -3899,7 +3899,7 @@ static insensitiveString ParseAddressList(const insensitiveString &input) {
 	    }
 	    result += ParseAddress(work);
 	    int begin = work.find_first_not_of(SPACE);
-	    if (0 < begin) {
+	    if (std::string::npos != begin) {
 		int end = work.find_last_not_of(SPACE);
 		work = work.substr(begin, end-begin+1);
 	    }
