@@ -52,7 +52,12 @@ done)  Fix the "UNSEEN 1" display where there are no unseen messages.
 
 19)  Fix the multiple simultaneous connection problem
 
+)  Fix the current memory leak
+
 )  Locking for multiple simultaneous access to mailboxes
+
+)  Set it up such that the SocketBindErrorException triggers retries instead of exiting with a failure
+)  Better yet, figure out how to not have SocketBindErrorException
 
 )  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
