@@ -4848,6 +4848,10 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			switch(whichPart) {
 			case FETCH_BODY_BODY:
 			    // This returns all the data header and text, but it's limited by first_byte and max_length
+			    if ((body.bodyMediaType == MIME_TYPE_MESSAGE) || (partNumberFlag && (body.bodyMediaType == MIME_TYPE_MULTIPART))) {
+				// message parts are special, I have to skip over the mime header before I begin
+				firstByte += body.headerOctets;
+			    }
 			    if (firstByte < body.bodyOctets) {
 				length = MIN(body.bodyOctets - firstByte, maxLength);
 				m_s->Send((uint8_t *) " ", 1);
@@ -4861,8 +4865,22 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			case FETCH_BODY_HEADER:
 			    if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
 				body = (*body.subparts)[0];
+				if (firstByte < body.headerOctets)
+				{
+				    length = MIN(body.headerOctets - firstByte, maxLength);
+				    m_s->Send((uint8_t *) " ", 1);
+				    SendMessageChunk(uid, firstByte + body.bodyStartOffset, length);
+				}
+				else {
+				    m_s->Send((uint8_t *) " {0}\r\n", 6);
+				}
 			    }
-			    // NOTE NO BREAK!  IT FALLS THROUGH!
+			    else {
+				// If it's not a message subpart, it doesn't have a header.
+				m_s->Send((uint8_t *) " \"\"", 3);
+			    }
+			    break;
+
 			case FETCH_BODY_MIME:
 			    if (firstByte < body.headerOctets)
 			    {
