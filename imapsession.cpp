@@ -4705,9 +4705,9 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			    }
 			}
 			else {
-			    std::ostringstream section;
-			    section << section;
-			    m_s->Send((uint8_t *)section.str().c_str(), section.str().size());
+			    std::ostringstream sectionString;
+			    sectionString << section;
+			    m_s->Send((uint8_t *)sectionString.str().c_str(), sectionString.str().size());
 			    specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
 			}
 		    }
