@@ -4095,9 +4095,9 @@ static insensitiveString ParseBodyParameters(const insensitiveString &typeLine, 
 // FetchSubpartEnvelope returns the envelope data of an RFC 822 message subpart.
 // The envelope data is a parenthesized list with the following fields
 // in this order:
-// date (string -- taken from m_csDateLine), subject (string -- taken from m_csSubject),
-// from (parenthesized list of addresses from m_csFromLine), sender (parenthesized list
-// of addresses from m_csSenderLine), reply-to (parenthesized list of addresses from 
+// date (string -- taken from m_csDateLine), subject (string -- taken from m_subject),
+// from (parenthesized list of addresses from m_fromLine), sender (parenthesized list
+// of addresses from m_senderLine), reply-to (parenthesized list of addresses from
 // m_csReplyToLine), to (parenthesized list of addresses from m_csToLine), cc (parenthesized
 // list of addresses from m_csCcLine), bcc (parenthesized list of addresses from m_csBccLine)
 // in-reply-to (string from m_csInReplyTo), and message-id (string from m_csMessageId)
