@@ -903,6 +903,7 @@ MailMessage::MAIL_MESSAGE_RESULT MailMessage::Parse(MailStore *store, bool readB
     else {
 	m_messageStatus = MESSAGE_FILE_READ_FAILED;
     }
+    delete[] messageBuffer;
     return m_messageStatus;
 }
 

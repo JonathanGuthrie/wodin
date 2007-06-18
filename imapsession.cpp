@@ -304,6 +304,7 @@ ImapSession::ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver
     m_lineBuffLen = 0;
     m_parseBuffer = NULL;
     m_parseBuffLen = 0;
+    m_store = NULL;
     m_literalLength = 0;
     std::string response("* OK [");
     response += BuildCapabilityString() + "] IMAP4rev1 server ready\r\n";
@@ -316,9 +317,12 @@ ImapSession::~ImapSession() {
     {
 	delete m_userData;
     }
+    m_userData = NULL;
     if (ImapSelected == m_state) {
 	m_store->MailboxClose();
     }
+    delete m_store;
+    m_store = NULL;
     std::string bye = "* BYE SimDesk IMAP4rev1 server shutting down\r\n";
     m_s->Send((uint8_t *)bye.data(), bye.size());
 }
