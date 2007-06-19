@@ -3530,14 +3530,17 @@ void ImapSession::FetchResponseFlags(uint32_t flags) {
 }
 
 void ImapSession::FetchResponseInternalDate(const MailMessage *message) {
-    std::string result;
-    DateTime when = message->GetInternalDate();
+    std::string result = "INTERNALDATE \"";
+    DateTime when = m_store->MessageInternalDate(message->GetUid());
+    when.SetFormat(DateTime::IMAP);
 
 #if 0 // SYZYGY -- advanced features of DateTime
     when.SetFormat(IMAPDATEFORMAT);
-    result 
-    result.Format(_T("INTERNALDATE \"%s\""), (LPCSTR)when);
+    result.Format(_T("INTERNALDATE \"%s\""), when.str());
 #endif // 0
+
+    result += when.str();
+    result += "\"";
     m_s->Send((uint8_t *)result.c_str(), result.size());
 }
 

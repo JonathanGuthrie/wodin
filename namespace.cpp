@@ -208,6 +208,15 @@ unsigned Namespace::MailboxFirstUnseen() {
     return result;
 }
 
+const DateTime &Namespace::MessageInternalDate(const unsigned long uid) {
+    // SYZYGY -- I need something like a void cast to DateTime that returns an error
+    static DateTime result;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->MessageInternalDate(uid);
+    }
+    return result;
+}
+
 NUMBER_LIST Namespace::MailboxMsnToUid(const NUMBER_LIST &msns) {
     NUMBER_LIST result;
 

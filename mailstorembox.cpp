@@ -683,7 +683,16 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
     size_t messageSize = 0; // This is an upper bound on the message size
 
     messageMetaData.start = inFile.tellg();
-    inFile >> line; // Skip over the "From " line
+    // SYZYGY -- need to parse the from line for the internal date
+    getline(inFile, line);  // Skip over the "From " line
+    // inFile >> line; // Skip over the "From " line
+    int pos = line.find_first_of(' ');
+    if (std::string::npos != pos) {
+	pos = line.find_first_of(' ', pos+1);
+	if (std::string::npos != pos) {
+	    messageMetaData.internalDate.Parse(line.substr(pos+1), DateTime::FROM_LINE);
+	}
+    }
     if (!inFile.eof()) {
 	std::ifstream::pos_type here;
 	while (result && !inFile.eof()) {
@@ -1010,6 +1019,18 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
     return result;
 }
 
+
+const DateTime &MailStoreMbox::MessageInternalDate(const unsigned long uid) {
+    unsigned long msn = MailboxUidToMsn(uid);
+    if ((0 != msn) && (msn <= m_messageIndex.size())) {
+	return m_messageIndex[msn-1].internalDate;
+    }
+    else {
+	// SYZYGY -- I need something like a void cast to DateTime that returns an error
+	static DateTime now;
+	return now;
+    }
+}
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags) {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;

@@ -94,6 +94,8 @@ public:
     virtual NUMBER_LIST MailboxUidToMsn(const NUMBER_LIST &uids);
     virtual unsigned long MailboxUidToMsn(const unsigned long uid);
 
+    virtual const DateTime &MessageInternalDate(const unsigned long uid) = 0;
+
     // This stores a list of all UIDs in the system into msns
     virtual MAIL_STORE_RESULT MessageList(SEARCH_RESULT &msns) const;
 

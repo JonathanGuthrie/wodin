@@ -35,6 +35,8 @@ public:
     virtual unsigned MailboxRecentCount();
     virtual unsigned MailboxFirstUnseen();
 
+    virtual const DateTime &MessageInternalDate(const unsigned long uid);
+
     // This updates the flags associated with the email message
     // of 'orig' is the original flag set, then the final flag set is 
     // orMask | (andMask & orig)

@@ -32,6 +32,8 @@ public:
     virtual unsigned MailboxRecentCount() { return m_recentCount; }
     virtual unsigned MailboxFirstUnseen() { return m_firstUnseen; }
 
+    virtual const DateTime &MessageInternalDate(const unsigned long uid);
+
     // This updates the flags associated with the email message
     // of 'orig' is the original flag set, then the final flag set is 
     // orMask | (andMask & orig)
@@ -59,6 +61,7 @@ private:
 	MailMessage *messageData;
 	size_t rfc822MessageSize;
 	bool isDirty;
+	DateTime internalDate;
     } MessageIndex_t;
 
     typedef std::vector<MessageIndex_t> MESSAGE_INDEX;

@@ -45,6 +45,8 @@ public:
     virtual unsigned MailboxRecentCount();
     virtual unsigned MailboxFirstUnseen();
 
+    virtual const DateTime &MessageInternalDate(const unsigned long uid);
+
     virtual NUMBER_LIST MailboxMsnToUid(const NUMBER_LIST &msns);
     virtual unsigned long MailboxMsnToUid(unsigned long msn);
     virtual NUMBER_LIST MailboxUidToMsn(const NUMBER_LIST &uids);

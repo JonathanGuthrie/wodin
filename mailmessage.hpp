@@ -68,7 +68,6 @@ public:
     uint32_t GetMessageFlags() const { return m_flagsWhenRead; }
     unsigned long GetUid() const { return m_uid; }
     unsigned long GetMsn() const { return m_msn; }
-    DateTime GetInternalDate() const { return m_internalDate; }
     bool IsRecent() const { return m_isRecent; }
     const insensitiveString &GetDateLine() const { return m_dateLine; }
     const insensitiveString &GetSender() const { return m_senderLine; }
@@ -94,7 +93,6 @@ private:
     // These are actually not part of the message itself, but are cached here so I don't have to
     // screw around while processing IMAP fetches
     uint32_t m_flagsWhenRead;
-    DateTime m_internalDate;
     bool m_isRecent;
 };
 

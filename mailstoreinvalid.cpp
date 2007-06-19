@@ -75,6 +75,12 @@ unsigned MailStoreInvalid::MailboxFirstUnseen() {
     return 0;
 }
 
+const DateTime &MailStoreInvalid::MessageInternalDate(const unsigned long uid) {
+    // SYZYGY -- I need something like a void cast to DateTime that returns an error
+    static DateTime now;
+    return now;
+}
+
 MailStore::MAIL_STORE_RESULT MailStoreInvalid::MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags) {
     return GENERAL_FAILURE;
 }
