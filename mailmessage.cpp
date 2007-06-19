@@ -672,16 +672,16 @@ void MailMessage::ParseBodyParts(bool loadBinaryParts, MESSAGE_BODY &parentBody,
 		parentBody.bodyLines++;
 		parsePointer += lineLength;
 	    }
-	    if ((NULL != parentSeparator) &&
-		('-' == messageBuffer[parsePointer]) &&
-		('-' == messageBuffer[parsePointer+1]) &&
-		(0 == strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
-		// I need to back up two characters because the CRLF that is immediately before this is considered
-		// to be part of the parent, not of the child
-		parentBody.bodyOctets -= 2;
-		parentBody.bodyLines--;
-		parsePointer -= 2;
-	    }
+	}
+	if ((NULL != parentSeparator) &&
+	    ('-' == messageBuffer[parsePointer]) &&
+	    ('-' == messageBuffer[parsePointer+1]) &&
+	    (0 == strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
+	    // I need to back up two characters because the CRLF that is immediately before this is considered
+	    // to be part of the parent, not of the child
+	    parentBody.bodyOctets -= 2;
+	    parentBody.bodyLines--;
+	    parsePointer -= 2;
 	}
     }
     break;
@@ -783,16 +783,16 @@ void MailMessage::ParseBodyParts(bool loadBinaryParts, MESSAGE_BODY &parentBody,
 		    parentBody.bodyLines++;
 		    parsePointer += lineLength;
 		}
-		if ((NULL != parentSeparator) &&
-		    ('-' == messageBuffer[parsePointer]) &&
-		    ('-' == messageBuffer[parsePointer+1]) &&
-		    (0 == strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
-		    // I need to back up two characters because the CRLF that is immediately before this is considered
-		    // to be part of the parent, not of the child
-		    parentBody.bodyOctets -= 2;
-		    parentBody.bodyLines--;
-		    parsePointer -= 2;
-		}
+	    }
+	    if ((NULL != parentSeparator) &&
+		('-' == messageBuffer[parsePointer]) &&
+		('-' == messageBuffer[parsePointer+1]) &&
+		(0 == strncmp(&messageBuffer[parsePointer+2], parentSeparator, strlen(parentSeparator)))) {
+		// I need to back up two characters because the CRLF that is immediately before this is considered
+		// to be part of the parent, not of the child
+		parentBody.bodyOctets -= 2;
+		parentBody.bodyLines--;
+		parsePointer -= 2;
 	    }
 	}
     }
