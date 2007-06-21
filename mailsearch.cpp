@@ -401,7 +401,7 @@ MailStore::MAIL_STORE_RESULT MailSearch::Evaluate(MailStore *where) {
 			    DWORD dwOriginalSize = ULONG(cmd.m_OriginalSize);
 			    DWORD dwReceivedSize = ULONG(cmd.m_ReceivedSize);
 #endif // 0
-			    DWORD dwPackagedSize = ULONG(cmd.m_PackagedSize);
+			    DWORD dwPackagedSize = ULONG(cmd.m_PackagedSize);
 			    if ((0 == (dwAndMask & (dwXorMask ^ ULONG(cmd.m_Attribute)))) &&
 				(m_dwLargestSize >= dwPackagedSize) &&
 				(m_dwSmallestSize <= dwPackagedSize)) {
