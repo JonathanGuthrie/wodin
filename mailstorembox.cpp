@@ -596,7 +596,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	    if (0 == lstat(fullPath.c_str(), &stat_buf)) {
 		m_outFile = new std::ofstream(fullPath.c_str(), std::ios_base::out|std::ios_base::app|std::ios_base::binary);
 
-		*m_outFile << "\n\nFrom " << m_session->GetUser()->GetName() << "@" << m_session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
+		createTime.SetFormat(DateTime::FROM_LINE);
+		*m_outFile << "From " << m_session->GetUser()->GetName() << "@" << m_session->GetServer()->GetFQDN() << " " << createTime.str() << "\n";
 		*m_outFile << "X-Status: ";
 		if (0 != (IMAP_MESSAGE_ANSWERED & messageFlags)) {
 		    *m_outFile << 'A';

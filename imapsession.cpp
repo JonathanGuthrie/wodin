@@ -2386,19 +2386,15 @@ IMAP_RESULTS ImapSession::AppendHandlerExecute(uint8_t *data, const size_t dataL
 	}
 
 	if ('"' == data[parsingAt]) {
+	    ++parsingAt;
 	    // The constructor for DateTime swallows both the leading and trailing
 	    // double quote characters
-	    try {
-		DateTime temp_date_time(data, dataLen, parsingAt);
-		if (' ' == data[parsingAt]) {
-		    messageDateTime = temp_date_time;
-		    ++parsingAt;
-		}
-		else {
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		}
+	    if (messageDateTime.Parse(data, dataLen, parsingAt, DateTime::IMAP) &&
+		('"' == data[parsingAt]) &&
+		(' ' == data[parsingAt+1])) {
+		parsingAt += 2;
 	    }
-	    catch (DateTimeInvalidDateTime) {
+	    else {
 		strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	    }
 	}
@@ -3533,11 +3529,6 @@ void ImapSession::FetchResponseInternalDate(const MailMessage *message) {
     std::string result = "INTERNALDATE \"";
     DateTime when = m_store->MessageInternalDate(message->GetUid());
     when.SetFormat(DateTime::IMAP);
-
-#if 0 // SYZYGY -- advanced features of DateTime
-    when.SetFormat(IMAPDATEFORMAT);
-    result.Format(_T("INTERNALDATE \"%s\""), when.str());
-#endif // 0
 
     result += when.str();
     result += "\"";
