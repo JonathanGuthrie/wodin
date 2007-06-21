@@ -52,9 +52,19 @@ done)  Fix the "UNSEEN 1" display where there are no unseen messages.
 
 19)  Fix the multiple simultaneous connection problem
 
-)  Fix the current memory leak
+20)  Fix the current memory leak
+
+done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
+   strips off the last line in the folder
+
+done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
+   appends a newline to every message.
 
 )  Locking for multiple simultaneous access to mailboxes
+
+)  LMTP support for local deliveries
+
+)  Create a MailStoreMboxo mail store for compatability with Postfix
 
 )  Set it up such that the SocketBindErrorException triggers retries instead of exiting with a failure
 )  Better yet, figure out how to not have SocketBindErrorException
