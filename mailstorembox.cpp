@@ -659,6 +659,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AppendDataToMessage(const std::strin
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid) {
+    m_outFile->write("\n", 1);
     m_outFile->close();
     delete m_outFile;
     m_outFile = NULL;
@@ -2680,6 +2681,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::OpenMessageFile(unsigned long uid) {
 // it must return false at EOF or when it read's a "From" line, and it must un-quote quoted "From" lines
 // up to length characters are read into the buffer pointed to by buff starting at an offset of 'offset'
 // relative to the start of the message as it was originally received
+// Oh, and it also must not return the last linefeed.
 size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
     size_t srcPtr = 0;
     // The difference between destPtr and destChar is tht destChar counts the number of characters that
@@ -3770,7 +3772,7 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
 	    break;
 
 	case 36:
-	    // Seen '\nF', could be '\n>*From '
+	    // Seen '\nF', could be '\nFrom '
 	    if ('r' == readBuffer[srcPtr]) {
 		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
 		state = 37;
@@ -3800,7 +3802,7 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
 	    break;
 
 	case 37:
-	    // Seen '\bFr', could be '\n>*From '
+	    // Seen '\nFr', could be '\nFrom '
 	    if ('o' == readBuffer[srcPtr]) {
 		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
 		state = 38;
@@ -3830,7 +3832,7 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
 	    break;
 
 	case 38:
-	    // Seen '\bFro', could be '\n>*From '
+	    // Seen '\nFro', could be '\nFrom '
 	    if ('m' == readBuffer[srcPtr]) {
 		pushBackBuffer[pushBackPtr++] = readBuffer[srcPtr];
 		state = 39;
@@ -3860,7 +3862,7 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
 	    break;
 
 	case 39:
-	    // Seen '\bFrom', could be '\n>*From '
+	    // Seen '\nFrom', could be '\nFrom '
 	    if (' ' == readBuffer[srcPtr]) {
 		// That's it.  The start of a new message.  I'm done.
 		// Kill the last newline
@@ -4110,6 +4112,11 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
 	    break;
 	}
 	++srcPtr;
+    }
+
+    // If I'm at the end of the buffer, then I need to kill the last newline
+    if (('\0' == readBuffer[srcPtr]) && (1 < destPtr)) {
+	destPtr -= 2;
     }
 
     if (destPtr < length) {

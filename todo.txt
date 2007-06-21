@@ -29,7 +29,7 @@ done)  Basic name space implementation
   done) close
   done) expunge
   d) search
-  e) fetch
+  done) fetch
   done) store
   g) copy
   h) uid (three commands)
