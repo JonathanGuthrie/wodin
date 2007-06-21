@@ -8,6 +8,7 @@
 Namespace::Namespace(ImapSession *session) : MailStore(session) {
     defaultNamespace = NULL;
     selectedNamespace = NULL;
+    m_openMailbox = NULL;
     defaultType = BAD_NAMESPACE;
 }
 
@@ -74,6 +75,7 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
     if (NULL != selectedNamespace) {
 	result = selectedNamespace->MailboxClose();
 	selectedNamespace = NULL;
+	m_openMailbox = NULL;
     }
     return result;
 }
@@ -158,7 +160,11 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxNa
     if (NULL != store) {
 	// SYZYGY -- I need to strip off the namespace, I think
 	if (SUCCESS == (result = store->MailboxOpen(MailboxName, readWrite))) {
+	    m_openMailbox = store->GetMailboxName();
 	    selectedNamespace = store;
+	}
+	else {
+	    m_openMailbox = NULL;
 	}
     }
     return result;
@@ -285,6 +291,7 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxUpdateStats(NUMBER_LIST *nowGone)
 }
 
 Namespace::~Namespace() {
+    m_openMailbox = NULL;
     // SYZYGY -- I have to delete the maps
     // SYZYGY -- that includes all the registered mail stores
 }

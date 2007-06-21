@@ -127,6 +127,7 @@ public:
     // This deletes a message in a mail box
     virtual MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid) = 0;
     bool IsMailboxOpen(void) { return NULL != m_openMailbox; }
+    std::string *GetMailboxName(void) const { return m_openMailbox; }
     virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid) = 0;
     virtual size_t GetBufferLength(unsigned long uid) = 0;
     virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid) = 0;
