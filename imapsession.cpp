@@ -3169,7 +3169,6 @@ IMAP_RESULTS ImapSession::SearchHandlerExecute(bool usingUid) {
     SEARCH_RESULT foundVector;
     NUMBER_LIST foundList;
     MailStore::MAIL_STORE_RESULT msResult;
-    std::string response("* SEARCH");
     IMAP_RESULTS result;
     MailSearch searchTerm;
     bool hasNoMatches = false;
@@ -3209,6 +3208,7 @@ IMAP_RESULTS ImapSession::SearchHandlerExecute(bool usingUid) {
 	// This section writes the generated list of numbers
 	if (MailStore::SUCCESS == msResult) {
 	    std::ostringstream ss;
+	    ss << "* SEARCH";
 	    for(NUMBER_LIST::iterator i=foundList.begin(); i!=foundList.end(); ++i) {
 		ss << " " << *i;
 	    }
