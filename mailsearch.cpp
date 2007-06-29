@@ -19,8 +19,6 @@ void MailSearch::Initialize()
     m_forceAllMatches = false;
     m_smallestSize = 0;
     m_largestSize = ~0;
-    m_searchForRecent = false;
-    m_searchForNotRecent = false;
     m_beginDate = m_endDate = NULL;
     m_beginInternalDate = m_endInternalDate = NULL;
     m_headerSearchList.clear();
@@ -377,7 +375,6 @@ MailStore::MAIL_STORE_RESULT MailSearch::Evaluate(MailStore *where) {
 		m_searchForRecent || m_searchForNotRecent) {
 		if ((0 == (m_includeMask & m_excludeMask)) &&
 		    (m_smallestSize <= m_largestSize) && 
-		    !(m_searchForRecent && m_searchForNotRecent) &&
 		    ((NULL == m_beginInternalDate) || (NULL == m_endInternalDate) ||
 		     (*m_beginInternalDate <= *m_endInternalDate))) {
 		    // I only have to actually look at the database if the are no bits set in both include and exclude

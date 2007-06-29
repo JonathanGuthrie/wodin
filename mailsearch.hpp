@@ -43,8 +43,6 @@ public:
     void AddCcSearch(const std::string &csToSearchFor);
     void AddFromSearch(const std::string &csToSearchFor);
     void ForceNoMatches() { m_forceNoMatches = true; }
-    void AddSearchForRecent() { m_searchForRecent = true; }
-    void AddSearchForNotRecent() { m_searchForNotRecent = true; }
     void AddOnSearch(DateTime &dateToSearchFor);
     void AddSinceSearch(DateTime &dateToSearchFor);
     void AddSubjectSearch(const std::string &csToSearchFor);
@@ -73,7 +71,6 @@ private:
     uint32_t m_includeMask, m_excludeMask;
     size_t m_smallestSize, m_largestSize;
 
-    bool m_searchForRecent, m_searchForNotRecent;
     DateTime *m_beginDate, *m_endDate;
     DateTime *m_beginInternalDate, *m_endInternalDate;
     TEXT_SEARCH_LIST m_headerSearchList, m_bodySearchList, m_textSearchList;

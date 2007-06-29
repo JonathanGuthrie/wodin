@@ -2800,11 +2800,11 @@ bool ImapSession::UpdateSearchTerm(MailSearch &searchTerm, size_t &tokenPointer)
 
 		case SSV_NEW:
 		    searchTerm.AddBitsToExcludeMask(MailStore::IMAP_MESSAGE_SEEN);
-		    searchTerm.AddSearchForRecent();
+		    searchTerm.AddBitsToIncludeMask(MailStore::IMAP_MESSAGE_RECENT);
 		    break;
 
 		case SSV_OLD:
-		    searchTerm.AddSearchForNotRecent();
+		    searchTerm.AddBitsToExcludeMask(MailStore::IMAP_MESSAGE_RECENT);
 		    break;
 
 		case SSV_ON:
@@ -2828,7 +2828,7 @@ bool ImapSession::UpdateSearchTerm(MailSearch &searchTerm, size_t &tokenPointer)
 		    break;
 
 		case SSV_RECENT:
-		    searchTerm.AddSearchForRecent();
+		    searchTerm.AddBitsToIncludeMask(MailStore::IMAP_MESSAGE_RECENT);
 		    break;
 
 		case SSV_SEEN:
