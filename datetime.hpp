@@ -28,6 +28,8 @@ public:
     const std::string str(void) const throw(DateTimeInvalidDateTime);
     bool operator< (DateTime right);
     bool operator<= (DateTime right);
+    bool operator> (DateTime right);
+    bool operator>= (DateTime right);
     void AddDays(int days);
     struct tm GetTm(void) const { return m_tm; }
     void SetFormat(STRING_FORMAT format) { m_format = format; }

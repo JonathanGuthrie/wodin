@@ -100,11 +100,25 @@ bool DateTime::operator< (DateTime right) {
 
 
 bool DateTime::operator<= (DateTime right) {
-    struct tm tm_right = right.GetTm();
-    time_t tr = mktime(&tm_right);
+    time_t tr = mktime(&right.m_tm);
     time_t tl = mktime(&m_tm);
     return tl <= tr;
 }
+
+
+bool DateTime::operator> (DateTime right) {
+    time_t tr = mktime(&right.m_tm);
+    time_t tl = mktime(&m_tm);
+    return tl > tr;
+}
+
+
+bool DateTime::operator>= (DateTime right) {
+    time_t tr = mktime(&right.m_tm);
+    time_t tl = mktime(&m_tm);
+    return tl >= tr;
+}
+
 
 void DateTime::AddDays(int days) {
     time_t t = mktime(&m_tm);
