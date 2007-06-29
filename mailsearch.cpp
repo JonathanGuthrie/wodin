@@ -326,40 +326,39 @@ void MailSearch::AddLargestSize(size_t limit) {
     }
 }
 
-#if 0  // SYZYGY -- I need chunks of fetch for this to work
+#define MAX(a, b) ((a>b) ? a : b)
+
 // Recursive body search searches for the substring through all the body parts
 // it does not search any of the headers
 static bool RecursiveBodySearch(MESSAGE_BODY root, const MailSearch::TEXT_SEARCH_DATA target, const char *bigBuffer) {
     bool result = false;
 
-    DWORD i = root.bodyStartOffset + root.headerOctets;
-    int length = target.target.GetLength();
+    size_t i = root.bodyStartOffset + root.headerOctets;
+    int length = target.target.size();
 
-    while (!result && (i < (root.dwBodyStartOffset + root.dwBodyOctets - length))) {
+    while (!result && (i < (root.bodyStartOffset + root.bodyOctets - length))) {
 	int j;
-	for (j = length - 1; (j >= 0) && (target.target[j] == tolower(pBigBuffer[i+j])); --j) {
+	for (j = length - 1; (j >= 0) && (target.target[j] == tolower(bigBuffer[i+j])); --j) {
 	    // NOTHING
 	}
 	if (j < 0) {
 	    result = true;
 	}
 	else {
-	    i += MAX(target.bm_suffix[j], target.bm_bad_chars[pBigBuffer[i+j]] - length + 1 + j);
+	    i += MAX(target.suffix[j], target.badChars[bigBuffer[i+j]] - length + 1 + j);
 	}
     }
     if (!result) {
 	if (NULL != root.subparts) {
-	    for (int i = 0; i < root.subparts->GetSize(); i++) {
-		result = RecursiveBodySearch((*root.subparts)[i], target, pBigBuffer);
+	    for (int i = 0; i < root.subparts->size(); i++) {
+		result = RecursiveBodySearch((*root.subparts)[i], target, bigBuffer);
 	    }
 	}
     }
     return result;
 }
-#endif // 0
 
 // This stores into The uid vector the list of UID's that match the conditions described by searchSpec
-// SYZYGY -- this needs to be rewritten when the database manipulations are put into stored procedures
 MailStore::MAIL_STORE_RESULT MailSearch::Evaluate(MailStore *where) {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
@@ -371,52 +370,15 @@ MailStore::MAIL_STORE_RESULT MailSearch::Evaluate(MailStore *where) {
 	else {
 	    if ((0 != (m_includeMask | m_excludeMask)) ||
 		(0 < m_smallestSize) || ((~0) > m_largestSize) ||
-		(NULL != m_beginInternalDate) || (NULL != m_endInternalDate) ||
-		m_searchForRecent || m_searchForNotRecent) {
+		(NULL != m_beginInternalDate) || (NULL != m_endInternalDate)) {
 		if ((0 == (m_includeMask & m_excludeMask)) &&
 		    (m_smallestSize <= m_largestSize) && 
 		    ((NULL == m_beginInternalDate) || (NULL == m_endInternalDate) ||
 		     (*m_beginInternalDate <= *m_endInternalDate))) {
-		    // I only have to actually look at the database if the are no bits set in both include and exclude
-		    uint32_t andMask, xorMask;
-		    SEARCH_RESULT temp;
-
-#if 0 // SYZYGY -- warning SIMDESKISM
-		    andMask = m_includeMask | m_excludeMask | FILE_ATTRIBUTE_DIRECTORY;
-		    xorMask = m_includeMask;
-		    CFileSystemSelectFileSystemObjectWithParentGUID cmd;
-		    if (cmd.Open(where->GetMailboxFullPath()))
-		    {
-			while (cmd.MoveNext())
-			{
-			    // NOTICE -- I WOULD use dwOriginalSize, but there is an error either in
-			    // the CFileSystemSelectFileSystemObjectWithParentGUID stored procedore or
-			    // in the one that updates the lengths in CMailStore::AppendDataToMessage
-			    // either way, the only value that I can actually use here is dwPackagedSize
-			    // because the other values are returned as zero
-#if 0
-			    DWORD dwOriginalSize = ULONG(cmd.m_OriginalSize);
-			    DWORD dwReceivedSize = ULONG(cmd.m_ReceivedSize);
-#endif // 0
-			    DWORD dwPackagedSize = ULONG(cmd.m_PackagedSize);
-			    if ((0 == (dwAndMask & (dwXorMask ^ ULONG(cmd.m_Attribute)))) &&
-				(m_dwLargestSize >= dwPackagedSize) &&
-				(m_dwSmallestSize <= dwPackagedSize)) {
-				CSimpleDate internal_date(MMDDYYYY, true);
-				internal_date = (DBTIMESTAMP)cmd.m_CreateDate;
-				if (((NULL == m_dateBeginInternalDate) || (*m_dateBeginInternalDate <= internal_date)) &&
-				    ((NULL == m_dateEndInternalDate) || (*m_dateEndInternalDate >= internal_date))) {
-				    DWORD uid = strtol(((CStdString)cmd.m_UserPath).Right(8), NULL, 16);
-				    if ((!m_searchForRecent || (uid >= where->GetFirstRecentUid())) &&
-					(!m_searchForNotRecent || (uid < where->GetFirstRecentUid()))) {
-					temp.Add(uid);
-				    }
-				}
-			    }
-			}
-			cmd.CloseRecordSet();
-#endif // 0 -- SYZYGY -- END SIMDESKISM
-			AddUidVector(temp);
+		    const SEARCH_RESULT *temp = where->SearchMetaData(m_includeMask, m_includeMask | m_excludeMask, m_smallestSize, m_largestSize, m_beginInternalDate, m_endInternalDate);
+		    if (NULL != temp) {
+			AddUidVector(*temp);
+			delete temp;
 		    }
 		    else {
 			result = MailStore::GENERAL_FAILURE;
@@ -432,18 +394,19 @@ MailStore::MAIL_STORE_RESULT MailSearch::Evaluate(MailStore *where) {
 	    // At this point, I've checked all the file metadata I can.  If there are any text checks to be made,
 	    // I have to go through the already generated list of possible candidate messages, and parse each
 	    //  message file so I can do the text searches
-	    if ((0 != m_searchList.size()) ||
-		(0 != m_headerSearchList.size()) ||
-		(0 != m_bodySearchList.size()) ||
-		(0 != m_textSearchList.size()) ||
-		(NULL != m_beginDate) || (NULL != m_endDate)) {
+	    if ((result == MailStore::SUCCESS) &&
+		((0 != m_searchList.size()) ||
+		 (0 != m_headerSearchList.size()) ||
+		 (0 != m_bodySearchList.size()) ||
+		 (0 != m_textSearchList.size()) ||
+		 (NULL != m_beginDate) || (NULL != m_endDate))) {
 		char *messageBuffer;
 		SEARCH_RESULT inputVector, outputVector;
 		outputVector.clear();
 		ReportResults(where, &inputVector);
 
-		for (int i = 0; i < inputVector.size(); ++i) {
 #if 0 // SYZYGY -- warning SIMDESKISM
+		for (int i = 0; i < inputVector.size(); ++i) {
 		    MailMessage message;
 		    if (CMailMessage::SUCCESS == message.parse(where, input_vector[i], true, true)) {
 			// If I can't read it, it doesn't wind up on the list of matching messages

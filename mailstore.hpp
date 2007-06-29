@@ -133,6 +133,7 @@ public:
     virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid) = 0;
     virtual size_t ReadMessage(char *buff, size_t offset, size_t length) = 0;
     virtual void CloseMessageFile(void) = 0;
+    virtual const SEARCH_RESULT *SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate) = 0;
 
 protected:
     MSN_TO_UID m_uidGivenMsn;

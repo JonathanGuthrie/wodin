@@ -51,8 +51,8 @@ public:
     void AddSentBeforeSearch(DateTime &dateToSearchFor);
     void AddSentSinceSearch(DateTime &dateToSearchFor);
     void AddSentOnSearch(DateTime &dateToSearchFor);
-    void AddMsnVector(MailStore *base, SEARCH_RESULT &vector);
-    void AddUidVector(SEARCH_RESULT &vector);
+    void AddMsnVector(MailStore *base, const SEARCH_RESULT &vector);
+    void AddUidVector(const SEARCH_RESULT &vector);
     void AddSmallestSize(size_t limit);
     void AddLargestSize(size_t limit);
     void AddGenericHeaderSearch(const std::string &headerName, const std::string &toSearchFor);

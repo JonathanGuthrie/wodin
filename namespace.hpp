@@ -72,6 +72,7 @@ public:
     virtual MailStore::MAIL_STORE_RESULT OpenMessageFile(unsigned long uid);
     virtual size_t ReadMessage(char *buff, size_t offset, size_t length);
     virtual void CloseMessageFile(void);
+    virtual const SEARCH_RESULT *SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate);
 
 private:
     MailStore *getNameSpace(const std::string &name);

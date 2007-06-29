@@ -4124,9 +4124,33 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
     }
 
     // std::cout << "Returning " << destPtr << std::endl;
+    m_messageIndex[m_readingMsn-1].rfc822MessageSize = destPtr;
     return destPtr;
 }
 
 void MailStoreMbox::CloseMessageFile(void) {
     m_inFile.close();
+}
+
+
+const SEARCH_RESULT *MailStoreMbox::SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate) {
+    SEARCH_RESULT *result = new SEARCH_RESULT;
+    unsigned msn = 0;
+
+    for (MESSAGE_INDEX::iterator i = m_messageIndex.begin(); i!= m_messageIndex.end(); ++i) {
+	++msn;
+	if (NULL == i->messageData) {
+	    i->messageData = new MailMessage(i->uid, msn);
+	    i->messageData->Parse(this, true, true);
+	}
+	i->messageData->SetMessageFlags(i->flags);
+	if ((0 == (andMask & (xorMask ^ i->flags))) &&
+	    (smallestSize <= i->rfc822MessageSize) &&
+	    (largestSize >= i->rfc822MessageSize) &&
+	    ((NULL == beginInternalDate) || (*beginInternalDate <= i->internalDate)) &&
+	    ((NULL == endInternalDate) || (*endInternalDate >= i->internalDate))) {
+	    result->push_back(i->uid);
+	}
+    }
+    return result;
 }

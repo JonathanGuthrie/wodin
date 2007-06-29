@@ -412,3 +412,12 @@ void Namespace::CloseMessageFile(void) {
 	selectedNamespace->CloseMessageFile();
     }
 }
+
+
+const SEARCH_RESULT *Namespace::SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate) {
+    const SEARCH_RESULT *result = NULL;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->SearchMetaData(xorMask, andMask, smallestSize, largestSize, beginInternalDate, endInternalDate);
+    }
+    return result;
+}

@@ -125,3 +125,7 @@ size_t MailStoreInvalid::ReadMessage(char *buff, size_t offset, size_t length) {
 
 void MailStoreInvalid::CloseMessageFile(void) {
 }
+
+const SEARCH_RESULT *MailStoreInvalid::SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate) {
+    return NULL;
+}
