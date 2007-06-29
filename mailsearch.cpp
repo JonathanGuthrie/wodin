@@ -267,7 +267,7 @@ void MailSearch::AddSentOnSearch(DateTime &dateToSearchFor) {
 // For the AddMsnVector and AddUidVector methonds, the outputs are guaranteed to be
 // valid message IDs or zero, and the vectors are guaranteed to be sorted, and the
 // nonzero numbers in the vector are guaranteed to be unique.
-void MailSearch::AddMsnVector(MailStore *base, SEARCH_RESULT &vector) {
+void MailSearch::AddMsnVector(MailStore *base, const SEARCH_RESULT &vector) {
     if (!m_hasUidVector) {
 	for (int i=0; i<vector.size(); ++i) {
 	    m_uidVector.push_back(base->MailboxMsnToUid(vector[i]));
@@ -278,7 +278,7 @@ void MailSearch::AddMsnVector(MailStore *base, SEARCH_RESULT &vector) {
 	while (i < m_uidVector.size()) {
 	    unsigned long msn = base->MailboxUidToMsn(m_uidVector[i]);
 
-	    SEARCH_RESULT::iterator elem = find(vector.begin(), vector.end(), msn);
+	    SEARCH_RESULT::const_iterator elem = find(vector.begin(), vector.end(), msn);
 	    if (vector.end() == elem) {	
 		// m_uidVector.RemoveAt(i); // SYZYGY
 	    }
@@ -290,7 +290,7 @@ void MailSearch::AddMsnVector(MailStore *base, SEARCH_RESULT &vector) {
     m_hasUidVector = true;
 }
 
-void MailSearch::AddUidVector(SEARCH_RESULT &vector) {
+void MailSearch::AddUidVector(const SEARCH_RESULT &vector) {
     if (!m_hasUidVector) {
 	for (int i=0; i<vector.size(); ++i) {
 	    m_uidVector.push_back(vector[i]);
@@ -301,7 +301,7 @@ void MailSearch::AddUidVector(SEARCH_RESULT &vector) {
 	while (i < m_uidVector.size()) {
 	    int dummy;
 
-	    SEARCH_RESULT::iterator elem = find(vector.begin(), vector.end(), i);
+	    SEARCH_RESULT::const_iterator elem = find(vector.begin(), vector.end(), i);
 	    if (vector.end() == elem) {	
 		// m_uidVector.RemoveAt(i); // SYZYGY
 	    }
