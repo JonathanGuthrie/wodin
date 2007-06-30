@@ -28,7 +28,7 @@ done)  Basic name space implementation
   done) check
   done) close
   done) expunge
-  d) search
+  done) search
   done) fetch
   done) store
   g) copy
@@ -36,7 +36,7 @@ done)  Basic name space implementation
 
 done)  Properly handle the situation where the IMAP-specific headers aren't in the messages of an mbox message base.
 
-12)  Fix the case where I try a select before login and it crashes
+done)  Fix the case where I try a select before login and it crashes
 
 13)  Refactor the utility message creation in MailstoreMbox
 
@@ -59,6 +59,8 @@ done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
 
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    appends a newline to every message.
+
+23)  Move the body search and text search (largely) into the MailStore class.
 
 )  Locking for multiple simultaneous access to mailboxes
 
@@ -93,7 +95,7 @@ done)  Add an idle timer
 done)  Add support for a delay after a failed login (need a timer manager)
 
 )  Add extension data to the BODYSTRUCTURE command
- 
+
 )  Really add the support for STARTTLS
 
 )  Add the logic required to forbid logins outside of tls sessions
@@ -113,6 +115,6 @@ done)  Add support for a delay after a failed login (need a timer manager)
 )  Keep some sort of track about the number of connections a user has.  Maybe
   collect some state about each user in the IMAP server
 
-)  Pluggable modules for mail stores 
+)  Pluggable modules for mail stores
 
 )  Configuration
