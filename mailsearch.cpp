@@ -396,7 +396,6 @@ MailStore::MAIL_STORE_RESULT MailSearch::Evaluate(MailStore *where) {
 		 (0 != m_bodySearchList.size()) ||
 		 (0 != m_textSearchList.size()) ||
 		 (NULL != m_beginDate) || (NULL != m_endDate))) {
-		char *messageBuffer;
 		SEARCH_RESULT inputVector, outputVector;
 		outputVector.clear();
 		/*
@@ -459,35 +458,40 @@ MailStore::MAIL_STORE_RESULT MailSearch::Evaluate(MailStore *where) {
 			 * Step, the second:
 			 * Do the body searches
 			 */
-			for (TEXT_SEARCH_LIST::const_iterator j=m_bodySearchList.begin(); itIsIn && (j!=m_bodySearchList.end()); ++j) {
-			    itIsIn = RecursiveBodySearch(message->GetMessageBody(), *j, messageBuffer);
-			}
+			if (!m_textSearchList.empty() || !m_bodySearchList.empty()) {
+			    char messageBuffer[where->GetBufferLength(*i)+1];
+			    int len = where->ReadMessage(messageBuffer, 0, where->GetBufferLength(*i));
+			    messageBuffer[len] = '\0';
 
-			/*
-			 * Step, the third:
-			 * Do the text searches
-			 * SYZYGY -- doesn't this go in the mailstore so I can have a mailstore that supports fast text searching?
-			 * This is a boyer-moore-pratt search body, right?
-			 */
-			for (TEXT_SEARCH_LIST::const_iterator j=m_textSearchList.begin(); itIsIn && (j!=m_textSearchList.end()); ++j) {
-			    size_t i = 0;
-			    insensitiveString finding = j->target;
-			    int length = finding.size();
+			    for (TEXT_SEARCH_LIST::const_iterator j=m_bodySearchList.begin(); itIsIn && (j!=m_bodySearchList.end()); ++j) {
+				itIsIn = RecursiveBodySearch(message->GetMessageBody(), *j, messageBuffer);
+			    }
 
-			    itIsIn = false;
-			    while (!itIsIn && (i < (message->GetMessageBody().bodyOctets))) {
-				int k;
-				for (k = length - 1; (k >= 0) && (finding[k] == tolower(messageBuffer[i+k])); --k)
-				{
-				    // NOTHING
-				}
-				if (k < 0)
-				{
-				    itIsIn = true;
-				}
-				else
-				{
-				    i += MAX(j->suffix[k], j->badChars[messageBuffer[i+k]] - length + 1 + k);
+			    /*
+			     * Step, the third:
+			     * Do the text searches
+			     * This is a boyer-moore-pratt search body, the initialization is elsewhere
+			     */
+			    for (TEXT_SEARCH_LIST::const_iterator j=m_textSearchList.begin(); itIsIn && (j!=m_textSearchList.end()); ++j) {
+				size_t i = 0;
+				insensitiveString finding = j->target;
+				int length = finding.size();
+
+				itIsIn = false;
+				while (!itIsIn && (i < (message->GetMessageBody().bodyOctets))) {
+				    int k;
+				    for (k = length - 1; (k >= 0) && (finding[k] == tolower(messageBuffer[i+k])); --k)
+				    {
+					// NOTHING
+				    }
+				    if (k < 0)
+				    {
+					itIsIn = true;
+				    }
+				    else
+				    {
+					i += MAX(j->suffix[k], j->badChars[messageBuffer[i+k]] - length + 1 + k);
+				    }
 				}
 			    }
 			}
