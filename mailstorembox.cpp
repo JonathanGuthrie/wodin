@@ -2345,7 +2345,7 @@ void MailStoreMbox::ListAll(const std::string &pattern, MAILBOX_LIST *result)
 	// maxdepth starts at 1 so I can set HASCHILDREN properly
 	int maxdepth = 1;
 
-	static_len = pattern.find_first_not_of("%*");
+	static_len = pattern.find_first_of("%*");
 	for (int i=static_len; pattern[i] != '\0'; ++i)
 	{
 	    if ('*' == pattern[i])
