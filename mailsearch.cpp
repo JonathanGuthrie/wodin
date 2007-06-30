@@ -75,14 +75,14 @@ void MailSearch::Finalize(void) {
 }
 
 
-void MailSearch::AddBccSearch(const std::string &toSearchFor) {
+void MailSearch::AddBccSearch(const insensitiveString &toSearchFor) {
     TEXT_SEARCH_DATA item;
     item.which = BCC;
     item.target = toSearchFor;
     m_headerSearchList.push_back(item);
 }
 
-static void build_bm_bad_chars(const std::string &target, int output[256]) {
+static void build_bm_bad_chars(const insensitiveString &target, int output[256]) {
     int length = target.size();
 
     for (int i=0; i<256; ++i) {
@@ -97,7 +97,7 @@ static void build_bm_bad_chars(const std::string &target, int output[256]) {
 // This finds the amount to shift for a suffix of target found somewhere else, but
 // with a different preceeding character, in target.  I'm supposed to search
 // case-insensitively, so I assume that target has already been ToLower()ed.
-static void find_bm_suffixes(const std::string &target, int output[]) {
+static void find_bm_suffixes(const insensitiveString &target, int output[]) {
     int length = target.size();
     int f, g, i;
  
@@ -126,7 +126,7 @@ static void find_bm_suffixes(const std::string &target, int output[]) {
 // This builds the boyer-moore suffix list, which gives the shift associated
 // with a given matching suffix.  Text searches are supposed to be case-insensitive
 // so the target is presumed to already by ToLower()ed.
-static void build_bm_suffix(const std::string &target, int output[]) {
+static void build_bm_suffix(const insensitiveString &target, int output[]) {
     int length = target.size();
     int *suffixes;
     suffixes = new int[length];
@@ -152,7 +152,7 @@ static void build_bm_suffix(const std::string &target, int output[]) {
     delete[] suffixes;
 }
 
-void MailSearch::AddBodySearch(const std::string &toSearchFor) {
+void MailSearch::AddBodySearch(const insensitiveString &toSearchFor) {
     TEXT_SEARCH_DATA item;
     item.which = BODY;
     item.target = toSearchFor;
@@ -176,14 +176,14 @@ void MailSearch::AddBeforeSearch(DateTime &dateToSearchFor) {
     }
 }
 
-void MailSearch::AddCcSearch(const std::string &toSearchFor) {
+void MailSearch::AddCcSearch(const insensitiveString &toSearchFor) {
     TEXT_SEARCH_DATA item;
     item.which = CC;
     item.target = toSearchFor;
     m_headerSearchList.push_back(item);
 }
 
-void MailSearch::AddFromSearch(const std::string &toSearchFor) {
+void MailSearch::AddFromSearch(const insensitiveString &toSearchFor) {
     TEXT_SEARCH_DATA item;
     item.which = FROM;
     item.target = toSearchFor;
@@ -208,18 +208,17 @@ void MailSearch::AddSinceSearch(DateTime &dateToSearchFor) {
     }
 }
 
-void MailSearch::AddSubjectSearch(const std::string &toSearchFor) {
+void MailSearch::AddSubjectSearch(const insensitiveString &toSearchFor) {
     TEXT_SEARCH_DATA item;
     item.which = SUBJECT;
     item.target = toSearchFor;
     m_headerSearchList.push_back(item);
 }
 
-void MailSearch::AddTextSearch(const std::string &toSearchFor) {
+void MailSearch::AddTextSearch(const insensitiveString &toSearchFor) {
     TEXT_SEARCH_DATA item;
     item.which = TEXT;
     item.target = toSearchFor;
-    // item.target.ToLower(); // SYZYGY -- what do I do with this?
     item.badChars = new int[256];
     build_bm_bad_chars(item.target, item.badChars);
     item.suffix = new int[item.target.size()];
@@ -227,7 +226,7 @@ void MailSearch::AddTextSearch(const std::string &toSearchFor) {
     m_textSearchList.push_back(item);
 }
 
-void MailSearch::AddToSearch(const std::string &toSearchFor) {
+void MailSearch::AddToSearch(const insensitiveString &toSearchFor) {
     TEXT_SEARCH_DATA item;
     item.which = TO;
     item.target = toSearchFor;
@@ -403,149 +402,115 @@ MailStore::MAIL_STORE_RESULT MailSearch::Evaluate(MailStore *where) {
 		char *messageBuffer;
 		SEARCH_RESULT inputVector, outputVector;
 		outputVector.clear();
+		/*
+		 * ReportResults populates m_uidVector (if it hasn't been populated already)
+		 * and copies m_uidVector into inputVector
+		 */
 		ReportResults(where, &inputVector);
 
-#if 0 // SYZYGY -- warning SIMDESKISM
-		for (int i = 0; i < inputVector.size(); ++i) {
-		    MailMessage message;
-		    if (CMailMessage::SUCCESS == message.parse(where, input_vector[i], true, true)) {
-			// If I can't read it, it doesn't wind up on the list of matching messages
-			if ((0 != m_tslBodySearchList.GetSize()) ||
-			    (0 != m_tslTextSearchList.GetSize())) {
-			    CSimFile infile;
-			    DWORD dwDummy;
-			    CSimpleDate sdDummy(MMDDYYYY, true);
-			    bool bDummy;
-			    CStdString csPhysicalFileName = where->GetMessagePhysicalPath(input_vector[i], dwDummy, sdDummy, bDummy);
+		for (SEARCH_RESULT::iterator i = inputVector.begin(); i!= inputVector.end(); ++i) {
+		    MailMessage *message;
+		    bool itIsIn = true;
+		    // I'm going to need the message data, so I get it
+		    if (MailMessage::SUCCESS == where->GetMessageData(&message, *i)) {
+			/*
+			 * Step, the first:
+			 * Search for the headers specified in the common header fields
+			 */
+			for (TEXT_SEARCH_LIST::const_iterator j=m_headerSearchList.begin(); itIsIn && (j!=m_headerSearchList.end()); ++j) {
+			    insensitiveString target = j->target;
 
-			    pMessageBuffer = new char[message.GetMessageBody().dwBodyOctets];
-			    if (infile.Open(csPhysicalFileName, CSimFile::modeRead)) {
-				infile.Read(pMessageBuffer, message.GetMessageBody().dwBodyOctets);
-				infile.Close();
-			    }
-			}
-			bool bItIsIn = true;
-
-			for (int j=0; bItIsIn && (j<m_hslSearchList.GetSize()); ++j) {
-			    std::string target = m_searchList[j].target;
-			    // target.ToUpper(); // SYZYGY -- WTF?
-			    bItIsIn = false;
-			    std::pair<HEADER_FIELDS::const_iterator, HEADER_FIELDS::const_iterator> headers;
-			    headers = message.GetHeaderList().equal_range(m_hslSearchList[j].csHeaderField);
-			    for (HEADER_FIELDS::const_iterator k = headers.first; k!=headers.second; ++k) {
-				CStdString line = k->second;
-				line.ToUpper();
-				if (-1 != line.Find(target)) {
-				    bItIsIn = true;
-				    break;
-				}
-			    }
-			}
-
-			for (int j=0; bItIsIn && (j<m_tslHeaderSearchList.GetSize()); ++j) {
-			    CStdString target = m_tslHeaderSearchList[j].target;
-			    target.ToUpper();
-
-			    switch(m_tslHeaderSearchList[j].which) {
-			    case MailSearch::BCC: 
+			    switch(j->which) {
+			    case MailSearch::BCC:
 			    {
-				std::string line = message.GetBcc();
-				line.ToUpper();
-				bItIsIn = (-1 != line.Find(target));
+				insensitiveString line = message->GetBcc();
+				itIsIn = (std::string::npos != line.find(target));
 			    }
 			    break;
 
 			    case MailSearch::CC:
 			    {
-				CStdString line = message.GetCc();
-				line.ToUpper();
-				bItIsIn = (-1 != line.Find(target));
+				insensitiveString line = message->GetCc();
+				itIsIn = (std::string::npos != line.find(target));
 			    }
 			    break;
 
 			    case MailSearch::FROM:
 			    {
-				CStdString line = message.GetFrom();
-				line.ToUpper();
-				bItIsIn = (-1 != line.Find(target));
+				insensitiveString line = message->GetFrom();
+				itIsIn = (std::string::npos != line.find(target));
 			    }
 			    break;
 
 			    case MailSearch::SUBJECT:
 			    {
-				CStdString line = message.GetSubject();
-				line.ToUpper();
-				bItIsIn = (-1 != line.Find(target));
+				insensitiveString line = message->GetSubject();
+				itIsIn = (std::string::npos != line.find(target));
 			    }
 			    break;
 
 			    case MailSearch::TO:
 			    {
-				CStdString line = message.GetTo();
-				line.ToUpper();
-				bItIsIn = (-1 != line.Find(target));
+				insensitiveString line = message->GetTo();
+				itIsIn = (std::string::npos != line.find(target));
 			    }
 			    break;
 			    }
 			}
 
-			for (int j=0; bItIsIn && (j<m_tslBodySearchList.GetSize()); ++j)
-			{
-			    bItIsIn = RecursiveBodySearch(message.GetMessageBody(), m_tslBodySearchList[j], pMessageBuffer);
+			/*
+			 * Step, the second:
+			 * Do the body searches
+			 */
+			for (TEXT_SEARCH_LIST::const_iterator j=m_bodySearchList.begin(); itIsIn && (j!=m_bodySearchList.end()); ++j) {
+			    itIsIn = RecursiveBodySearch(message->GetMessageBody(), *j, messageBuffer);
 			}
 
-			for (int j=0; bItIsIn && (j<m_tslTextSearchList.GetSize()); ++j)
-			{
-			    DWORD i = 0;
-			    CStdString csFinding = m_tslTextSearchList[j].target;
-			    int length = csFinding.GetLength();
+			/*
+			 * Step, the third:
+			 * Do the text searches
+			 * SYZYGY -- doesn't this go in the mailstore so I can have a mailstore that supports fast text searching?
+			 * This is a boyer-moore-pratt search body, right?
+			 */
+			for (TEXT_SEARCH_LIST::const_iterator j=m_textSearchList.begin(); itIsIn && (j!=m_textSearchList.end()); ++j) {
+			    size_t i = 0;
+			    insensitiveString finding = j->target;
+			    int length = finding.size();
 
-			    bItIsIn = false;
-			    while (!bItIsIn && (i < (message.GetMessageBody().dwBodyOctets)))
-			    {
+			    itIsIn = false;
+			    while (!itIsIn && (i < (message->GetMessageBody().bodyOctets))) {
 				int k;
-				for (k = length - 1; (k >= 0) && (csFinding[k] == tolower(pMessageBuffer[i+k])); --k)
+				for (k = length - 1; (k >= 0) && (finding[k] == tolower(messageBuffer[i+k])); --k)
 				{
 				    // NOTHING
 				}
 				if (k < 0)
 				{
-				    bItIsIn = true;
+				    itIsIn = true;
 				}
 				else
 				{
-				    i += MAX(m_tslTextSearchList[j].bm_suffix[k],
-					     m_tslTextSearchList[j].bm_bad_chars[pMessageBuffer[i+k]] - length + 1 + k);
+				    i += MAX(j->suffix[k], j->badChars[messageBuffer[i+k]] - length + 1 + k);
 				}
 			    }
 			}
-
-			if (bItIsIn && (NULL != m_dateBeginDate))
-			{
-			    struct tm msg_time = message.GetMessageTime();
-			    time_t date = mktime(&msg_time);
-			    bItIsIn = (*m_dateBeginDate <= date);
+			/*
+			 * Step, the last:
+			 * Do the date searches
+			 */
+			if (itIsIn && (NULL != m_beginDate)) {
+			    itIsIn = (*m_beginDate <= message->GetMessageTime());
 			}
 
-			if (bItIsIn && (NULL != m_dateEndDate))
-			{
-			    struct tm msg_time = message.GetMessageTime();
-			    time_t date = mktime(&msg_time);
-			    bItIsIn = (date <= *m_dateEndDate);
+			if (itIsIn && (NULL != m_endDate)) {
+			    itIsIn = (*m_endDate >= message->GetMessageTime());
 			}
 
-			if (bItIsIn)
-			{
-			    output_vector.Add(input_vector[i], compare_msns);
-			}
-			if ((0 != m_tslBodySearchList.GetSize()) ||
-			    (0 != m_tslTextSearchList.GetSize()))
-			{
-			    delete[] pMessageBuffer;
+			if (itIsIn) {
+			    outputVector.push_back(*i);
 			}
 		    }
 		}
-#endif // 0 SYZYGY -- END SIMDESKISM
 		AddUidVector(outputVector);
 	    }
 	}
@@ -567,12 +532,12 @@ void MailSearch::ReportResults(const MailStore *where, SEARCH_RESULT *result) {
     }
     m_hasUidVector = true;
     result->clear();
-    for (int i=0; i<m_uidVector.size(); ++i) {
-	result->push_back(m_uidVector[i]);
+    for (SEARCH_RESULT::iterator i = m_uidVector.begin(); i!= m_uidVector.end(); ++i) {
+	result->push_back(*i);
     }
 }
 
-void MailSearch::AddGenericHeaderSearch(const std::string &headerName, const std::string &toSearchFor) {
+void MailSearch::AddGenericHeaderSearch(const insensitiveString &headerName, const insensitiveString &toSearchFor) {
     HEADER_SEARCH_DATA item;
     item.headerField = headerName;
     item.target = toSearchFor;

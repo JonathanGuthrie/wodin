@@ -566,8 +566,434 @@ bool DateTime::ParseImap(const uint8_t *data, size_t dataLen, size_t &parsingAt)
     return true;
 }
 
+/*
+ * date-time = [ day-of-week "," ] date FWS time [CFWS]
+ *
+ * day-of-week = ([FWS] day-name) / obs-day-of-week
+ *
+ * day-name = "Mon" / "Tue" / "Wed" / "Thu" / "Fri" / "Sat" / "Sun"
+ *
+ * date = day month year
+ *
+ * year = 4*DIGIT / obs-year
+ *
+ * month = (FWS month-name FWS) / obs-month
+ *
+ * month-name = "Jan" / "Feb" / "Mar" / "Apr" /
+ *              "May" / "Jun" / "Jul" / "Aug" /
+ *              "Sep" / "Oct" / "Nov" / "Dec"
+ *
+ * day = [FWS] 1*2DIGIT / obs-day
+ *
+ * time = time-of-day FWS zone
+ *
+ * time-of-day = hour ":" minute [ ":" second ]
+ *
+ * hour = 2DIGIT / obs-hour
+ *
+ * minute = 2DIGIT / obs-minute
+ *
+ * second = 2DIGIT / obs-second
+ *
+ * zone = (( "+" / "-") 4DIGIT) / obs-zone
+ *
+ * obs-day-of-week = [CFWS] day-name [CFWS]
+ *
+ * obs-year = [CFWS] 2*DIGIT [CFWS]
+ *
+ * obs-month = CFWS month-name CFWS
+ *
+ * obs-day = [CFWS] 1*2DIGIT [CFWS]
+ *
+ * obs-hour = [CFWS] 2DIGIT [CFWS]
+ *
+ * obs-minute = [CFWS] 2DIGIT [CFWS]
+ *
+ * obs-second = [CFWS] 2DIGIT [CFWS]
+ *
+ * obs-zone = "UT" / "GMT" / "EST" / "EDT" / "CST" / "CDT" /
+ *            "MST" / "MDT" / "PST" / "PDT" / %d65-73 / %d75-90
+ *	      %d97-105 / %d107-122
+ *
+ * If a two digit year is encoutered, it is interpreted as being the year less 2000 if
+ * the digits represent a number less than 50, otherwise it is interpreted as being the
+ * year less 1900.  A three digit year is interpreted as being the year less 1900.
+ * the single-letter time zones, UT, and GMT are the same as +0000, the EDT is -0400,
+ * EST and CDT are -0500, CST and MDT are -0600, MST and PDT are -0700, and PST is -0800
+ *
+ * Okay, except for the two, three, and four-digit years and the time zone wierdness (and
+ * the time zone is important because it's essential for comparing dates) it appears as if
+ * the obsolete fields are the same as the current fields.
+ */
 bool DateTime::ParseRfc822(const uint8_t *data, size_t dataLen, size_t &parsingAt) {
-    return false;
+    m_valid = false;
+    // Day of week
+    // tuesday and thursday
+    if (NULL != strchr((const char *)&data[parsingAt], ',')) {
+	if ('T' == toupper(data[parsingAt])) {
+	    if (('U' == toupper(data[parsingAt+1])) && ('E' == toupper(data[parsingAt+2]))) {
+		m_tm.tm_wday = 2;
+	    }
+	    else if (('H' == toupper(data[parsingAt+1])) && ('U' == toupper(data[parsingAt+2]))) {
+		m_tm.tm_wday = 4;
+	    }
+	    else {
+		return false;
+	    }
+	}
+	else if ('S' == toupper(data[parsingAt])) {
+	    if (('A' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+		m_tm.tm_wday = 6;
+	    }
+	    else if (('U' == toupper(data[parsingAt+1])) && ('N' == toupper(data[parsingAt+2]))) {
+		m_tm.tm_wday = 0;
+	    }
+	    else {
+		return false;
+	    }
+	}
+	else if (('M' == toupper(data[parsingAt])) && ('O' == toupper(data[parsingAt+1])) && ('N' == toupper(data[parsingAt+2]))) {
+	    m_tm.tm_wday = 1;
+	}
+	else if (('W' == toupper(data[parsingAt])) && ('E' == toupper(data[parsingAt+1])) && ('D' == toupper(data[parsingAt+2]))) {
+	    m_tm.tm_wday = 3;
+	}
+	else if (('F' == toupper(data[parsingAt])) && ('R' == toupper(data[parsingAt+1])) && ('I' == toupper(data[parsingAt+2]))) {
+	    m_tm.tm_wday = 5;
+	}
+	else {
+	    return false;
+	}
+	if (',' != data[parsingAt]) {
+	    return false;
+	}
+	++parsingAt;
+    }
+
+    if (' ' != data[parsingAt]) {
+	return false;
+    }
+    while (' ' == data[parsingAt]) {
+	++parsingAt;
+    }
+
+    m_tm.tm_mday = 0;
+    if (!isdigit(data[parsingAt])) {
+	return false;
+    }
+    else {
+	m_tm.tm_mday = data[parsingAt] - '0';
+	++parsingAt;
+	if (isdigit(data[parsingAt])) {
+	    m_tm.tm_mday = m_tm.tm_mday * 10 + data[parsingAt] - '0';
+	    ++parsingAt;
+	}
+    }
+    if (' ' != data[parsingAt]) {
+	return false;
+    }
+
+    m_tm.tm_mday = 0;
+    if (' ' == data[parsingAt]) {
+	++parsingAt;
+	if (isdigit(data[parsingAt])) {
+	    m_tm.tm_mday = data[parsingAt] - '0';
+	    ++parsingAt;
+	}
+	else {
+	    return false;
+	}
+    }
+    else {
+	if (isdigit(data[parsingAt])) {
+	    m_tm.tm_mday = data[parsingAt] - '0';
+	    ++parsingAt;
+	    if (isdigit(data[parsingAt])) {
+		m_tm.tm_mday = m_tm.tm_mday * 10 + data[parsingAt] - '0';
+		++parsingAt;
+	    }
+	}
+	else {
+	    return false;
+	}
+    }
+    if (' ' != data[parsingAt]) {
+	return false;
+    }
+    while (' ' == data[parsingAt]) {
+	++parsingAt;
+    }
+
+    // Check Jan, Jun, and Jul first
+    if ('J' == toupper(data[parsingAt])) {
+	// Jun or Jul
+	if ('U' == toupper(data[parsingAt+1])) {
+	    if ('N' == toupper(data[parsingAt+2])) {
+		m_tm.tm_mon = 5;
+	    }
+	    else if ('L' == toupper(data[parsingAt+2])) {
+		m_tm.tm_mon = 6;
+	    }
+	    else {
+		return false;
+	    }
+	}
+	else if (('A' == toupper(data[parsingAt+1])) && ('N' == toupper(data[parsingAt+2]))) {
+	    m_tm.tm_mon = 0;
+	}
+	else {
+	    return false;
+	}
+    }
+    // Next, Mar and May
+    else if (('M' == toupper(data[parsingAt])) && ('A' == toupper(data[parsingAt+1]))) {
+	if ('R' == toupper(data[parsingAt+2])) {
+	    m_tm.tm_mon = 2;
+	}
+	else if ('Y' == toupper(data[parsingAt+2])) {
+	    m_tm.tm_mon = 4;
+	}
+	else {
+	    return false;
+	}
+    }
+    // Next Apr and Aug
+    else if ('A' == toupper(data[parsingAt])) {
+	if (('P' == toupper(data[parsingAt+1])) && ('R' == toupper(data[parsingAt+2]))) {
+	    m_tm.tm_mon = 3;
+	}
+	else {
+	    if (('U' == toupper(data[parsingAt+1])) && ('G' == toupper(data[parsingAt+2]))) {
+		m_tm.tm_mon = 7;
+	    }
+	    else {
+		return false;
+	    }
+	}
+    }
+    // Feb
+    else if (('F' == toupper(data[parsingAt])) && ('E' == toupper(data[parsingAt+1])) && ('B' == toupper(data[parsingAt+2]))) {
+	m_tm.tm_mon = 1;
+    }
+    // Sep
+    else if (('S' == toupper(data[parsingAt])) && ('E' == toupper(data[parsingAt+1])) && ('P' == toupper(data[parsingAt+2]))) {
+	m_tm.tm_mon = 8;
+    }
+    // Oct
+    else if (('O' == toupper(data[parsingAt])) && ('C' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+	m_tm.tm_mon = 9;
+    }
+    // Nov
+    else if (('N' == toupper(data[parsingAt])) && ('O' == toupper(data[parsingAt+1])) && ('V' == toupper(data[parsingAt+2]))) {
+	m_tm.tm_mon = 10;
+    }
+    // Dec
+    else if (('D' == toupper(data[parsingAt])) && ('E' == toupper(data[parsingAt+1])) && ('C' == toupper(data[parsingAt+2]))) {
+	m_tm.tm_mon = 11;
+    }
+    else {
+	return false;
+    }
+    parsingAt += 3;
+
+    if (' ' != data[parsingAt]) {
+	return false;
+    }
+    while (' ' == data[parsingAt]) {
+	++parsingAt;
+    }
+
+    m_tm.tm_year = (int) strtol((char *)&data[parsingAt], NULL, 10);
+    while (isdigit(data[parsingAt])) {
+	++parsingAt;
+    }
+    if (' ' != data[parsingAt]) {
+	return false;
+    }
+    while (' ' == data[parsingAt]) {
+	++parsingAt;
+    }
+    if (m_tm.tm_year < 1000) {
+	m_tm.tm_year += 1900;
+    }
+    else if (m_tm.tm_year < 100) {
+	if (m_tm.tm_year < 50) {
+	    m_tm.tm_year += 2000;
+	}
+	else {
+	    m_tm.tm_year += 1900;
+	}
+    }
+
+    // 30 days hath september, april, june, and november
+    // all the rest have 31 except february
+    if (1 == m_tm.tm_mon) {
+	if ((29 < m_tm.tm_mday) ||
+	    ((29 == m_tm.tm_mday) &&
+	     (0 != (m_tm.tm_year % 4)) || ((0 == m_tm.tm_year % 100) && (0 != m_tm.tm_year % 400)))) {
+	    return false;
+	}
+    }
+    else {
+	if ((8 == m_tm.tm_mon) || (3 == m_tm.tm_mon) || (5 == m_tm.tm_mon) || (10 == m_tm.tm_mon)) {
+	    if (30 < m_tm.tm_mday) {
+		return false;
+	    }
+	}
+	else {
+	    if (31 < m_tm.tm_mday) {
+		return false;
+	    }
+	}
+    }
+
+    m_tm.tm_hour = 0;
+    if (' ' == data[parsingAt]) {
+	++parsingAt;
+	if (isdigit(data[parsingAt])) {
+	    m_tm.tm_hour = data[parsingAt] - '0';
+	    ++parsingAt;
+	}
+	else {
+	    return false;
+	}
+    }
+    else {
+	if (isdigit(data[parsingAt])) {
+	    m_tm.tm_hour = data[parsingAt] - '0';
+	    ++parsingAt;
+	    if (isdigit(data[parsingAt])) {
+		m_tm.tm_hour = m_tm.tm_hour * 10 + data[parsingAt] - '0';
+		++parsingAt;
+	    }
+	}
+	else {
+	    return false;
+	}
+    }
+    if (':' != data[parsingAt]) {
+	return false;
+    }
+
+    m_tm.tm_min = 0;
+    if (isdigit(data[parsingAt])) {
+	m_tm.tm_min = data[parsingAt] - '0';
+	++parsingAt;
+	if (isdigit(data[parsingAt])) {
+	    m_tm.tm_min = m_tm.tm_min * 10 + data[parsingAt] - '0';
+	    ++parsingAt;
+	}
+    }
+    else {
+	return false;
+    }
+
+    m_tm.tm_sec = 0;
+    if (':' == data[parsingAt]) {
+	if (isdigit(data[parsingAt])) {
+	    m_tm.tm_sec = data[parsingAt] - '0';
+	    ++parsingAt;
+	    if (isdigit(data[parsingAt])) {
+		m_tm.tm_sec = m_tm.tm_sec * 10 + data[parsingAt] - '0';
+		++parsingAt;
+	    }
+	}
+	else {
+	    return false;
+	}
+    }
+    if (' ' != data[parsingAt]) {
+	return false;
+    }
+    while (' ' == data[parsingAt]) {
+	++parsingAt;
+    }
+
+    m_zone = 99999;
+    if ('E' == toupper(data[parsingAt])) {
+	if (('D' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+	    m_zone = 14400;
+	}
+	else if (('S' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+	    m_zone = 18000;
+	}
+	else {
+	    return false;
+	}
+	if (' ' != data[parsingAt+3]) {
+	    return false;
+	}
+	parsingAt += 4;
+    }
+    else if ('C' == toupper(data[parsingAt])) {
+	if (('D' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+	    m_zone = 18000;
+	}
+	else if (('S' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+	    m_zone = 21600;
+	}
+	else {
+	    return false;
+	}
+	if (' ' != data[parsingAt+3]) {
+	    return false;
+	}
+	parsingAt += 4;
+    }
+    else if ('M' == toupper(data[parsingAt])) {
+	if (('D' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+	    m_zone = 21600;
+	}
+	else if (('S' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+	    m_zone = 25200;
+	}
+	else {
+	    return false;
+	}
+	if (' ' != data[parsingAt+3]) {
+	    return false;
+	}
+	parsingAt += 4;
+    }
+    else if ('P' == toupper(data[parsingAt])) {
+	if (('D' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+	    m_zone = 25200;
+	}
+	else if (('S' == toupper(data[parsingAt+1])) && ('T' == toupper(data[parsingAt+2]))) {
+	    m_zone = 28800;
+	}
+	else {
+	    return false;
+	}
+	if (' ' != data[parsingAt+3]) {
+	    return false;
+	}
+	parsingAt += 4;
+    }
+    else if (('-' == data[parsingAt]) || ('+' == data[parsingAt])) {
+	if (isdigit(data[parsingAt+1]) && isdigit(data[parsingAt+2]) && isdigit(data[parsingAt+3]) && isdigit(data[parsingAt+4])) {
+	    // m_zone is seconds west of UTC but the string is +HHMM east of UTC
+	    m_zone = 3600 * (10 * (data[parsingAt+1] - '0') + data[parsingAt+2] - '0') + 60 * (10 * (data[parsingAt+3] - '0') + data[parsingAt+4] - '0');
+	    if ('+' == data[parsingAt]) {
+		m_zone *= -1;
+	    }
+	}
+	if (' ' != data[parsingAt+5]) {
+	    return false;
+	}
+	parsingAt += 6;
+    }
+    if (99999 == m_zone) {
+	return false;
+    }
+
+    // One last correction, tm_year is defined to hold years since 1900, but what's in it at this point
+    // is years since zero, so I have to apply a correction.  I can't correct it before now because if I
+    // do that, then Zeller's congruence may not work, so I correct it here.
+    m_tm.tm_year -= 1900;
+
+    m_valid = true;
+    return true;
 }
 
 /*
@@ -980,6 +1406,17 @@ bool DateTime::Parse(const std::string &timeString) {
 }
 
 bool DateTime::Parse(const std::string &timeString, STRING_FORMAT format) {
+    m_format = format;
+    return Parse(timeString);
+}
+
+bool DateTime::Parse(const insensitiveString &timeString) {
+    size_t at = 0;
+
+    return Parse((uint8_t *)timeString.c_str(), timeString.size(), at);
+}
+
+bool DateTime::Parse(const insensitiveString &timeString, STRING_FORMAT format) {
     m_format = format;
     return Parse(timeString);
 }

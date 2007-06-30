@@ -21,15 +21,15 @@ public:
     } SEARCH_FIELD;
     typedef struct {
 	SEARCH_FIELD which;
-	std::string target;
+	insensitiveString target;
 	int *badChars;
 	int *suffix;
     } TEXT_SEARCH_DATA;
     typedef std::list<TEXT_SEARCH_DATA> TEXT_SEARCH_LIST;
     typedef struct
     {
-	std::string headerField;
-	std::string target;
+	insensitiveString headerField;
+	insensitiveString target;
     } HEADER_SEARCH_DATA;
     typedef std::list<HEADER_SEARCH_DATA> HEADER_SEARCH_LIST;
     MailSearch();
@@ -37,17 +37,17 @@ public:
 
     void AddBitsToIncludeMask(uint32_t bitsToAdd) { m_includeMask |= bitsToAdd; }
     void AddBitsToExcludeMask(uint32_t bitsToAdd) { m_excludeMask |= bitsToAdd; }
-    void AddBccSearch(const std::string &csToSearchFor);
-    void AddBodySearch(const std::string &csToSearchFor);
+    void AddBccSearch(const insensitiveString &csToSearchFor);
+    void AddBodySearch(const insensitiveString &csToSearchFor);
     void AddBeforeSearch(DateTime &dateToSearchFor);
-    void AddCcSearch(const std::string &csToSearchFor);
-    void AddFromSearch(const std::string &csToSearchFor);
+    void AddCcSearch(const insensitiveString &csToSearchFor);
+    void AddFromSearch(const insensitiveString &csToSearchFor);
     void ForceNoMatches() { m_forceNoMatches = true; }
     void AddOnSearch(DateTime &dateToSearchFor);
     void AddSinceSearch(DateTime &dateToSearchFor);
-    void AddSubjectSearch(const std::string &csToSearchFor);
-    void AddTextSearch(const std::string &csToSearchFor);
-    void AddToSearch(const std::string &csToSearchFor);
+    void AddSubjectSearch(const insensitiveString &csToSearchFor);
+    void AddTextSearch(const insensitiveString &csToSearchFor);
+    void AddToSearch(const insensitiveString &csToSearchFor);
     void AddSentBeforeSearch(DateTime &dateToSearchFor);
     void AddSentSinceSearch(DateTime &dateToSearchFor);
     void AddSentOnSearch(DateTime &dateToSearchFor);
@@ -55,7 +55,7 @@ public:
     void AddUidVector(const SEARCH_RESULT &vector);
     void AddSmallestSize(size_t limit);
     void AddLargestSize(size_t limit);
-    void AddGenericHeaderSearch(const std::string &headerName, const std::string &toSearchFor);
+    void AddGenericHeaderSearch(const insensitiveString &headerName, const insensitiveString &toSearchFor);
     void AddAllSearch() { m_forceAllMatches = true; }
     void ClearUidVector() { m_uidVector.clear(); }
      

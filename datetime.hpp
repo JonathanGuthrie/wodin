@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "insensitive.hpp"
+
 class DateTimeInvalidDateTime
 {
 };
@@ -35,6 +37,8 @@ public:
     void SetFormat(STRING_FORMAT format) { m_format = format; }
     bool Parse(const std::string &timeString);
     bool Parse(const std::string &timeString, STRING_FORMAT format);
+    bool Parse(const insensitiveString &timeString);
+    bool Parse(const insensitiveString &timeString, STRING_FORMAT format);
     bool Parse(const uint8_t *data, size_t dataLen, size_t &parsingAt);
     bool Parse(const uint8_t *data, size_t dataLen, size_t &parsingAt, STRING_FORMAT format);
 

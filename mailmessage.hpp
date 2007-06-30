@@ -64,7 +64,7 @@ public:
     unsigned short GetTextLines() const { return m_textLines; }
     const HEADER_FIELDS &GetHeaderList() const { return m_mainBody.fieldList; }
     const MESSAGE_BODY &GetMessageBody() const { return m_mainBody; }
-    const struct tm &GetMessageTime() const { return m_date; }
+    const DateTime &GetMessageTime() const { return m_date; }
     uint32_t GetMessageFlags() const { return m_flagsWhenRead; }
     unsigned long GetUid() const { return m_uid; }
     unsigned long GetMsn() const { return m_msn; }
@@ -79,7 +79,7 @@ private:
     bool ProcessHeaderLine(const insensitiveString &line);
     void ParseBodyParts(bool loadBinaryParts, MESSAGE_BODY &parentBody, char *messageBuffer, size_t &parsePointer,
 			const char *parentSeparator, int nestingDepth);
-    struct tm m_date;
+    DateTime m_date;
     insensitiveString m_dateLine, m_subject, m_inReplyTo, m_messageId;
     insensitiveString m_fromLine, m_senderLine, m_replyToLine, m_toLine, m_ccLine, m_bccLine;
     unsigned long m_uid, m_msn, m_textLines;
