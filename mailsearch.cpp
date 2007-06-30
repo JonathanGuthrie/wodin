@@ -156,7 +156,6 @@ void MailSearch::AddBodySearch(const insensitiveString &toSearchFor) {
     TEXT_SEARCH_DATA item;
     item.which = BODY;
     item.target = toSearchFor;
-    // item.target.ToLower(); // SYZYGY -- what do I do with this?
     item.badChars = new int[256];
     build_bm_bad_chars(item.target, item.badChars);
     item.suffix = new int[item.target.size()];
@@ -268,18 +267,17 @@ void MailSearch::AddSentOnSearch(DateTime &dateToSearchFor) {
 // nonzero numbers in the vector are guaranteed to be unique.
 void MailSearch::AddMsnVector(MailStore *base, const SEARCH_RESULT &vector) {
     if (!m_hasUidVector) {
-	for (int i=0; i<vector.size(); ++i) {
-	    m_uidVector.push_back(base->MailboxMsnToUid(vector[i]));
+	for (SEARCH_RESULT::const_iterator i = vector.begin(); i != vector.end(); ++i) {
+	    m_uidVector.push_back(base->MailboxMsnToUid(*i));
 	}
     }
     else {
-	int i = 0;
-	while (i < m_uidVector.size()) {
-	    unsigned long msn = base->MailboxUidToMsn(m_uidVector[i]);
+	for (SEARCH_RESULT::iterator i = m_uidVector.begin(); i != m_uidVector.end();) {
+	    unsigned long msn = base->MailboxUidToMsn(*i);
 
 	    SEARCH_RESULT::const_iterator elem = find(vector.begin(), vector.end(), msn);
 	    if (vector.end() == elem) {	
-		// m_uidVector.RemoveAt(i); // SYZYGY
+		m_uidVector.erase(i);
 	    }
 	    else {
 		++i;
@@ -291,18 +289,17 @@ void MailSearch::AddMsnVector(MailStore *base, const SEARCH_RESULT &vector) {
 
 void MailSearch::AddUidVector(const SEARCH_RESULT &vector) {
     if (!m_hasUidVector) {
-	for (int i=0; i<vector.size(); ++i) {
-	    m_uidVector.push_back(vector[i]);
+	for (SEARCH_RESULT::const_iterator i = vector.begin(); i != vector.end(); ++i) {
+	    m_uidVector.push_back(*i);
 	}
     }
     else {
-	int i = 0;
-	while (i < m_uidVector.size()) {
-	    int dummy;
-
-	    SEARCH_RESULT::const_iterator elem = find(vector.begin(), vector.end(), i);
+	int uid = 0;
+	for (SEARCH_RESULT::iterator i = m_uidVector.begin(); i != m_uidVector.end();) {
+	    ++uid;
+	    SEARCH_RESULT::const_iterator elem = find(vector.begin(), vector.end(), uid);
 	    if (vector.end() == elem) {	
-		// m_uidVector.RemoveAt(i); // SYZYGY
+		m_uidVector.erase(i);
 	    }
 	    else {
 		++i;
