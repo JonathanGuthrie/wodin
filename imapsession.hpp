@@ -150,9 +150,7 @@ private:
     IMAP_RESULTS SearchKeyParse(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS StoreHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
     IMAP_RESULTS FetchHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
-#if 0
-    IMAP_RESULTS CopyHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid);
-#endif // 0
+    IMAP_RESULTS CopyHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
     size_t ReadEmailFlags(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool &okay);
     bool UpdateSearchTerms(MailSearch &searchTerm, size_t &tokenPointer, bool isSubExpression);
     bool MsnSequenceSet(SEARCH_RESULT &r_srVector, size_t &tokenPointer);
@@ -169,9 +167,7 @@ private:
     IMAP_RESULTS AppendHandlerExecute(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS SearchHandlerExecute(bool usingUid);
     IMAP_RESULTS FetchHandlerExecute(bool usingUid);
-#if 0
-    IMAP_RESULTS CopyHandlerExecute(bool bUsingUid);
-#endif // 0
+    IMAP_RESULTS CopyHandlerExecute(bool usingUid);
 
     void atom(uint8_t *data, const size_t dataLen, size_t &parsingAt); 
     enum ImapStringState astring(uint8_t *pData, const size_t dataLen, size_t &parsingAt, bool makeUppercase,
@@ -211,8 +207,8 @@ private:
     IMAP_RESULTS SearchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS FetchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS StoreHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS CopyHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 #if 0
-    IMAP_RESULTS CopyHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
     IMAP_RESULTS UidHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
 #endif // 0
 

@@ -217,9 +217,9 @@ void ImapSession::BuildSymbolTables()
     m_symbols.insert(IMAPSYMBOLS::value_type("FETCH", symbolToInsert));
     symbolToInsert.handler = &ImapSession::StoreHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("STORE", symbolToInsert));
-#if 0
     symbolToInsert.handler = &ImapSession::CopyHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("COPY"), symbolToInsert));
+    m_symbols.insert(IMAPSYMBOLS::value_type("COPY", symbolToInsert));
+#if 0
     symbolToInsert.handler = &ImapSession::UidHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type(_T("UID"), symbolToInsert));
 #endif // 0
@@ -1424,36 +1424,31 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	}
 	break;
 
-#if 0
     case ImapCommandCopy:
-	m_eInProgress = ImapCommandNone;
-	if (dwDataLen >= m_dwLiteralLength)
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength)
 	{
-	    ++m_dwParseStage;
-	    AddToParseBuffer(pData, m_dwLiteralLength);
-	    DWORD i = m_dwLiteralLength;
-	    m_dwLiteralLength = 0;
-	    if ((i < dwDataLen) && (' ' == pData[i]))
-	    {
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
 		++i;
 	    }
-	    if (2 < dwDataLen)
-	    {
+	    if (2 < dataLen) {
 		// Get rid of the CRLF if I have it
-		dwDataLen -= 2;
-		pData[dwDataLen] = '\0';  // Make sure it's terminated so strchr et al work
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
-	    m_pResponseText[0] = '\0';
-	    CStdString response = FormatTaggedResponse(CopyHandlerExecute(m_bUsesUid));
-	    Send((void *)response.data(), (int)response.size());
+	    m_responseText[0] = '\0';
+	    std::string response = FormatTaggedResponse(CopyHandlerExecute(m_usesUid));
+	    m_s->Send((uint8_t *)response.c_str(), response.size());
 	}
-	else
-	{
-	    AddToParseBuffer(pData, dwDataLen, false);
-	    m_dwLiteralLength -= dwDataLen;
+	else {
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
 	}
 	break;
-#endif // 0
     }
     if (ImapCommandNone == m_inProgress) {
 	m_literalLength = 0;
@@ -5307,162 +5302,112 @@ IMAP_RESULTS ImapSession::StoreHandler(uint8_t *data, const size_t dataLen, size
 }
 
 // SYZYGY working here
-#if 0
-IMAP_RESULTS ImapSession::CopyHandlerExecute(bool bUsingUid)
-{
+IMAP_RESULTS ImapSession::CopyHandlerExecute(bool usingUid) {
     IMAP_RESULTS result = IMAP_OK;
-    DWORD execute_pointer = 0;
+    size_t execute_pointer = 0;
 
     // Skip the first two tokens that are the tag and the command
-    execute_pointer += (DWORD) strlen((char *)m_pParseBuffer) + 1;
-    execute_pointer += (DWORD) strlen((char *)&m_pParseBuffer[execute_pointer]) + 1;
+    execute_pointer += strlen((char *)m_parseBuffer) + 1;
+    execute_pointer += strlen((char *)&m_parseBuffer[execute_pointer]) + 1;
 
     // I do this once again if bUsingUid is set because the command in that case is UID
-    if (bUsingUid)
-    {
-	execute_pointer += (DWORD) strlen((char *)&m_pParseBuffer[execute_pointer]) + 1;
+    if (usingUid) {
+	execute_pointer += strlen((char *)&m_parseBuffer[execute_pointer]) + 1;
     }
 
-    SEARCH_RESULT srVector;
-    bool bSequenceOk;
-    if (bUsingUid)
-    {
-	bSequenceOk = UidSequenceSet(srVector, execute_pointer);
+    SEARCH_RESULT vector;
+    bool sequenceOk;
+    if (usingUid) {
+	sequenceOk = UidSequenceSet(vector, execute_pointer);
     }
-    else
-    {
-	bSequenceOk = MsnSequenceSet(srVector, execute_pointer);
+    else {
+	sequenceOk = MsnSequenceSet(vector, execute_pointer);
     }
-    if (bSequenceOk)
-    {
-	NUMBER_LIST nlMessageUidsAdded;
+    if (sequenceOk) {
+	NUMBER_LIST messageUidsAdded;
 
-	execute_pointer += (DWORD) strlen((char *)&m_pParseBuffer[execute_pointer]) + 1;
-	CStdString MailboxName((char *)&m_pParseBuffer[execute_pointer]);
-	MailboxName.Replace('.', '\\');
-	for (int i=0; (IMAP_OK == result) && (i < srVector.GetSize()); ++i)
-	{
-	    CMailMessage message;
+	execute_pointer += strlen((char *)&m_parseBuffer[execute_pointer]) + 1;
+	std::string mailboxName((char *)&m_parseBuffer[execute_pointer]);
+	for (SEARCH_RESULT::iterator i=vector.begin(); (i!=vector.end()) && (IMAP_OK==result); ++i) {
+	    MailMessage *message;
 
-	    CMailMessage::MAIL_MESSAGE_RESULT messageReadResult = message.parse(m_msStore, srVector[i]);
-	    if (CMailMessage::SUCCESS == messageReadResult)
-	    {
-		DWORD new_uid;
-		CSimpleDate when = message.GetInternalDate();
+	    MailMessage::MAIL_MESSAGE_RESULT messageReadResult = m_store->GetMessageData(&message, *i);
+	    if (MailMessage::SUCCESS == messageReadResult) {
+		uint32_t newUid;
+		DateTime when = m_store->MessageInternalDate(*i);
+		uint32_t flags = message->GetMessageFlags();
 
-		CSimFile infile;
-		DWORD dwDummy;
-		CSimpleDate sdDummy(MMDDYYYY, true);
-		bool bDummy;
-		CStdString csPhysicalFileName = m_msStore->GetMessagePhysicalPath(srVector[i], dwDummy, sdDummy, bDummy);
-
-		if (infile.Open(csPhysicalFileName, CSimFile::modeRead))
-		{
-		    char *buffer;
-		    DWORD bufferLen = message.GetMessageBody().dwBodyOctets;
-		    buffer = new char[bufferLen];
-
-		    DWORD dwAmountRead;
-		    dwAmountRead = infile.Read(buffer, bufferLen);
-		    infile.Close();
-		    CMailStore::MAIL_STORE_RESULT mr = m_msStore->AddMessageToMailbox(MailboxName, buffer, dwAmountRead,
-										      when, 0, &new_uid);
-		    delete[] buffer;
-
-		    switch(mr)
-		    {
-		    case CMailStore::SUCCESS:
-			nlMessageUidsAdded.Add(new_uid);
-			break;
-
-		    case CMailStore::MAILBOX_NOT_SELECTABLE:
-		    case CMailStore::MAILBOX_DOES_NOT_EXIST:
-			strncpy(m_pResponseText, _T("Mailbox Doesn't Exist"), MAX_RESPONSE_STRING_LENGTH);
-			strncpy(m_pResponseCode, _T("[TRYCREATE]"), MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_NO;
-			break;
-
-		    default:
-			strncpy(m_pResponseText, _T("General Error Copying"), MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_NO;
-			break;
+		char buffer[m_store->GetBufferLength(*i)+1];
+		if (MailStore::SUCCESS == (m_mboxErrorCode = m_store->OpenMessageFile(*i))) {
+		    size_t size = m_store->ReadMessage(buffer, 0, m_store->GetBufferLength(*i));
+		    if (MailStore::SUCCESS == (m_mboxErrorCode = m_store->AddMessageToMailbox(mailboxName, (uint8_t *)buffer, size, when, flags, &newUid))) {
+			m_store->DoneAppendingDataToMessage(mailboxName, newUid);
+			messageUidsAdded.push_back(newUid);
+		    }
+		    else {
+			result = IMAP_MBOX_ERROR;
 		    }
 		}
-		else
-		{
-		    strncpy(m_pResponseText, _T("Unable to Read Message"), MAX_RESPONSE_STRING_LENGTH);
-		    Log("Copy Handler unable to read user %d's mail file \"%s\\message.%08x\"\n", m_pUser->m_nUserID,
-			m_msStore->GetMailboxUserPath().c_str(), srVector[i]);
-		    result = IMAP_NO;
-		    break;
+		else {
+		    result = IMAP_MBOX_ERROR;
 		}
 	    }
 	}
-	if (IMAP_OK != result)
-	{
-	    for (int i=0; i<nlMessageUidsAdded.GetSize(); ++i)
-	    {
-		m_msStore->DeleteMessage(MailboxName, nlMessageUidsAdded[i]);
+	if (IMAP_OK != result) {
+	    for (NUMBER_LIST::iterator i=messageUidsAdded.begin(); i!=messageUidsAdded.end(); ++i) {
+		m_store->DeleteMessage(mailboxName, *i);
 	    }
 	}
     }
-    else
-    {
-	strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+    else {
+	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_BAD;
     }
+
     return result;
 }
 
-IMAP_RESULTS ImapSession::CopyHandlerInternal(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt, bool bUsingUid)
-{
+IMAP_RESULTS ImapSession::CopyHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid) {
     IMAP_RESULTS result = IMAP_OK;
 
-    while((r_dwParsingAt < dwDataLen) && (' ' != pData[r_dwParsingAt]))
-    {
-	AddToParseBuffer(&pData[r_dwParsingAt++], 1, false);
+    while((parsingAt < dataLen) && (' ' != data[parsingAt])) {
+	AddToParseBuffer(&data[parsingAt++], 1, false);
     }
     AddToParseBuffer(NULL, 0);
-    if ((r_dwParsingAt < dwDataLen) && (' ' == pData[r_dwParsingAt]))
-    {
-	++r_dwParsingAt;
+    if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
+	++parsingAt;
     }
-    else
-    {
-	strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+    else {
+	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	result = IMAP_BAD;
     }
 
-    if (IMAP_OK == result)
-    {
-	switch (astring(pData, dwDataLen, r_dwParsingAt, true, NULL))
-	{
+    if (IMAP_OK == result) {
+	switch (astring(data, dataLen, parsingAt, false, NULL)) {
 	case ImapStringGood:
-	    result = CopyHandlerExecute(bUsingUid);
+	    result = CopyHandlerExecute(usingUid);
 	    break;
 
 	case ImapStringBad:
-	    strncpy(m_pResponseText, _T("Malformed Command"), MAX_RESPONSE_STRING_LENGTH);
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	    result = IMAP_BAD;
 	    break;
 
 	case ImapStringPending:
 	    result = IMAP_NOTDONE;
-	    m_bUsesUid = bUsingUid;
-	    m_eInProgress = ImapCommandCopy;
-	    strncpy(m_pResponseText, _T("Ready for Literal"), MAX_RESPONSE_STRING_LENGTH);
+	    m_usesUid = usingUid;
+	    m_inProgress = ImapCommandCopy;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
 	    break;
 
 	default:
-	    strncpy(m_pResponseText, _T("Failed"), MAX_RESPONSE_STRING_LENGTH);
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
 	    break;
 	}
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::CopyHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt)
-{
-    return CopyHandlerInternal(pData, dwDataLen, r_dwParsingAt, false);
+IMAP_RESULTS ImapSession::CopyHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+    return CopyHandlerInternal(data, dataLen, parsingAt, false);
 }
-#endif // 0
