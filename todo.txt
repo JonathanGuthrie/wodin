@@ -17,7 +17,7 @@ done) Make the mailbox error text come from the mailbox classes.  This will
 
 done)  Basic name space implementation
 
-9)  Do the commands available in both the AUTHENTICATED and SELECTED state
+done)  Do the commands available in both the AUTHENTICATED and SELECTED state
   (NAMESPACE through SUBSCRIBE)
   done) namespace
   done) select and examine
@@ -31,18 +31,20 @@ done)  Basic name space implementation
   done) search
   done) fetch
   done) store
-  g) copy
+  done) copy
   h) uid (three commands)
+
+11)  Fix expunging the torture test from foo in the mbox mail store
 
 done)  Properly handle the situation where the IMAP-specific headers aren't in the messages of an mbox message base.
 
 done)  Fix the case where I try a select before login and it crashes
 
-13)  Refactor the utility message creation in MailstoreMbox
+14)  Refactor the utility message creation in MailstoreMbox
 
 done)  Finish the parts of the NOOP command I've deferred
 
-15)  Asynchonous notifications
+16)  Asynchonous notifications
 
 done)  Fix the Support for mbox mailstores to add extra linefeeds before the "From " lines.
 
@@ -50,9 +52,9 @@ done)  Fix the "00000" in the time zone.
 
 done)  Fix the "UNSEEN 1" display where there are no unseen messages.
 
-19)  Fix the multiple simultaneous connection problem
+20)  Fix the multiple simultaneous connection problem
 
-20)  Fix the current memory leak
+21)  Fix the current memory leak
 
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    strips off the last line in the folder
@@ -60,7 +62,7 @@ done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    appends a newline to every message.
 
-23)  Move the body search and text search (largely) into the MailStore class.
+24)  Move the body search and text search (largely) into the MailStore class.
 
 )  Locking for multiple simultaneous access to mailboxes
 
