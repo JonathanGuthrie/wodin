@@ -80,17 +80,12 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
     return result;
 }
 
-void Namespace::BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll) {
+void Namespace::BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll) {
     MailStore *store = NULL;
-    if (0 != strlen(ref)) {
-	store = getNameSpace(ref);
-    }
-    else {
-	store = getNameSpace(pattern);
-    }
+    store = getNameSpace(pattern);
     if (NULL != store) {
 	// SYZYGY -- I need to strip off the namespace, I think
-	store->BuildMailboxList(ref, pattern, result, listAll);
+	store->BuildMailboxList(pattern, result, listAll);
     }
 }
 

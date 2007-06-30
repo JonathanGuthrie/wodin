@@ -2274,13 +2274,13 @@ static void ConvertPatternToRegex(const char *pattern, char *regex, char isForLs
 }
 
 
-void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
+void MailStoreMbox::ListAll(const std::string &pattern, MAILBOX_LIST *result)
 {
     struct stat buff;
     regex_t compiled_regex;
-    char *regex = new char[3+5*strlen(pattern)];
+    char *regex = new char[3+5*pattern.size()];
 
-    ConvertPatternToRegex(pattern, regex);
+    ConvertPatternToRegex(pattern.c_str(), regex);
 
     // For the mbox mail store, a list is usually the directory listing 
     // of some place on the computer.  It's usually under the home directory
@@ -2343,7 +2343,7 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
 	// maxdepth starts at 1 so I can set HASCHILDREN properly
 	int maxdepth = 1;
 
-	static_len = strcspn(pattern, "%*");
+	static_len = pattern.find_first_not_of("%*");
 	for (int i=static_len; pattern[i] != '\0'; ++i)
 	{
 	    if ('*' == pattern[i])
@@ -2364,7 +2364,7 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
 		break;
 	    }
 	}
-	sprintf(base_path, "%s/%.*s", m_homeDirectory, static_len, pattern);
+	sprintf(base_path, "%s/%.*s", m_homeDirectory, static_len, pattern.c_str());
 	DIR *directory = opendir(base_path);
 	if (NULL != directory)
 	{
@@ -2379,7 +2379,7 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
 
 		    if (static_len > 0)
 		    {
-			sprintf(short_path, "%.*s/%s", static_len, pattern, entry->d_name);
+			sprintf(short_path, "%.*s/%s", static_len, pattern.c_str(), entry->d_name);
 		    }
 		    else
 		    {
@@ -2432,7 +2432,7 @@ void MailStoreMbox::ListAll(const char *pattern, MAILBOX_LIST *result)
 
 
 
-void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
+void MailStoreMbox::ListSubscribed(const std::string &pattern, MAILBOX_LIST *result)
 {
     bool inbox_matches = false;
     // In the mbox world, at least on those systems handled by c-client, it appears
@@ -2443,9 +2443,9 @@ void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
     regex_t compiled_regex;
     // 3+5*strlen(pattern) works for list, but I'm going to be putting the 
     // pattern in parentheses so I need 5+5*strlen for lsub
-    char *regex = new char[5+5*strlen(pattern)];
+    char *regex = new char[5+5*pattern.size()];
 
-    ConvertPatternToRegex(pattern, regex, true);
+    ConvertPatternToRegex(pattern.c_str(), regex, true);
 
     // The regex must be compiled twice.  For matching "inbox", I enable ignoring 
     // case.  For the regular matches, I'll use case-specific matching.
@@ -2532,12 +2532,8 @@ void MailStoreMbox::ListSubscribed(const char *pattern, MAILBOX_LIST *result)
 
 
 
-void MailStoreMbox::BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll)
+void MailStoreMbox::BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll)
 {
-    char *ref2, *pat2;
-
-    ref2 = strdup(ref);
-    pat2 = strdup(pattern);
     if (listAll)
     {
 	ListAll(pattern, result);

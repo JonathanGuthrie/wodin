@@ -19,7 +19,7 @@ MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxClose() {
     return GENERAL_FAILURE;
 }
 
-void MailStoreInvalid::BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll) {
+void MailStoreInvalid::BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll) {
     // The nothing that MAILBOX_LIST starts as is is appropriate here.
 }
 

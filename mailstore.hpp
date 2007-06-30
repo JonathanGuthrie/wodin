@@ -121,7 +121,7 @@ public:
     // If listAll is true, it will return all matching mailboxes, otherwise, it will return
     // the mailboxes using the IMAP LSUB semantics, which may not be what you expect.
     // You have been warned.
-    virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll) = 0;
+    virtual void BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll) = 0;
     virtual ~MailStore();
     std::string TurnErrorCodeIntoString(MAIL_STORE_RESULT code);
     // This deletes a message in a mail box

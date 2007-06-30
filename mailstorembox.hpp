@@ -43,7 +43,7 @@ public:
     virtual std::string GetMailboxUserPath() const ;
     virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone);
     virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
-    virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll);
+    virtual void BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~MailStoreMbox();
     // This deletes a message in a mail box
     virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid);
@@ -82,8 +82,8 @@ private:
     // properly quote them as the message is imported.  I need to create a state transition diagram, somewhere.
     int m_appendState;
     time_t m_lastMtime; // The mtime of the file the last time it was at a known good state.
-    void ListAll(const char *pattern, MAILBOX_LIST *result);
-    void ListSubscribed(const char *pattern, MAILBOX_LIST *result);
+    void ListAll(const std::string &pattern, MAILBOX_LIST *result);
+    void ListSubscribed(const std::string &pattern, MAILBOX_LIST *result);
     bool isMailboxInteresting(const std::string path);
     bool ListAllHelper(const regex_t *compiled_regex, const char *home_directory, const char *working_dir, MAILBOX_LIST *result, int maxdepth);
     bool ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData);

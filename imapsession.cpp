@@ -2071,10 +2071,10 @@ static std::string GenMailboxFlags(const uint32_t attr) {
 IMAP_RESULTS ImapSession::ListHandlerExecute(bool listAll) {
     IMAP_RESULTS result = IMAP_OK;
 
-    const char *reference = (char *)&m_parseBuffer[m_arguments];
-    const char *mailbox = (char *)&m_parseBuffer[m_arguments+(strlen((char *)&m_parseBuffer[m_arguments])+1)];
+    std::string reference = (char *)&m_parseBuffer[m_arguments];
+    std::string mailbox = (char *)&m_parseBuffer[m_arguments+(strlen((char *)&m_parseBuffer[m_arguments])+1)];
 
-    if (('\0' == reference[0]) && ('\0' == mailbox[0])) {
+    if ((0 == reference.size()) && (0 == mailbox.size())) {
 	if (listAll) {
 	    // It's a request to return the base and the hierarchy delimiter
 	    std::string response("* LIST () \"/\" \"\"\r\n");
@@ -2085,24 +2085,13 @@ IMAP_RESULTS ImapSession::ListHandlerExecute(bool listAll) {
 	/*
 	 * What I think I want to do here is combine the strings by checking the last character of the 
 	 * reference for '.', adding it if it's not there, and then just combining the two strings.
-	 */
-	/*
-	 * SYZYGY --warning indecision here!
-	 * That's dumb.  The namespace should actually be separate.  However, I'm not going
-	 * to fix that right now.  I can do it at any time.  However, the name spaces need to
-	 * be defined elsewhere, like in the server class
 	 *
-	 * No, that's not dumb, the reference is not the namespace, it's just the first part of the path,
-	 * like the current working directory, if your operation system has that concept.  However, it's
-	 * not necessarily straightforward to just concatenate them because you should put a path separator
-	 * between them unless the reference ends with one, but I don't know what the path separator is until
-	 * I know what the namespace is.  I think I need to think about this.  Right now, my best guess is
-	 * to keep them separate until it gets to the mailstore driver, at which point it combines them.  To
-	 * determine the namespace, I look at the reference unless it's zero-length, in which case I look at
-	 * the pattern.
+	 * No, I can't do that.  I don't know what the separator is until I know what namespace it's in.
+	 * the best I can do is merge them and hope for the best.
 	 */
+	reference += mailbox;
 	MAILBOX_LIST mailboxList;
-	m_store->BuildMailboxList(reference, mailbox, &mailboxList, listAll);
+	m_store->BuildMailboxList(reference, &mailboxList, listAll);
 	std::string response;
 	for (MAILBOX_LIST::const_iterator i = mailboxList.begin(); i != mailboxList.end(); ++i) {
 	    if (listAll) {

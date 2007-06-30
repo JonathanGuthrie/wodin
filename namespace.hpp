@@ -61,7 +61,7 @@ public:
     virtual std::string GetMailboxUserPath() const ;
     virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone);
     virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
-    virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll);
+    virtual void BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~Namespace();
     void AddNamespace(NAMESPACE_TYPES type, const std::string &name, MailStore *handler, char separator = '\0');
     const std::string ListNamespaces(void) const;

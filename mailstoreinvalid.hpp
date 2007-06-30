@@ -46,7 +46,7 @@ public:
     virtual std::string GetMailboxUserPath() const ;
     virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone);
     virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
-    virtual void BuildMailboxList(const char *ref, const char *pattern, MAILBOX_LIST *result, bool listAll);
+    virtual void BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~MailStoreInvalid();
     // This deletes a message in a mail box
     virtual MailStore::MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid);
