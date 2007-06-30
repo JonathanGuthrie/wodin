@@ -24,7 +24,7 @@ done)  Do the commands available in both the AUTHENTICATED and SELECTED state
   done) status
   done) append
 
-10)  Do the commands available in the SELECTED state
+done)  Do the commands available in the SELECTED state
   done) check
   done) close
   done) expunge
@@ -32,19 +32,23 @@ done)  Do the commands available in both the AUTHENTICATED and SELECTED state
   done) fetch
   done) store
   done) copy
-  h) uid (three commands)
+  done) uid (three commands)
 
 11)  Fix expunging the torture test from foo in the mbox mail store
+
+12)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
+
+13)  Figure out why Evolution can't fetch the torture test
 
 done)  Properly handle the situation where the IMAP-specific headers aren't in the messages of an mbox message base.
 
 done)  Fix the case where I try a select before login and it crashes
 
-14)  Refactor the utility message creation in MailstoreMbox
+16)  Refactor the utility message creation in MailstoreMbox
 
 done)  Finish the parts of the NOOP command I've deferred
 
-16)  Asynchonous notifications
+18)  Asynchonous notifications
 
 done)  Fix the Support for mbox mailstores to add extra linefeeds before the "From " lines.
 
@@ -52,9 +56,9 @@ done)  Fix the "00000" in the time zone.
 
 done)  Fix the "UNSEEN 1" display where there are no unseen messages.
 
-20)  Fix the multiple simultaneous connection problem
+22)  Fix the multiple simultaneous connection problem
 
-21)  Fix the current memory leak
+23)  Fix the current memory leak
 
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    strips off the last line in the folder
@@ -62,7 +66,7 @@ done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    appends a newline to every message.
 
-24)  Move the body search and text search (largely) into the MailStore class.
+26)  Move the body search and text search (largely) into the MailStore class.
 
 )  Locking for multiple simultaneous access to mailboxes
 
