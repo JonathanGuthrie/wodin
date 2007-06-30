@@ -1391,6 +1391,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 						" but the message claims to have uid " << uidFromMessage << std::endl;
 					    return MailStore::GENERAL_FAILURE;
 					}
+					uidFromMessage = 0;
 				    }
 				    // Go back to looking for "from"
 				    parseState = 0;
@@ -1525,6 +1526,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 					    " but the message claims to have uid " << uidFromMessage << std::endl;
 					return MailStore::GENERAL_FAILURE;
 				    }
+				    uidFromMessage = 0;
 				}
 				// When I get here, I know that I'm in a new message, so I have to
 				// do new message processing
@@ -1844,7 +1846,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 			    // Seen '\nX-UID'
 			    if (':' == curr->data[i]) {
 				charactersAdded -= 6;
-				uidFromMessage == 0;
+				uidFromMessage = 0;
 				parseState = 24;
 			    }
 			    else {
