@@ -4122,7 +4122,6 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
     }
 
     // std::cout << "Returning " << destPtr << std::endl;
-    m_messageIndex[m_readingMsn-1].rfc822MessageSize = destPtr;
     return destPtr;
 }
 
