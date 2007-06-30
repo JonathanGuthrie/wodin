@@ -219,10 +219,8 @@ void ImapSession::BuildSymbolTables()
     m_symbols.insert(IMAPSYMBOLS::value_type("STORE", symbolToInsert));
     symbolToInsert.handler = &ImapSession::CopyHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("COPY", symbolToInsert));
-#if 0
     symbolToInsert.handler = &ImapSession::UidHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type(_T("UID"), symbolToInsert));
-#endif // 0
+    m_symbols.insert(IMAPSYMBOLS::value_type("UID", symbolToInsert));
 
     // This is the symbol table for the search keywords
     searchSymbolTable.insert(SEARCH_SYMBOL_T::value_type("ALL",        SSV_ALL));
@@ -5410,4 +5408,46 @@ IMAP_RESULTS ImapSession::CopyHandlerInternal(uint8_t *data, const size_t dataLe
 
 IMAP_RESULTS ImapSession::CopyHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
     return CopyHandlerInternal(data, dataLen, parsingAt, false);
+}
+
+IMAP_RESULTS ImapSession::UidHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+	IMAP_RESULTS result;
+
+	m_commandString = m_parsePointer;
+	atom(data, dataLen, parsingAt);
+	if (' ' == data[parsingAt]) {
+	    ++parsingAt;
+	    UID_SUBCOMMAND_T::iterator i = uidSymbolTable.find((char *)&m_parseBuffer[m_commandString]);
+	    if (uidSymbolTable.end() != i) {
+		switch(i->second) {
+		case UID_STORE:
+		    result = StoreHandlerInternal(data, dataLen, parsingAt, true);
+		    break;
+
+		case UID_FETCH:
+		    result = FetchHandlerInternal(data, dataLen, parsingAt, true);
+		    break;
+
+		case UID_SEARCH:
+		    result = SearchHandlerInternal(data, dataLen, parsingAt, true);
+		    break;
+
+		case UID_COPY:
+		    result = CopyHandlerInternal(data, dataLen, parsingAt, true);
+		    break;
+
+		default:
+		    result = UnimplementedHandler();
+		    break;
+		}
+	    }
+	    else {
+		result = UnimplementedHandler();
+	    }
+	}
+	else {
+		strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		result = IMAP_BAD;
+	}
+	return result;
 }

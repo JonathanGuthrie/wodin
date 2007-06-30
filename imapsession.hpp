@@ -208,9 +208,7 @@ private:
     IMAP_RESULTS FetchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS StoreHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS CopyHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-#if 0
-    IMAP_RESULTS UidHandler(byte *pData, const DWORD dwDataLen, DWORD &r_dwParsingAt);
-#endif // 0
+    IMAP_RESULTS UidHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 
     // These are for fetches, which are special because they can generate arbitrarily large responses
     void FetchResponseFlags(uint32_t flags);
