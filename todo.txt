@@ -41,19 +41,21 @@ done)  Fix the fact that copying the torture test message to another mailbox
       NOTE:  These are two separate problems.  I can cause the corruption by causing the
              file to be rewritten by (for example) setting and then resetting a flag.
 
-12)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
+12)  Fix expunging the torture test from foo in the mbox mail store
 
-13)  Figure out why Evolution can't fetch the torture test
+13)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
+
+14)  Figure out why Evolution can't fetch the torture test
 
 done)  Properly handle the situation where the IMAP-specific headers aren't in the messages of an mbox message base.
 
 done)  Fix the case where I try a select before login and it crashes
 
-16)  Refactor the utility message creation in MailstoreMbox
+17)  Refactor the utility message creation in MailstoreMbox
 
 done)  Finish the parts of the NOOP command I've deferred
 
-18)  Asynchonous notifications
+19)  Asynchonous notifications
 
 done)  Fix the Support for mbox mailstores to add extra linefeeds before the "From " lines.
 
@@ -61,9 +63,9 @@ done)  Fix the "00000" in the time zone.
 
 done)  Fix the "UNSEEN 1" display where there are no unseen messages.
 
-22)  Fix the multiple simultaneous connection problem
+23)  Fix the multiple simultaneous connection problem
 
-23)  Fix the current memory leak
+24)  Fix the current memory leak
 
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    strips off the last line in the folder
@@ -71,7 +73,7 @@ done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    appends a newline to every message.
 
-26)  Move the body search and text search (largely) into the MailStore class.
+27)  Move the body search and text search (largely) into the MailStore class.
 
 )  Locking for multiple simultaneous access to mailboxes
 
