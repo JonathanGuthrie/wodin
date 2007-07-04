@@ -34,7 +34,12 @@ done)  Do the commands available in the SELECTED state
   done) copy
   done) uid (three commands)
 
-11)  Fix expunging the torture test from foo in the mbox mail store
+done)  Fix the fact that copying the torture test message to another mailbox
+  corrupts it.  Two questions need answering:
+    done)  Why does a copy cause the currently opened mailbox to be updated?
+    done)  Why is part of the line copied over itself?
+      NOTE:  These are two separate problems.  I can cause the corruption by causing the
+             file to be rewritten by (for example) setting and then resetting a flag.
 
 12)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
 

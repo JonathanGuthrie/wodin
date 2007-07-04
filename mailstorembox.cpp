@@ -550,16 +550,27 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
     std::string fullPath;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
-    m_isDirty = true;
     if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
 	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
 	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
 	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
 	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
 	('\0' == MailboxName[5])) {
+	if ((NULL != m_openMailbox) &&
+	    (('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
+	    (('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
+	    (('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
+	    (('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
+	    (('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
+	    ('\0' == (*m_openMailbox)[5])) {
+	    m_isDirty = true;
+	}
 	fullPath = m_inboxPath;
     }
     else {
+	if ((NULL != m_openMailbox) && (*m_openMailbox == MailboxName)) {
+	    m_isDirty = true;
+	}
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
 	    MailboxName.erase(MailboxName.size()-1);
 	}
@@ -1141,7 +1152,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		    updateFile.read((char *)curr->next->data, 8192);
 		    updateFile.clear();
 		    curr->next->count = updateFile.gcount();
-		    notDone = 8192 == curr->next->count;
+		    notDone = 0 != curr->next->count;
 		    lastGetPos = updateFile.tellg();
 		    updateFile.seekp(lastPutPos);
 		    for (int i=0; i<curr->count; ++i) {
