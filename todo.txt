@@ -41,7 +41,7 @@ done)  Fix the fact that copying the torture test message to another mailbox
       NOTE:  These are two separate problems.  I can cause the corruption by causing the
              file to be rewritten by (for example) setting and then resetting a flag.
 
-12)  Fix expunging the torture test from foo in the mbox mail store
+done)  Fix expunging the torture test from foo in the mbox mail store
 
 13)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
 
