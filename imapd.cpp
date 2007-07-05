@@ -6,9 +6,11 @@
 
 #define PORT 143
 
-int main()
-{
-    ImapServer *server = new ImapServer(INADDR_ANY, PORT);
+int main() {
+    uint32_t bind_address = INADDR_ANY;
+    short port = PORT;
+
+    ImapServer *server = new ImapServer(bind_address, port);
     
     server->Run();
     std::cout << "Hit q and return to exit" << std::endl;
