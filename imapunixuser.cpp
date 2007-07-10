@@ -8,6 +8,7 @@
 
 ImapUnixUser::ImapUnixUser(const char *user) : ImapUser(user)
 {
+    home = NULL;
     struct passwd *pass;
     setpwent();
     while (NULL != (pass = getpwent()))
@@ -28,7 +29,9 @@ ImapUnixUser::ImapUnixUser(const char *user) : ImapUser(user)
 
 ImapUnixUser::~ImapUnixUser()
 {
-    delete[] home;
+    if (NULL != home) {
+	delete[] home;
+    }
 }
 
 bool ImapUnixUser::HavePlaintextPassword()
