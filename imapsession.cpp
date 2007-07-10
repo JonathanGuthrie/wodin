@@ -610,10 +610,10 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status) {
 	break;
 
     case IMAP_NOTDONE:
-	response += "+ ";
+	response += "+";
 	response += m_responseCode[0] == '\0' ? "" : " ";
 	response += (char *)m_responseCode;
-	response += " ";
+	response += m_responseText[0] == '\0' ? "" : " ";
 	response += (char *)m_responseText;
 	response += "\r\n";
 	break;

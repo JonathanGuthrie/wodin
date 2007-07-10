@@ -46,6 +46,9 @@ done)  Fix expunging the torture test from foo in the mbox mail store
 13)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
 
 14)  Figure out why Evolution can't fetch the torture test
+  This won't work until I extend bodystructure properly, so I'm doing this first
+
+done)  Figure out what problem mutt has with AUTHENTICATE=PLAIN
 
 done)  Properly handle the situation where the IMAP-specific headers aren't in the messages of an mbox message base.
 
