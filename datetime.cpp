@@ -1036,6 +1036,12 @@ bool DateTime::ParseRfc822(const uint8_t *data, size_t dataLen, size_t &parsingA
 
 bool DateTime::ParseFromLine(const uint8_t *data, size_t dataLen, size_t &parsingAt) {
     m_valid = false;
+
+    // It appears as if PostFix puts an extra space before the date
+    if (' ' == data[parsingAt]) {
+	++parsingAt;
+    }
+
     // Day of week
     // tuesday and thursday
     if ('T' == toupper(data[parsingAt])) {
@@ -1243,7 +1249,10 @@ bool DateTime::ParseFromLine(const uint8_t *data, size_t dataLen, size_t &parsin
 	}	
     }
     if (' ' != data[parsingAt]) {
-	return false;
+	tzset();
+	m_zone = timezone;
+	m_valid = true;
+	return true;
     }
     ++parsingAt;
 
