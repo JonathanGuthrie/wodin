@@ -136,9 +136,9 @@ void *ImapServer::ListenerThreadFunction(void *d)
 	Socket *worker = t->listener->Accept();
 	if (FD_SETSIZE > worker->SockNum())
 	{
-	    t->WantsToReceive(worker->SockNum());
 	    t->sessions[worker->SockNum()]->NewSession(worker);
 	    t->SetIdleTimer(t->sessions[worker->SockNum()], t->loginTimeout);
+	    t->WantsToReceive(worker->SockNum());
 	}
 	else
 	{
