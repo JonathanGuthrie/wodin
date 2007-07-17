@@ -49,8 +49,9 @@ done)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
   DEFINITELY has to do with the override server namespace option.  It's supposed to do that because it's looking in the overridden namespace for
   "INBOX" and not seeing it, so it tries to subscribe to it.  This is a brain-o.
 
-14)  Figure out why Evolution can't fetch the torture test
-  This won't work until I extend bodystructure properly, so I'm doing this first
+done)  Figure out why Evolution can't fetch the torture test
+  I also can't fetch message 4769 from Mail/challenger498 because "fetch 4769 body.peek[header]" returns no data at all.
+  Assume it's the same thing because that would be so convenient.  It was the same thing, the body[header] wasn't workingxs
 
 done)  Figure out what problem mutt has with AUTHENTICATE=PLAIN
 

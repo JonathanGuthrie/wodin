@@ -4839,8 +4839,11 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			    break;
 
 			case FETCH_BODY_HEADER:
-			    if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
-				body = (*body.subparts)[0];
+			    if (!partNumberFlag || ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size()))) {
+				if (partNumberFlag) {
+				    // It's a subpart
+				    body = (*body.subparts)[0];
+				}
 				if (firstByte < body.headerOctets)
 				{
 				    length = MIN(body.headerOctets - firstByte, maxLength);
