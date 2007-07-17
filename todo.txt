@@ -43,9 +43,11 @@ done)  Fix the fact that copying the torture test message to another mailbox
 
 done)  Fix expunging the torture test from foo in the mbox mail store
 
-13)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
+done)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
   subtask - DONE:  Fix the logging proxy to handle sockets better and do multiple simultaneous connections in a sane fashion
   I think it has to do with the override server namespace option.
+  DEFINITELY has to do with the override server namespace option.  It's supposed to do that because it's looking in the overridden namespace for
+  "INBOX" and not seeing it, so it tries to subscribe to it.  This is a brain-o.
 
 14)  Figure out why Evolution can't fetch the torture test
   This won't work until I extend bodystructure properly, so I'm doing this first
