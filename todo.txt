@@ -59,7 +59,7 @@ done)  Properly handle the situation where the IMAP-specific headers aren't in t
 
 done)  Fix the case where I try a select before login and it crashes
 
-18)  Refactor the utility message creation in MailstoreMbox
+done)  Refactor the utility message creation in MailstoreMbox
 
 done)  Finish the parts of the NOOP command I've deferred
 
