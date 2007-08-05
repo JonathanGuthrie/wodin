@@ -125,6 +125,7 @@ void ImapServer::Shutdown()
 	}
 	delete sessions[i];
     }
+    delete pool;
 }
 
 

@@ -287,12 +287,20 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxUpdateStats(NUMBER_LIST *nowGone)
 
 Namespace::~Namespace() {
     m_openMailbox = NULL;
-    // SYZYGY -- I have to delete the maps
-    // SYZYGY -- that includes all the registered mail stores
+    for (NamespaceMap::iterator i = namespaces.begin(); i != namespaces.end(); ++i) {
+	delete i->second.store;
+    }
+    namespaces.clear();
+    if (NULL != defaultNamespace) {
+	delete defaultNamespace;
+    }
 }
 
 void Namespace::AddNamespace(NAMESPACE_TYPES type, const std::string &name, MailStore *handler, char separator) {
     if ("" == name) {
+	if (NULL != defaultNamespace) {
+	    delete defaultNamespace;
+	}
 	defaultType = type;
 	defaultNamespace = handler;
 	defaultSeparator = separator;

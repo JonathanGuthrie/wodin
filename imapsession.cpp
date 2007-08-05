@@ -319,7 +319,9 @@ ImapSession::~ImapSession() {
     if (ImapSelected == m_state) {
 	m_store->MailboxClose();
     }
-    delete m_store;
+    if (NULL != m_store) {
+	delete m_store;
+    }
     m_store = NULL;
     std::string bye = "* BYE SimDesk IMAP4rev1 server shutting down\r\n";
     m_s->Send((uint8_t *)bye.data(), bye.size());

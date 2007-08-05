@@ -112,6 +112,13 @@ ThreadPool<T>::~ThreadPool(void)
 	pthread_cond_destroy(&m_QueueEmpty[i]);
 	pthread_mutex_destroy(&m_QueueMutex[i]);
     }
+
+    delete[] m_WorkerThreadParams;
+    delete[] m_WorkerIds;
+    delete[] m_QueueFull;
+    delete[] m_QueueEmpty;
+    delete[] m_QueueMutex;
+    delete[] m_TheQueues;
 }
 
 /*
