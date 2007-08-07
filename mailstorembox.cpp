@@ -4111,6 +4111,7 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
     }
 
     // std::cout << "Returning " << destPtr << std::endl;
+    delete[] readBuffer;
     return destPtr;
 }
 
