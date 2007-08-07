@@ -2591,10 +2591,10 @@ MailStoreMbox::~MailStoreMbox()
 	m_outFile = NULL;
     }
     if (NULL != m_homeDirectory) {
-	delete m_homeDirectory;
+	delete[] m_homeDirectory;
     }
     if (NULL != m_inboxPath) {
-	delete m_inboxPath;
+	delete[] m_inboxPath;
     }
 }
 
