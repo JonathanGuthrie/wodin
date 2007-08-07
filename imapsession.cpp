@@ -3805,6 +3805,9 @@ static insensitiveString ParseAddress(insensitiveString &input) {
 	if ('>' == input[0]) {
 	    end = input.find_last_not_of(SPACE);
 	    begin = input.find_first_not_of(SPACE, 1);
+	    if (std::string::npos == begin) {
+		begin = 0;
+	    }
 	    input = input.substr(begin, end-begin+1);
 	}
     }
