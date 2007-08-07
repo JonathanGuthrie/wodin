@@ -308,6 +308,7 @@ ImapSession::ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver
     response += BuildCapabilityString() + "] IMAP4rev1 server ready\r\n";
     m_s->Send((uint8_t *) response.c_str(), response.length());
     m_lastCommandTime = time(NULL);
+    m_inProgress = ImapCommandNone;
 }
 
 ImapSession::~ImapSession() {
@@ -4514,6 +4515,8 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 		    }
 		}
 		specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+		// SYZYGY -- Valgrind sometimes flags this as uninitialized
+		// SYZYGY -- I suppose it's running off the end of m_parseBuffer
 		if (0 == strcmp(")", (char *)&m_parseBuffer[specificationBase])) {
 		    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
 		}
