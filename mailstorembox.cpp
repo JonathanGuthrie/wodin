@@ -349,6 +349,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 {
     m_uidGivenMsn.clear();
+    for (MESSAGE_INDEX::iterator p = m_messageIndex.begin(); p != m_messageIndex.end(); ++p) {
+	if (NULL != p->messageData) {
+	    delete p->messageData;
+	    p->messageData = NULL;
+	}
+    }
     if (NULL != m_openMailbox) {
 	MailboxFlushBuffers(NULL);
 	m_messageIndex.clear();
