@@ -17,7 +17,8 @@ ImapUnixUser::ImapUnixUser(const char *user) : ImapUser(user)
 	{
 	    uid = pass->pw_uid;
 	    gid = pass->pw_gid;
-	    home = strdup(pass->pw_dir);
+	    home = new char[1+strlen(pass->pw_dir)];
+	    strcpy(home, pass->pw_dir);
 	    endpwent();
 	    userFound = true;
 	    return;
