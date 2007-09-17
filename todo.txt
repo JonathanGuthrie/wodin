@@ -51,7 +51,7 @@ done)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
 
 done)  Figure out why Evolution can't fetch the torture test
   I also can't fetch message 4769 from Mail/challenger498 because "fetch 4769 body.peek[header]" returns no data at all.
-  Assume it's the same thing because that would be so convenient.  It was the same thing, the body[header] wasn't workingxs
+  Assume it's the same thing because that would be so convenient.  It was the same thing, the body[header] wasn't working
 
 done)  Figure out what problem mutt has with AUTHENTICATE=PLAIN
 
@@ -63,7 +63,13 @@ done)  Refactor the utility message creation in MailstoreMbox
 
 done)  Finish the parts of the NOOP command I've deferred
 
-20)  Asynchonous notifications
+20)  Asynchonous notifications.  An asynchronous notification is where the client is notified when a command is in progress, and not
+  just when a noop, expunge, or check is in progress.  To do this, I need to add some mechanism for the front end to ask the back end
+  about updates, and I need to have some mechanism in the front end for getting those updates for pushing to the client.
+
+     I've created a class called DeltaQueueCheckMailbox to check for updates.  Eventually, it'll call some method in the mail store
+  to check for updates in the currently selected mailbox.  I will also, eventually, need to add code to cause it to send out updates
+  if this call returns data when the client is in IDLE mode.
 
 done)  Fix the Support for mbox mailstores to add extra linefeeds before the "From " lines.
 
@@ -88,9 +94,8 @@ done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
 
 )  LMTP support for local deliveries
 
-)  Create a MailStoreMboxo mail store for compatability with Postfix
-
 )  Set it up such that the SocketBindErrorException triggers retries instead of exiting with a failure
+
 )  Better yet, figure out how to not have SocketBindErrorException
 
 )  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
@@ -129,6 +134,8 @@ done)  Add support for a delay after a failed login (need a timer manager)
 )  Create a mailstore for maildir under unix
 
 )  Create a mailstore for an as-yet undesigned database-backend, maybe with a user class.
+
+)  Create a MailStoreMboxo mail store for compatability with Postfix
 
 )  Add support for the periodic wakeup of each session to check for changes to its selected mailstore
 

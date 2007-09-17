@@ -2,6 +2,7 @@
 
 #include "deltaqueue.hpp"
 #include "deltaqueuedelayedmessage.hpp"
+#include "deltaqueuecheckmailbox.hpp"
 #include "deltaqueueidletimer.hpp"
 
 DeltaQueue::DeltaQueue() : queueHead(NULL) {
