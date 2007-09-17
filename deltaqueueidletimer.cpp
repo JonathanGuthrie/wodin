@@ -12,19 +12,19 @@ void DeltaQueueIdleTimer::HandleTimeout(bool isPurge)
 {
     if (!isPurge) {
 	time_t now = time(NULL);
-	unsigned timeout = (ImapNotAuthenticated == driver->GetSession()->GetState()) ?
-	    driver->GetServer()->GetLoginTimeout() :
-	    driver->GetServer()->GetIdleTimeout();
+	unsigned timeout = (ImapNotAuthenticated == m_driver->GetSession()->GetState()) ?
+	    m_driver->GetServer()->GetLoginTimeout() :
+	    m_driver->GetServer()->GetIdleTimeout();
 
-	if ((now - timeout) > driver->GetSession()->GetLastCommandTime())
+	if ((now - timeout) > m_driver->GetSession()->GetLastCommandTime())
 	{
 	    std::string bye = "* BYE Idle timeout disconnect\r\n";
-	    driver->GetSocket()->Send((uint8_t *)bye.data(), bye.size());
-	    driver->GetServer()->KillSession(driver);
+	    m_driver->GetSocket()->Send((uint8_t *)bye.data(), bye.size());
+	    m_driver->GetServer()->KillSession(m_driver);
 	}
 	else
 	{
-	    driver->GetServer()->SetIdleTimer(driver, (time_t) driver->GetSession()->GetLastCommandTime() + timeout + 1 - now);
+	    m_driver->GetServer()->SetIdleTimer(m_driver, (time_t) m_driver->GetSession()->GetLastCommandTime() + timeout + 1 - now);
 	}
     }
 }

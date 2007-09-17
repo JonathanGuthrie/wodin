@@ -8,9 +8,9 @@ DeltaQueueDelayedMessage::DeltaQueueDelayedMessage(int delta, SessionDriver *dri
 
 void DeltaQueueDelayedMessage::HandleTimeout(bool isPurge) {
     if (!isPurge) {
-	Socket *sock = driver->GetSocket();
+	Socket *sock = m_driver->GetSocket();
 
 	sock->Send((uint8_t *)message.data(), message.size());
-	driver->GetServer()->WantsToReceive(sock->SockNum());
+	m_driver->GetServer()->WantsToReceive(sock->SockNum());
     }
 }

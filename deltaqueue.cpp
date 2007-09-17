@@ -34,12 +34,12 @@ void DeltaQueue::Tick() {
     pthread_mutex_lock(&queueMutex);
     // decrement head
     if (NULL != queueHead) {
-	--queueHead->delta;
-	if (0 == queueHead->delta) {
+	--queueHead->m_delta;
+	if (0 == queueHead->m_delta) {
 	    DeltaQueueAction *endMarker;
 
 	    temp = queueHead;
-	    while ((NULL != queueHead) && (0 == queueHead->delta))
+	    while ((NULL != queueHead) && (0 == queueHead->m_delta))
 	    {
 		endMarker = queueHead;
 		queueHead = queueHead->next;
@@ -79,11 +79,11 @@ void DeltaQueue::AddTimeout(SessionDriver *driver, time_t timeout)
 void DeltaQueue::InsertNewAction(DeltaQueueAction *action)
 {
     pthread_mutex_lock(&queueMutex);
-    if ((NULL == queueHead) || (queueHead->delta > action->delta))
+    if ((NULL == queueHead) || (queueHead->m_delta > action->m_delta))
     {
 	if (NULL != queueHead)
 	{
-	    queueHead->delta -= action->delta;
+	    queueHead->m_delta -= action->m_delta;
 	}
 	action->next = queueHead;
 	queueHead = action;
@@ -93,15 +93,15 @@ void DeltaQueue::InsertNewAction(DeltaQueueAction *action)
 	// If I get here, I know that the first item is not going to be the new action
 	DeltaQueueAction *item = queueHead;
 
-	action->delta -= queueHead->delta;
-	for (item=queueHead; (item->next!=NULL) && (item->next->delta < action->delta); item=item->next)
+	action->m_delta -= queueHead->m_delta;
+	for (item=queueHead; (item->next!=NULL) && (item->next->m_delta < action->m_delta); item=item->next)
 	{
-	    action->delta -= item->next->delta;
+	    action->m_delta -= item->next->m_delta;
 	}
 	// When I get here, I know that item points to the item before where the new action goes
 	if (NULL != item->next)
 	{
-	    item->next->delta -= action->delta;
+	    item->next->m_delta -= action->m_delta;
 	}
 	action->next = item->next;
 	item->next = action;
@@ -118,9 +118,9 @@ void DeltaQueue::PurgeSession(const SessionDriver *driver) {
     pthread_mutex_lock(&queueMutex);
     for(temp = queueHead; NULL != temp; temp=next) {
 	next = temp->next;
-	if (driver == temp->driver) {
+	if (driver == temp->m_driver) {
 	    if (NULL != next) {
-		next->delta += temp->delta;
+		next->m_delta += temp->m_delta;
 	    }
 	    if (NULL != prev) {
 		prev->next = temp->next;

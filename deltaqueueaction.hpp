@@ -9,8 +9,8 @@ public:
     DeltaQueueAction(int delta, SessionDriver *driver);
     class DeltaQueueAction *next;
     virtual void HandleTimeout(bool isPurge) = 0;
-    unsigned delta;
-    SessionDriver *driver;
+    unsigned m_delta;
+    SessionDriver *m_driver;
 };
 
 

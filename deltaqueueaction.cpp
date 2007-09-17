@@ -2,7 +2,7 @@
 
 #include "deltaqueueaction.hpp"
 
-DeltaQueueAction::DeltaQueueAction(int delta, SessionDriver *driver) : delta(delta), driver(driver), next(NULL)
+DeltaQueueAction::DeltaQueueAction(int delta, SessionDriver *driver) : m_delta(delta), m_driver(driver), next(NULL)
 {
 }
 
