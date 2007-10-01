@@ -71,7 +71,7 @@ done)  Finish the parts of the NOOP command I've deferred
   store to check for updates in the currently selected mailbox.  I will also, eventually, need to add code to cause it to send out
   updates if this call returns data when the client is in IDLE mode.
 
-21)  Change the "DeltaqueueCheckMailbox" class to "DeltaQueueAsynchronousAction" class
+done)  Change the "DeltaqueueCheckMailbox" class to "DeltaQueueAsynchronousAction" class
 
 done)  Fix the Support for mbox mailstores to add extra linefeeds before the "From " lines.
 

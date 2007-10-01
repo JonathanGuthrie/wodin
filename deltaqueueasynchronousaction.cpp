@@ -1,14 +1,14 @@
 #include <time.h>
 
-#include "deltaqueuecheckmailbox.hpp"
+#include "deltaqueueasynchronousaction.hpp"
 #include "deltaqueueaction.hpp"
 #include "imapserver.hpp"
 #include "imapsession.hpp"
 
-DeltaQueueCheckMailbox::DeltaQueueCheckMailbox(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) { }
+DeltaQueueAsynchronousAction::DeltaQueueAsynchronousAction(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) { }
 
 
-void DeltaQueueCheckMailbox::HandleTimeout(bool isPurge)
+void DeltaQueueAsynchronousAction::HandleTimeout(bool isPurge)
 {
     if (!isPurge) {
 	m_driver->DoAsynchronousWork();

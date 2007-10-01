@@ -2,7 +2,7 @@
 
 #include "deltaqueue.hpp"
 #include "deltaqueuedelayedmessage.hpp"
-#include "deltaqueuecheckmailbox.hpp"
+#include "deltaqueueasynchronousaction.hpp"
 #include "deltaqueueidletimer.hpp"
 
 DeltaQueue::DeltaQueue() : queueHead(NULL) {
@@ -78,9 +78,9 @@ void DeltaQueue::AddTimeout(SessionDriver *driver, time_t timeout)
 
 
 void DeltaQueue::AddAsynchronousAction(SessionDriver *driver, time_t timeout) {
-    DeltaQueueCheckMailbox *action;
+    DeltaQueueAsynchronousAction *action;
 
-    action = new DeltaQueueCheckMailbox(timeout, driver);
+    action = new DeltaQueueAsynchronousAction(timeout, driver);
     InsertNewAction((DeltaQueueAction *)action);
 }
 
