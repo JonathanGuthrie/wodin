@@ -2,7 +2,7 @@
 
 std::string base64_encode(const std::string &in)
 {
-    char *map = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const std::string map = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string result;
     int len = (int)in.size();
     unsigned long value;
