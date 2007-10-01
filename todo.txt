@@ -67,9 +67,11 @@ done)  Finish the parts of the NOOP command I've deferred
   just when a noop, expunge, or check is in progress.  To do this, I need to add some mechanism for the front end to ask the back end
   about updates, and I need to have some mechanism in the front end for getting those updates for pushing to the client.
 
-     I've created a class called DeltaQueueCheckMailbox to check for updates.  Eventually, it'll call some method in the mail store
-  to check for updates in the currently selected mailbox.  I will also, eventually, need to add code to cause it to send out updates
-  if this call returns data when the client is in IDLE mode.
+     I've created a class called DeltaQueueCheckMailbox to check for updates.  Eventually, it'll call MailboxUpdateStats in the mail
+  store to check for updates in the currently selected mailbox.  I will also, eventually, need to add code to cause it to send out
+  updates if this call returns data when the client is in IDLE mode.
+
+21)  Change the "DeltaqueueCheckMailbox" class to "DeltaQueueAsynchronousAction" class
 
 done)  Fix the Support for mbox mailstores to add extra linefeeds before the "From " lines.
 
@@ -77,9 +79,9 @@ done)  Fix the "00000" in the time zone.
 
 done)  Fix the "UNSEEN 1" display where there are no unseen messages.
 
-24)  Fix the multiple simultaneous connection problem
+25)  Fix the multiple simultaneous connection problem
 
-25)  Fix the current memory leak
+26)  Fix the current memory leak
 
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    strips off the last line in the folder
@@ -87,7 +89,7 @@ done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    appends a newline to every message.
 
-28)  Move the body search and text search (largely) into the MailStore class.
+27)  Move the body search and text search (largely) into the MailStore class.
 
 )  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf,
   dot lock)

@@ -77,6 +77,14 @@ void DeltaQueue::AddTimeout(SessionDriver *driver, time_t timeout)
 }
 
 
+void DeltaQueue::AddAsynchronousAction(SessionDriver *driver, time_t timeout) {
+    DeltaQueueCheckMailbox *action;
+
+    action = new DeltaQueueCheckMailbox(timeout, driver);
+    InsertNewAction((DeltaQueueAction *)action);
+}
+
+
 void DeltaQueue::InsertNewAction(DeltaQueueAction *action)
 {
     pthread_mutex_lock(&queueMutex);

@@ -457,6 +457,24 @@ void ImapSession::AddToParseBuffer(const uint8_t *data, size_t length, bool nulT
 /*--------------------------------------------------------------------------------------*/
 /* ReceiveData										*/
 /*--------------------------------------------------------------------------------------*/
+void ImapSession::AsynchronousEvent(void) {
+    if (ImapSelected == m_state) {
+	NUMBER_LIST purgedMessages;
+	if (MailStore::SUCCESS == m_store->MailboxUpdateStats(&purgedMessages)) {
+	    // SYZYGY
+	    // Clearly I have to do something with the list of purged messages, but what?
+	    // I think what I want to do is put it in the class's list of messages that
+	    // have been purged so that they can be reported after the next successful command
+	    // For the moment, don't do a damn thing
+	    // SYZYGY -- remove all other calls to MailboxUpdateStats from elsewhere --
+	    // SYZYGY -- it appears to only be in NoopHandler
+	}
+    }
+}
+
+/*--------------------------------------------------------------------------------------*/
+/* ReceiveData										*/
+/*--------------------------------------------------------------------------------------*/
 int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
     m_lastCommandTime = time(NULL);
     if (NULL != m_userData) {

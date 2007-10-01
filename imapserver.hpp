@@ -21,6 +21,7 @@ public:
     SessionDriver(ImapServer *s, int pipe);
     ~SessionDriver();
     void DoWork(void);
+    void DoAsynchronousWork(void);
     void NewSession(Socket *s);
     const ImapSession *GetSession(void) const { return session; }
     void DestroySession(void);
@@ -32,6 +33,7 @@ private:
     ImapServer *server;
     Socket *sock;
     int pipe;
+    pthread_mutex_t workMutex;
 };
 
 
@@ -39,7 +41,7 @@ typedef ThreadPool<SessionDriver *> ImapWorkerPool;
 
 class ImapServer {
 public:
-    ImapServer(uint32_t bind_address, short bind_port, unsigned login_timeout = 60, unsigned idle_timeout = 1800);
+    ImapServer(uint32_t bind_address, short bind_port, unsigned login_timeout = 60, unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900);
     ~ImapServer();
     void Run();
     void Shutdown();
@@ -53,7 +55,9 @@ public:
     void DelaySend(SessionDriver *driver, unsigned seconds, const std::string &message);
     time_t GetIdleTimeout(void) const { return idleTimeout; /* seconds */ }
     time_t GetLoginTimeout(void) const { return loginTimeout; /* seconds */ }
+    time_t GetAsynchronousEventTime(void) const { return asynchronousEventTime; /* seconds */ }
     void SetIdleTimer(SessionDriver *driver, unsigned seconds);
+    void ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds);
     void KillSession(SessionDriver *driver);
     const std::string GetFQDN(void);
 
@@ -74,6 +78,7 @@ private:
     DeltaQueue timerQueue;
     unsigned idleTimeout;
     unsigned loginTimeout;
+    unsigned asynchronousEventTime;
 };
 
 #endif // _IMAPSERVER_HPP_INCLUDED_

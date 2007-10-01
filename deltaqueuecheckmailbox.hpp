@@ -11,11 +11,10 @@ class SessionDriver;
 class DeltaQueueCheckMailbox : DeltaQueueAction
 {
 public:
-    DeltaQueueCheckMailbox(int delta, SessionDriver *driver, MailStore *store);
+    DeltaQueueCheckMailbox(int delta, SessionDriver *driver);
     virtual void HandleTimeout(bool isPurge);
 
 private:
-    MailStore *m_store;
 };
 
 

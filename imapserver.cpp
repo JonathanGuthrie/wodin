@@ -17,6 +17,7 @@ SessionDriver::SessionDriver(ImapServer *s, int pipe)
     server = s;
     sock = NULL;
     session = NULL;
+    pthread_mutex_init(&workMutex, NULL);
 }
 
 SessionDriver::~SessionDriver()
@@ -36,7 +37,9 @@ void SessionDriver::DoWork(void)
     ssize_t numOctets = sock->Receive(recvBuffer, 1000);
     if (0 < numOctets)
     {
+	pthread_mutex_lock(&workMutex);
 	int result = session->ReceiveData(recvBuffer, numOctets);
+	pthread_mutex_unlock(&workMutex);
 	if (0 > result)
 	{
 	    server->KillSession(this);
@@ -49,6 +52,13 @@ void SessionDriver::DoWork(void)
 	    }
 	}
     }
+}
+
+
+void SessionDriver::DoAsynchronousWork(void) {
+    pthread_mutex_lock(&workMutex);
+    session->AsynchronousEvent();
+    pthread_mutex_unlock(&workMutex);
 }
 
 
@@ -67,10 +77,11 @@ void SessionDriver::NewSession(Socket *s)
 }
 
 
-ImapServer::ImapServer(uint32_t bind_address, short bind_port, unsigned login_timeout, unsigned idle_timeout)
+ImapServer::ImapServer(uint32_t bind_address, short bind_port, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time)
 {
     loginTimeout = login_timeout;
     idleTimeout = idle_timeout;
+    asynchronousEventTime = asynchronous_event_time;
     pipe(pipeFd);  // SYZYGY exception on error
     isRunning = true;
     listener = new Socket(bind_address, bind_port);
@@ -139,6 +150,7 @@ void *ImapServer::ListenerThreadFunction(void *d)
 	{
 	    t->sessions[worker->SockNum()]->NewSession(worker);
 	    t->SetIdleTimer(t->sessions[worker->SockNum()], t->loginTimeout);
+	    t->ScheduleAsynchronousAction(t->sessions[worker->SockNum()], t->asynchronousEventTime);
 	    t->WantsToReceive(worker->SockNum());
 	}
 	else
@@ -266,6 +278,11 @@ void ImapServer::DelaySend(SessionDriver *driver, unsigned seconds, const std::s
 void ImapServer::SetIdleTimer(SessionDriver *driver, unsigned seconds)
 {
     timerQueue.AddTimeout(driver, seconds);
+}
+
+
+void ImapServer::ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds) {
+    timerQueue.AddAsynchronousAction(driver, seconds);
 }
 
 

@@ -5,14 +5,13 @@
 #include "imapserver.hpp"
 #include "imapsession.hpp"
 
-DeltaQueueCheckMailbox::DeltaQueueCheckMailbox(int delta, SessionDriver *driver, MailStore *store) : DeltaQueueAction(delta, driver), m_store(store) { }
+DeltaQueueCheckMailbox::DeltaQueueCheckMailbox(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) { }
 
 
 void DeltaQueueCheckMailbox::HandleTimeout(bool isPurge)
 {
     if (!isPurge) {
-#if 0 // SYZYGY
-	m_store->MailboxChecknew();
-#endif // 0
+	m_driver->DoAsynchronousWork();
+	m_driver->GetServer()->ScheduleAsynchronousAction(m_driver, m_driver->GetServer()->GetAsynchronousEventTime());
     }
 }

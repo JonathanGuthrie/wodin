@@ -89,6 +89,7 @@ public:
     ~ImapSession();
     static void BuildSymbolTables(void);
     int ReceiveData(uint8_t* pData, size_t dwDataLen );
+    void AsynchronousEvent(void);
     ImapServer *GetServer(void) const { return m_server; }
     time_t GetLastCommandTime() const { return m_lastCommandTime; }
     Socket *GetSocket(void) const { return m_s; }
