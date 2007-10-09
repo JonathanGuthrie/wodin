@@ -85,7 +85,19 @@ done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    appends a newline to every message.
 
-27)  Move the body search and text search (largely) into the MailStore class.
+29)  Change the mail store logic so that each session has it's own list of available messages
+   and so that the messages aren't purged until all sessions that are accessing a mailbox have
+   been notified that the messages are going to be purged.
+
+30)  Move the body search and text search (largely) into the MailStore class.
+
+)  ImapServer::GetFQDN
+
+)  Configurable invalid login delay
+
+)  Throw exception for failures in ImapServer::ImapServer
+
+)  Configurable home directory location
 
 )  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf,
   dot lock)
@@ -135,9 +147,8 @@ done)  Add support for a delay after a failed login (need a timer manager)
 
 )  Create a MailStoreMboxo mail store for compatability with Postfix
 
-)  Add support for the periodic wakeup of each session to check for changes to its selected mailstore
-
-)  Add support for the IDLE command
+)  Add support for the IDLE command.  Including the code that causes it to send out
+  updates if the asynchronous update notices an update while idle.
 
 )  Keep some sort of track about the number of connections a user has.  Maybe
   collect some state about each user in the IMAP server
@@ -145,3 +156,5 @@ done)  Add support for a delay after a failed login (need a timer manager)
 )  Pluggable modules for mail stores
 
 )  Configuration
+
+)  initial profiling runs
