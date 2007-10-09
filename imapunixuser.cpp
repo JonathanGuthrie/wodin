@@ -44,7 +44,7 @@ bool ImapUnixUser::CheckCredentials(const char *password)
 {
     if (userFound)
     {
-	struct spwd *shadow =  getspnam(name);
+	struct spwd *shadow =  getspnam(name->c_str());
 	bool result = false;
 
 	if (NULL != shadow)

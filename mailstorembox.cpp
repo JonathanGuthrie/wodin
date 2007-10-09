@@ -26,8 +26,8 @@ MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, c
     m_outFile = NULL;
     m_openMailbox = NULL;
     m_isDirty = false;
-    m_inboxPath = strdup(usersInboxPath);
-    m_homeDirectory = strdup(usersHomeDirectory);
+    m_inboxPath = new std::string(usersInboxPath);
+    m_homeDirectory = new std::string(usersHomeDirectory);
 }
 
 static int writeMailboxMetadataFile(const char *filename, const char *fqdn) {
@@ -97,7 +97,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 	result = MailStore::CANNOT_CREATE_INBOX;
     }
     else {
-	std::string fullPath = m_homeDirectory;
+	std::string fullPath = *m_homeDirectory;
 	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
 
 	while ('/' == MailboxName[MailboxName.size()-1]) {
@@ -197,7 +197,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Ful
     else {
 	struct stat sb;
 
-	std::string fullPath = m_homeDirectory;
+	std::string fullPath = *m_homeDirectory;
 	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
 
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
@@ -250,13 +250,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 	(('o' == SourceName[3]) || ('O' == SourceName[3])) &&
 	(('x' == SourceName[4]) || ('X' == SourceName[4])) &&
 	('\0' == SourceName[5])) {
-	sourcePath = m_inboxPath;
+	sourcePath = *m_inboxPath;
 	isInbox = true;
     }
     else {
 	struct stat sb;
 
-	sourcePath = m_homeDirectory;
+	sourcePath = *m_homeDirectory;
 	sourcePath += "/";
 	sourcePath += SourceName;
 
@@ -281,7 +281,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 	    result = MailStore::MAILBOX_ALREADY_EXISTS;
 	}
 	else {
-	    destPath = m_homeDirectory;
+	    destPath = *m_homeDirectory;
 
 	    if ('/' == DestinationName[DestinationName.size()-1]) {
 		result = MailStore::MAILBOX_PATH_BAD;
@@ -543,7 +543,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	    ('\0' == (*m_openMailbox)[5])) {
 	    m_isDirty = true;
 	}
-	fullPath = m_inboxPath;
+	fullPath = *m_inboxPath;
     }
     else {
 	if ((NULL != m_openMailbox) && (*m_openMailbox == MailboxName)) {
@@ -553,7 +553,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	    MailboxName.erase(MailboxName.size()-1);
 	}
 
-	fullPath = m_homeDirectory;
+	fullPath = *m_homeDirectory;
 	fullPath += "/";
 	fullPath += MailboxName;
 
@@ -816,14 +816,14 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
 	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
 	('\0' == MailboxName[5])) {
-	fullPath = m_inboxPath;
+	fullPath = *m_inboxPath;
     }
     else {
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
 	    MailboxName.erase(MailboxName.size()-1);
 	}
 
-	fullPath = m_homeDirectory;
+	fullPath = *m_homeDirectory;
 	fullPath += "/";
 	fullPath += MailboxName;
 
@@ -942,14 +942,14 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
 	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
 	('\0' == MailboxName[5])) {
-	fullPath = m_inboxPath;
+	fullPath = *m_inboxPath;
     }
     else {
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
 	    MailboxName.erase(MailboxName.size()-1);
 	}
 
-	fullPath = m_homeDirectory;
+	fullPath = *m_homeDirectory;
 	fullPath += "/";
 	fullPath += MailboxName;
 
@@ -1067,10 +1067,10 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 	    (('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
 	    (('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
 	    ('\0' == (*m_openMailbox)[5])) {
-	    fullPath = m_inboxPath;
+	    fullPath = *m_inboxPath;
 	}
 	else {
-	    fullPath = m_homeDirectory;
+	    fullPath = *m_homeDirectory;
 	    fullPath += "/";
 	    fullPath += *m_openMailbox;
 	}
@@ -2295,7 +2295,7 @@ void MailStoreMbox::ListAll(const std::string &pattern, MAILBOX_LIST *result)
 
 	    name.name = "INBOX";
 	    name.attributes = MailStore::IMAP_MBOX_NOINFERIORS;
-	    if (isMailboxInteresting(m_inboxPath))
+	    if (isMailboxInteresting(m_inboxPath->c_str()))
 	    {
 		name.attributes |= MailStore::IMAP_MBOX_MARKED;
 	    }
@@ -2355,7 +2355,7 @@ void MailStoreMbox::ListAll(const std::string &pattern, MAILBOX_LIST *result)
 		break;
 	    }
 	}
-	sprintf(base_path, "%s/%.*s", m_homeDirectory, static_len, pattern.c_str());
+	sprintf(base_path, "%s/%.*s", m_homeDirectory->c_str(), static_len, pattern.c_str());
 	DIR *directory = opendir(base_path);
 	if (NULL != directory)
 	{
@@ -2376,7 +2376,7 @@ void MailStoreMbox::ListAll(const std::string &pattern, MAILBOX_LIST *result)
 		    {
 			strcpy(short_path, entry->d_name);
 		    }
-		    sprintf(full_path, "%s/%s", m_homeDirectory, short_path);
+		    sprintf(full_path, "%s/%s", m_homeDirectory->c_str(), short_path);
 		    struct stat stat_buf;
 		    if (0 == lstat(full_path, &stat_buf))
 		    {
@@ -2389,7 +2389,7 @@ void MailStoreMbox::ListAll(const std::string &pattern, MAILBOX_LIST *result)
 			    name.attributes = MailStore::IMAP_MBOX_NOSELECT;
 			    if (S_ISDIR(stat_buf.st_mode))
 			    {
-				if (ListAllHelper(&compiled_regex, m_homeDirectory, short_path, result, maxdepth))
+				if (ListAllHelper(&compiled_regex, m_homeDirectory->c_str(), short_path, result, maxdepth))
 				{
 				    name.attributes |= MailStore::IMAP_MBOX_HASCHILDREN;
 				}
@@ -2453,7 +2453,7 @@ void MailStoreMbox::ListSubscribed(const std::string &pattern, MAILBOX_LIST *res
 	regfree(&compiled_regex);
     }
 
-    std::string file_name = m_homeDirectory;
+    std::string file_name = *m_homeDirectory;
     file_name += "/" MAILBOX_LIST_FILE_NAME;
     std::ifstream inFile(file_name.c_str());
     if (0 == regcomp(&compiled_regex, regex, REG_EXTENDED))
@@ -2481,7 +2481,7 @@ void MailStoreMbox::ListSubscribed(const std::string &pattern, MAILBOX_LIST *res
 
 		    name.name = "INBOX";
 		    name.attributes = MailStore::IMAP_MBOX_NOINFERIORS;
-		    if (isMailboxInteresting(m_inboxPath))
+		    if (isMailboxInteresting(m_inboxPath->c_str()))
 		    {
 			name.attributes |= MailStore::IMAP_MBOX_MARKED;
 		    }
@@ -2541,9 +2541,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
 {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     bool foundLine = false;
-    std::string in_file_name = m_homeDirectory;
+    std::string in_file_name = *m_homeDirectory;
     in_file_name += "/" MAILBOX_LIST_FILE_NAME;
-    std::string out_file_name = m_homeDirectory;
+    std::string out_file_name = *m_homeDirectory;
     out_file_name += "/" MAILBOX_LIST_FILE_NAME;
     out_file_name += ".new";
     std::ifstream inFile(in_file_name.c_str());
@@ -2597,10 +2597,10 @@ MailStoreMbox::~MailStoreMbox()
 	m_outFile = NULL;
     }
     if (NULL != m_homeDirectory) {
-	delete[] m_homeDirectory;
+	delete m_homeDirectory;
     }
     if (NULL != m_inboxPath) {
-	delete[] m_inboxPath;
+	delete m_inboxPath;
     }
 }
 
@@ -2648,10 +2648,10 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::OpenMessageFile(unsigned long uid) {
 	(('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
 	(('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
 	('\0' == (*m_openMailbox)[5])) {
-	fullPath = m_inboxPath;
+	fullPath = *m_inboxPath;
     }
     else {
-	fullPath = m_homeDirectory;
+	fullPath = *m_homeDirectory;
 	fullPath += "/";
 	fullPath += *m_openMailbox;
     }

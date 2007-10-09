@@ -67,8 +67,8 @@ private:
 
     typedef std::vector<MessageIndex_t> MESSAGE_INDEX;
     MESSAGE_INDEX m_messageIndex;
-    const char *m_homeDirectory;
-    const char *m_inboxPath;
+    const std::string *m_homeDirectory;
+    const std::string *m_inboxPath;
     unsigned m_mailboxMessageCount;
     unsigned m_recentCount;
     unsigned m_firstUnseen;

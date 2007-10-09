@@ -4,11 +4,11 @@
 
 ImapUser::ImapUser(const char *user)
 {
-    name = strdup(user);
+    name = new std::string(user);
     userFound = false;
 }
 
 ImapUser::~ImapUser()
 {
-    delete[] name;
+    delete name;
 }

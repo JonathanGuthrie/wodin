@@ -77,7 +77,7 @@ done)  Fix the "UNSEEN 1" display where there are no unseen messages.
 
 done)  Fix the multiple simultaneous connection problem
 
-26)  Fix the current memory leak
+done)  Fix the current memory leaks
 
 done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
    strips off the last line in the folder

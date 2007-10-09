@@ -1,6 +1,8 @@
 #if !defined(_IMAPUSER_HPP_INCLUDED_)
 #define _IMAPUSER_HPP_INCLUDED_
 
+#include <string>
+
 // SYZYGY -- I need to know whether HavePlaintextPassword will return true or not
 // SYZYGY -- even under circumstances when I can't create a user because I haven't
 // SYZYGY -- yet gotten that far.  For example, it alters the capability string if
@@ -19,10 +21,10 @@ public:
     virtual bool CheckCredentials(const char *password) = 0;
     virtual char *GetPassword(void) const = 0;
     virtual char *GetHomeDir(void) const = 0;
-    char *GetName(void) const { return name; }
+    const char *GetName(void) const { return name->c_str(); }
 
 protected:
-    char *name;
+    std::string *name;
     bool userFound;
 };
 
