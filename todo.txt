@@ -75,7 +75,7 @@ done)  Fix the "00000" in the time zone.
 
 done)  Fix the "UNSEEN 1" display where there are no unseen messages.
 
-25)  Fix the multiple simultaneous connection problem
+done)  Fix the multiple simultaneous connection problem
 
 26)  Fix the current memory leak
 
