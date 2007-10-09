@@ -63,13 +63,9 @@ done)  Refactor the utility message creation in MailstoreMbox
 
 done)  Finish the parts of the NOOP command I've deferred
 
-20)  Asynchonous notifications.  An asynchronous notification is where the client is notified when a command is in progress, and not
+done)  Asynchonous notifications.  An asynchronous notification is where the client is notified when a command is in progress, and not
   just when a noop, expunge, or check is in progress.  To do this, I need to add some mechanism for the front end to ask the back end
   about updates, and I need to have some mechanism in the front end for getting those updates for pushing to the client.
-
-     I've created a class called DeltaQueueCheckMailbox to check for updates.  Eventually, it'll call MailboxUpdateStats in the mail
-  store to check for updates in the currently selected mailbox.  I will also, eventually, need to add code to cause it to send out
-  updates if this call returns data when the client is in IDLE mode.
 
 done)  Change the "DeltaqueueCheckMailbox" class to "DeltaQueueAsynchronousAction" class
 

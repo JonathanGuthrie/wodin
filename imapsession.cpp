@@ -461,13 +461,19 @@ void ImapSession::AsynchronousEvent(void) {
     if (ImapSelected == m_state) {
 	NUMBER_LIST purgedMessages;
 	if (MailStore::SUCCESS == m_store->MailboxUpdateStats(&purgedMessages)) {
+#if 0
+	    for (NUMBER_LIST::iterator i=purgedMessages.begin() ; i!= purgedMessages.end(); ++i) {
+		int message_number;
+
+		message_number = *i;
+		ss << "* " << message_number << " EXPUNGE\r\n";
+	    }
+#endif // 0
 	    // SYZYGY
 	    // Clearly I have to do something with the list of purged messages, but what?
 	    // I think what I want to do is put it in the class's list of messages that
 	    // have been purged so that they can be reported after the next successful command
 	    // For the moment, don't do a damn thing
-	    // SYZYGY -- remove all other calls to MailboxUpdateStats from elsewhere --
-	    // SYZYGY -- it appears to only be in NoopHandler
 	}
     }
 }
@@ -1537,14 +1543,6 @@ IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &par
 	    NUMBER_LIST purgedMessages;
 	    std::ostringstream ss;
 
-	    if (MailStore::SUCCESS == m_store->MailboxUpdateStats(&purgedMessages)) {
-		for (NUMBER_LIST::iterator i=purgedMessages.begin() ; i!= purgedMessages.end(); ++i) {
-		    int message_number;
-
-		    message_number = *i;
-		    ss << "* " << message_number << " EXPUNGE\r\n";
-		}
-	    }
 	    if (m_currentNextUid != m_store->GetSerialNumber()) {
 		m_currentNextUid = m_store->GetSerialNumber();
 		ss << "* OK [UIDNEXT " << m_currentNextUid << "]\r\n";
