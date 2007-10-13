@@ -157,4 +157,4 @@ done)  Add support for a delay after a failed login (need a timer manager)
 
 )  Configuration
 
-)  initial profiling runs
+)  profiling runs, memory leaks, etc.
