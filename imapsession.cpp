@@ -154,6 +154,7 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.levels[1] = true;
     symbolToInsert.levels[2] = true;
     symbolToInsert.levels[3] = true;
+    symbolToInsert.sendUpdatedStatus = true;
     symbolToInsert.handler = &ImapSession::CapabilityHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("CAPABILITY", symbolToInsert));
     symbolToInsert.handler = &ImapSession::NoopHandler;
@@ -165,6 +166,7 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.levels[1] = false;
     symbolToInsert.levels[2] = false;
     symbolToInsert.levels[3] = false;
+    symbolToInsert.sendUpdatedStatus = true;
     symbolToInsert.handler = &ImapSession::StarttlsHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("STARTTTLS", symbolToInsert));
     symbolToInsert.handler = &ImapSession::AuthenticateHandler;
@@ -176,12 +178,9 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.levels[1] = true;
     symbolToInsert.levels[2] = true;
     symbolToInsert.levels[3] = false;
+    symbolToInsert.sendUpdatedStatus = true;
     symbolToInsert.handler = &ImapSession::NamespaceHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("NAMESPACE", symbolToInsert));
-    symbolToInsert.handler = &ImapSession::SelectHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type("SELECT", symbolToInsert));
-    symbolToInsert.handler = &ImapSession::ExamineHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type("EXAMINE", symbolToInsert));
     symbolToInsert.handler = &ImapSession::CreateHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("CREATE", symbolToInsert));
     symbolToInsert.handler = &ImapSession::DeleteHandler;
@@ -200,27 +199,37 @@ void ImapSession::BuildSymbolTables()
     m_symbols.insert(IMAPSYMBOLS::value_type("STATUS", symbolToInsert));
     symbolToInsert.handler = &ImapSession::AppendHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("APPEND", symbolToInsert));
+    // My justification for not allowing the updating of the status after the select and examine commands
+    // is because they can like a close if they're executed in the selected state, and it's not allowed
+    // after a close as per RFC 3501 6.4.2
+    symbolToInsert.sendUpdatedStatus = false;
+    symbolToInsert.handler = &ImapSession::SelectHandler;
+    m_symbols.insert(IMAPSYMBOLS::value_type("SELECT", symbolToInsert));
+    symbolToInsert.handler = &ImapSession::ExamineHandler;
+    m_symbols.insert(IMAPSYMBOLS::value_type("EXAMINE", symbolToInsert));
 
     symbolToInsert.levels[0] = false;
     symbolToInsert.levels[1] = false;
     symbolToInsert.levels[2] = true;
     symbolToInsert.levels[3] = false;
+    symbolToInsert.sendUpdatedStatus = true;
     symbolToInsert.handler = &ImapSession::CheckHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("CHECK", symbolToInsert));
-    symbolToInsert.handler = &ImapSession::CloseHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type("CLOSE", symbolToInsert));
     symbolToInsert.handler = &ImapSession::ExpungeHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("EXPUNGE", symbolToInsert));
+    symbolToInsert.handler = &ImapSession::CopyHandler;
+    m_symbols.insert(IMAPSYMBOLS::value_type("COPY", symbolToInsert));
+    symbolToInsert.handler = &ImapSession::UidHandler;
+    m_symbols.insert(IMAPSYMBOLS::value_type("UID", symbolToInsert));
+    symbolToInsert.sendUpdatedStatus = false;
+    symbolToInsert.handler = &ImapSession::CloseHandler;
+    m_symbols.insert(IMAPSYMBOLS::value_type("CLOSE", symbolToInsert));
     symbolToInsert.handler = &ImapSession::SearchHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("SEARCH", symbolToInsert));
     symbolToInsert.handler = &ImapSession::FetchHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("FETCH", symbolToInsert));
     symbolToInsert.handler = &ImapSession::StoreHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("STORE", symbolToInsert));
-    symbolToInsert.handler = &ImapSession::CopyHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type("COPY", symbolToInsert));
-    symbolToInsert.handler = &ImapSession::UidHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type("UID", symbolToInsert));
 
     // This is the symbol table for the search keywords
     searchSymbolTable.insert(SEARCH_SYMBOL_T::value_type("ALL",        SSV_ALL));
@@ -308,6 +317,7 @@ ImapSession::ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver
     response += BuildCapabilityString() + "] IMAP4rev1 server ready\r\n";
     m_s->Send((uint8_t *) response.c_str(), response.length());
     m_lastCommandTime = time(NULL);
+    m_purgedMessages.clear();
     m_inProgress = ImapCommandNone;
 }
 
@@ -461,19 +471,7 @@ void ImapSession::AsynchronousEvent(void) {
     if (ImapSelected == m_state) {
 	NUMBER_LIST purgedMessages;
 	if (MailStore::SUCCESS == m_store->MailboxUpdateStats(&purgedMessages)) {
-#if 0
-	    for (NUMBER_LIST::iterator i=purgedMessages.begin() ; i!= purgedMessages.end(); ++i) {
-		int message_number;
-
-		message_number = *i;
-		ss << "* " << message_number << " EXPUNGE\r\n";
-	    }
-#endif // 0
-	    // SYZYGY
-	    // Clearly I have to do something with the list of purged messages, but what?
-	    // I think what I want to do is put it in the class's list of messages that
-	    // have been purged so that they can be reported after the next successful command
-	    // For the moment, don't do a damn thing
+	    m_purgedMessages.splice(m_purgedMessages.end(), purgedMessages);
 	}
     }
 }
@@ -607,8 +605,57 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
     return result;
 }
 
-std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status) {
+std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpdatedStatus) {
     std::string response;
+
+    if (sendUpdatedStatus && (ImapSelected == m_state)) {
+	// SYZYGY -- need to rework this for the new mail store logic
+	// SYZYGY -- basically, it works like this:  The front end requests that an
+	// SYZYGY -- expunge happen, and the back end notifies all of the front ends
+	// SYZYGY -- of the list of messages that are being expunged.  Then, as each
+	// SYZYGY -- front end notifies their client that messages are being expunged,
+	// SYZYGY -- that front end also notifies the back end that those messages are
+	// SYZYGY -- no longer visible to the front end
+	for (NUMBER_LIST::iterator i=m_purgedMessages.begin() ; i!= m_purgedMessages.end(); ++i) {
+	    int message_number;
+	    std::ostringstream ss;
+
+	    message_number = *i;
+	    ss << "* " << message_number << " EXPUNGE\r\n";
+	}
+	m_purgedMessages.clear();
+
+	// I want to re-read the cached data if I'm in the selected state and
+	// either the number of messages or the UIDNEXT value changes
+	if ((m_currentNextUid != m_store->GetSerialNumber()) ||
+	    (m_currentMessageCount != m_store->MailboxMessageCount())) {
+	    std::ostringstream ss;
+
+	    if (m_currentNextUid != m_store->GetSerialNumber()) {
+		m_currentNextUid = m_store->GetSerialNumber();
+		ss << "* OK [UIDNEXT " << m_currentNextUid << "]\r\n";
+	    }
+	    if (m_currentMessageCount != m_store->MailboxMessageCount()) {
+		m_currentMessageCount = m_store->MailboxMessageCount();
+		ss << "* " << m_currentMessageCount << " EXISTS\r\n";
+	    }
+	    if (m_currentRecentCount != m_store->MailboxRecentCount()) {
+		m_currentRecentCount = m_store->MailboxRecentCount();
+		ss << "* " << m_currentRecentCount << " RECENT\r\n";
+	    }
+	    if (m_currentUnseen != m_store->MailboxFirstUnseen()) {
+		m_currentUnseen = m_store->MailboxFirstUnseen();
+		if (0 < m_currentUnseen) {
+		    ss << "* OK [UNSEEN " << m_currentUnseen << "]\r\n";
+		}
+	    }
+	    if (m_currentUidValidity != m_store->GetUidValidityNumber()) {
+		m_currentUidValidity = m_store->GetUidValidityNumber();
+		ss << "* OK [UIDVALIDITY " << m_currentUidValidity << "]\r\n";
+	    }
+	    m_s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	}
+    }
 
     switch(status) {
     case IMAP_OK:
@@ -731,7 +778,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		m_responseCode[0] = '\0';
 		strncpy(m_responseText, "Completed", MAX_RESPONSE_STRING_LENGTH);
 		status = (this->*found->second.handler)(data, dataLen, i);
-		response = FormatTaggedResponse(status);
+		response = FormatTaggedResponse(status, found->second.sendUpdatedStatus);
 		if (IMAP_NO_WITH_PAUSE == status) {
 		    result = 1;
 		    GetServer()->DelaySend(m_driver, m_failedLoginPause, response);
@@ -741,10 +788,9 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		}
 	    }
 	    else {
-		response = (char *)m_parseBuffer;
-		response += " BAD ";
-		response += (char *)&m_parseBuffer[m_commandString];
-		response += " Unrecognized Command\r\n";
+		strncpy(m_responseText, "Unrecognized Command", MAX_RESPONSE_STRING_LENGTH);
+		m_responseCode[0] = '\0';
+		response = FormatTaggedResponse(IMAP_BAD, true);
 		m_s->Send((uint8_t *)response.data(), response.length());
 	    }
 	    if (ImapLogoff <= m_state) {
@@ -796,7 +842,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	}
 	delete m_auth;
 	m_auth = NULL;
-	response = FormatTaggedResponse(result);
+	response = FormatTaggedResponse(result, true);
 	m_s->Send((uint8_t *)response.data(), response.length());
 	m_inProgress = ImapCommandNone;
     }
@@ -817,7 +863,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		    data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 		}
 		m_responseText[0] = '\0';
-		std::string response = FormatTaggedResponse(AppendHandlerExecute(data, dataLen, i));
+		std::string response = FormatTaggedResponse(AppendHandlerExecute(data, dataLen, i), true);
 		m_s->Send((uint8_t *)response.data(), response.length());
 	    }
 	    else {
@@ -864,7 +910,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		// SYZYGY -- Notify the user that new mail has arrived if the mailbox that was just
 		// SYZYGY -- appended to is the currently selected mailbox.  See, for example,
 		// SYZYGY -- RFC 3501 section 6.3.11
-		std::string response = FormatTaggedResponse(result);
+		std::string response = FormatTaggedResponse(result, true);
 		m_s->Send((uint8_t *)response.data(), response.length());
 	    }
 	}
@@ -919,7 +965,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		    status = IMAP_BAD;
 		}
 	    }
-	    std::string response = FormatTaggedResponse(status);
+	    std::string response = FormatTaggedResponse(status, true);
 	    m_s->Send((uint8_t *)response.data(), response.size());
 	}
 	else {
@@ -944,7 +990,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
 	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(SelectHandlerExecute(true));
+	    std::string response = FormatTaggedResponse(SelectHandlerExecute(true), false);
 	    m_s->Send((uint8_t *)response.data(), response.size());
 	}
 	else {
@@ -969,7 +1015,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
 	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(SelectHandlerExecute(false));
+	    std::string response = FormatTaggedResponse(SelectHandlerExecute(false), false);
 	    m_s->Send((uint8_t *)response.data(), response.size());
 	}
 	else {
@@ -994,7 +1040,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
 	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(CreateHandlerExecute());
+	    std::string response = FormatTaggedResponse(CreateHandlerExecute(), true);
 	    m_s->Send((uint8_t *)response.data(), (int)response.size());
 	}
 	else {
@@ -1019,7 +1065,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
 	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(DeleteHandlerExecute());
+	    std::string response = FormatTaggedResponse(DeleteHandlerExecute(), true);
 	    m_s->Send((uint8_t *)response.data(), (int)response.size());
 	}
 	else {
@@ -1074,7 +1120,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		    status = IMAP_BAD;
 		}
 	    }
-	    std::string response = FormatTaggedResponse(status);
+	    std::string response = FormatTaggedResponse(status, true);
 	    m_s->Send((uint8_t *)response.data(), (int)response.size());
 	}
 	else {
@@ -1099,7 +1145,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
 	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(SubscribeHandlerExecute(true));
+	    std::string response = FormatTaggedResponse(SubscribeHandlerExecute(true), true);
 	    m_s->Send((uint8_t *)response.data(), (int)response.size());
 	}
 	else {
@@ -1124,7 +1170,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
 	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(SubscribeHandlerExecute(false));
+	    std::string response = FormatTaggedResponse(SubscribeHandlerExecute(false), true);
 	    m_s->Send((uint8_t *)response.data(), (int)response.size());
 	}
 	else {
@@ -1186,7 +1232,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		    status = IMAP_BAD;
 		}
 	    }
-	    std::string response = FormatTaggedResponse(status);
+	    std::string response = FormatTaggedResponse(status, true);
 	    m_s->Send((uint8_t *)response.data(), (int)response.size());
 	}
 	else {
@@ -1248,7 +1294,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		    status = IMAP_BAD;
 		}
 	    }
-	    std::string response = FormatTaggedResponse(status);
+	    std::string response = FormatTaggedResponse(status, true);
 	    m_s->Send((uint8_t *)response.data(), (int)response.size());
 	}
 	else {
@@ -1270,7 +1316,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
 	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(StatusHandlerExecute(data, dataLen, i));
+	    std::string response = FormatTaggedResponse(StatusHandlerExecute(data, dataLen, i), true);
 	    m_s->Send((uint8_t *)response.data(), response.length());
 	}
 	else {
@@ -1309,7 +1355,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 		status = IMAP_BAD;
 	    }
-	    std::string response = FormatTaggedResponse(status);
+	    std::string response = FormatTaggedResponse(status, false);
 	    m_s->Send((uint8_t *)response.data(), response.length());
 	}
 	else {
@@ -1323,7 +1369,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		    dataLen -= 2;
 		    data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 		}
-		std::string response = FormatTaggedResponse(SearchKeyParse(data, dataLen, i));
+		std::string response = FormatTaggedResponse(SearchKeyParse(data, dataLen, i), false);
 		m_s->Send((uint8_t *)response.data(), response.length());
 	    }
 	    else {
@@ -1387,7 +1433,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		    m_inProgress = ImapCommandNone;
 		    result = FetchHandlerExecute(m_usesUid);
 		}
-		std::string response = FormatTaggedResponse(result);
+		std::string response = FormatTaggedResponse(result, false);
 		m_s->Send((uint8_t *)response.data(), response.size());
 	    }
 	    else {
@@ -1438,7 +1484,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		}
 		if (IMAP_NOTDONE != result) {
 		    m_inProgress = ImapCommandNone;
-		    std::string response = FormatTaggedResponse(FetchHandlerExecute(m_usesUid));
+		    std::string response = FormatTaggedResponse(FetchHandlerExecute(m_usesUid), false);
 		    m_s->Send((uint8_t *)response.data(), response.size());
 		}
 	    }
@@ -1466,7 +1512,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	    }
 	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(CopyHandlerExecute(m_usesUid));
+	    std::string response = FormatTaggedResponse(CopyHandlerExecute(m_usesUid), true);
 	    m_s->Send((uint8_t *)response.c_str(), response.size());
 	}
 	else {
@@ -1535,39 +1581,8 @@ IMAP_RESULTS ImapSession::CapabilityHandler(uint8_t *pData, size_t dwDataLen, si
  * things like that
  */
 IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
-    // I want to re-read the cached data if I'm in the selected state and
-    // either the number of messages or the UIDNEXT value changes
-    if (ImapSelected == m_state) {
-	if ((m_currentNextUid != m_store->GetSerialNumber()) ||
-	    (m_currentMessageCount != m_store->MailboxMessageCount())) {
-	    NUMBER_LIST purgedMessages;
-	    std::ostringstream ss;
-
-	    if (m_currentNextUid != m_store->GetSerialNumber()) {
-		m_currentNextUid = m_store->GetSerialNumber();
-		ss << "* OK [UIDNEXT " << m_currentNextUid << "]\r\n";
-	    }
-	    if (m_currentMessageCount != m_store->MailboxMessageCount()) {
-		m_currentMessageCount = m_store->MailboxMessageCount();
-		ss << "* " << m_currentMessageCount << " EXISTS\r\n";
-	    }
-	    if (m_currentRecentCount != m_store->MailboxRecentCount()) {
-		m_currentRecentCount = m_store->MailboxRecentCount();
-		ss << "* " << m_currentRecentCount << " RECENT\r\n";
-	    }
-	    if (m_currentUnseen != m_store->MailboxFirstUnseen()) {
-		m_currentUnseen = m_store->MailboxFirstUnseen();
-		if (0 < m_currentUnseen) {
-		    ss << "* OK [UNSEEN " << m_currentUnseen << "]\r\n";
-		}
-	    }
-	    if (m_currentUidValidity != m_store->GetUidValidityNumber()) {
-		m_currentUidValidity = m_store->GetUidValidityNumber();
-		ss << "* OK [UIDVALIDITY " << m_currentUidValidity << "]\r\n";
-	    }
-	    m_s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
-	}
-    }
+    // This command literally doesn't do anything.  If there was an update, it was found
+    // asynchronously and the updated info will be printed in FormatTaggedResponse
 
     return IMAP_OK;
 }
@@ -2468,42 +2483,13 @@ IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size
     // changed.
     IMAP_RESULTS result = IMAP_OK;
     NUMBER_LIST purgedMessages;
-    std::ostringstream ss;
 
     if (MailStore::SUCCESS == m_store->MailboxFlushBuffers(&purgedMessages)) {
-	for (NUMBER_LIST::iterator i=purgedMessages.begin() ; i!= purgedMessages.end(); ++i) {
-	    int message_number;
-
-	    message_number = *i;
-	    ss << "* " << message_number << " EXPUNGE\r\n";
-	}
+	m_purgedMessages.splice(m_purgedMessages.end(), purgedMessages);
     }
     else {
 	result = IMAP_MBOX_ERROR;
     }
-    if (m_currentNextUid != m_store->GetSerialNumber()) {
-	m_currentNextUid = m_store->GetSerialNumber();
-	ss << "* OK [UIDNEXT " << m_currentNextUid << "]\r\n";
-    }
-    if (m_currentMessageCount != m_store->MailboxMessageCount()) {
-	m_currentMessageCount = m_store->MailboxMessageCount();
-	ss << "* " << m_currentMessageCount << " EXISTS\r\n";
-    }
-    if (m_currentRecentCount != m_store->MailboxRecentCount()) {
-	m_currentRecentCount = m_store->MailboxRecentCount();
-	ss << "* " << m_currentRecentCount << " RECENT\r\n";
-    }
-    if (m_currentUnseen != m_store->MailboxFirstUnseen()) {
-	m_currentUnseen = m_store->MailboxFirstUnseen();
-	if (0 < m_currentUnseen) {
-	    ss << "* OK [UNSEEN " << m_currentUnseen << "]\r\n";
-	}
-    }
-    if (m_currentUidValidity != m_store->GetUidValidityNumber()) {
-	m_currentUidValidity = m_store->GetUidValidityNumber();
-	ss << "* OK [UIDVALIDITY " << m_currentUidValidity << "]\r\n";
-    }
-    m_s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
 
     return result;
 }
@@ -2524,11 +2510,7 @@ IMAP_RESULTS ImapSession::ExpungeHandler(uint8_t *data, const size_t dataLen, si
 
     MailStore::MAIL_STORE_RESULT purge_status = m_store->PurgeDeletedMessages(&purgedMessages);
     if (MailStore::SUCCESS == purge_status) {
-	std::ostringstream ss;
-	for (NUMBER_LIST::iterator message=purgedMessages.begin(); message != purgedMessages.end(); ++message) {
-	    ss << "* " << *message << " EXPUNGE\r\n";
-	}
-	m_s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	m_purgedMessages.splice(m_purgedMessages.end(), purgedMessages);
     }
     else {
 	result = IMAP_MBOX_ERROR;

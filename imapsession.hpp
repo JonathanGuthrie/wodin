@@ -77,6 +77,7 @@ typedef enum
 
 typedef struct {
     bool levels[ImapLogoff+1];
+    bool sendUpdatedStatus;
     IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, const size_t dataLen, size_t &parsingAt);
 } symbol;
 
@@ -173,7 +174,7 @@ private:
     void atom(uint8_t *data, const size_t dataLen, size_t &parsingAt); 
     enum ImapStringState astring(uint8_t *pData, const size_t dataLen, size_t &parsingAt, bool makeUppercase,
 				 const char *additionalChars);
-    std::string FormatTaggedResponse(IMAP_RESULTS status);
+    std::string FormatTaggedResponse(IMAP_RESULTS status, bool sendUpdatedStatus);
 
     // This is what is called if a command is unrecognized or if a command is not implemented
     IMAP_RESULTS UnimplementedHandler();
@@ -227,6 +228,7 @@ private:
     ImapServer *m_server;
     Sasl *m_auth;
     time_t m_lastCommandTime;
+    NUMBER_LIST m_purgedMessages;
 };
 
 #endif //_IMAPSESSION_HPP_INCLUDED_
