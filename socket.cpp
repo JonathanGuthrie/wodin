@@ -17,7 +17,7 @@ Socket::Socket(uint32_t bind_address, short bind_port, int backlog) throw(Socket
 	if (0 < (sock = socket(AF_INET, SOCK_STREAM, 0)))
 	{
 	    int reuse_flag = 1;
-	    ::setsockopt(sock, SOL_TCP, SO_REUSEADDR, &reuse_flag, sizeof(int));
+	    ::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse_flag, sizeof(int));
 	    memset(&address, 0, sizeof(struct sockaddr_in));
 	    address.sin_family = AF_INET;
 	    address.sin_addr.s_addr = htonl(bind_address);
@@ -54,7 +54,6 @@ Socket *Socket::Accept(void)
     address_len = sizeof(temp);
     temp_socket = ::accept(sock, (struct sockaddr *)&temp, &address_len);
     int reuse_flag = 1;
-    ::setsockopt(temp_socket, SOL_TCP, SO_REUSEADDR, &reuse_flag, sizeof(int));
     return new Socket(temp_socket, temp);
 }
 

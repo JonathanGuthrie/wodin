@@ -104,9 +104,7 @@ done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
 
 )  LMTP support for local deliveries
 
-)  Set it up such that the SocketBindErrorException triggers retries instead of exiting with a failure
-
-)  Better yet, figure out how to not have SocketBindErrorException
+done)  Figure out how to not have SocketBindErrorException
 
 )  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
