@@ -4147,3 +4147,27 @@ const SEARCH_RESULT *MailStoreMbox::SearchMetaData(uint32_t xorMask, uint32_t an
     }
     return result;
 }
+
+
+const std::string MailStoreMbox::GenerateUrl(const std::string MailboxName) const {
+    std::string result = "mbox:///";
+    if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
+	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
+	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
+	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
+	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
+	('\0' == MailboxName[5])) {
+	result += *m_inboxPath;
+    }
+    else {
+	result = *m_homeDirectory;
+	result += "/";
+	result += MailboxName;
+    }
+    return result;
+}
+
+
+MailStoreMbox *MailStoreMbox::clone(void) {
+    return new MailStoreMbox(m_session, m_inboxPath->c_str(), m_homeDirectory->c_str());
+}

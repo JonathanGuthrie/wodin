@@ -10,6 +10,8 @@ int main() {
     uint32_t bind_address = INADDR_ANY;
     short port = PORT;
 
+    Namespace::runtime_init();
+
     ImapServer *server = new ImapServer(bind_address, port);
     
     server->Run();

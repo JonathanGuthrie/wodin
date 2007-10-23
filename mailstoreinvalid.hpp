@@ -56,6 +56,8 @@ public:
     virtual size_t ReadMessage(char *buff, size_t offset, size_t length);
     virtual void CloseMessageFile(void);
     virtual const SEARCH_RESULT *SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate);
+    virtual const std::string GenerateUrl(const std::string MailboxName) const;
+    virtual MailStoreInvalid *clone(void);
 
 private:
 };

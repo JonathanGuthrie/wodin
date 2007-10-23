@@ -129,3 +129,15 @@ void MailStoreInvalid::CloseMessageFile(void) {
 const SEARCH_RESULT *MailStoreInvalid::SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate) {
     return NULL;
 }
+
+
+const std::string MailStoreInvalid::GenerateUrl(const std::string MailboxName) const {
+    std::string result;
+    result = "invalid:///" + MailboxName;
+    return result;
+}
+
+
+MailStoreInvalid *MailStoreInvalid::clone(void) {
+    return new MailStoreInvalid(m_session);
+}

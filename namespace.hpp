@@ -3,6 +3,8 @@
 
 #include <map>
 
+#include <pthread.h>
+
 #include "mailstore.hpp"
 
 class Namespace : public MailStore
@@ -73,8 +75,23 @@ public:
     virtual size_t ReadMessage(char *buff, size_t offset, size_t length);
     virtual void CloseMessageFile(void);
     virtual const SEARCH_RESULT *SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate);
+    virtual const std::string GenerateUrl(const std::string MailboxName) const;
+    virtual Namespace *clone(void);
+
+    static void runtime_init(void) {
+	pthread_mutex_init(&m_mailboxMapMutex, NULL);
+	m_mailboxMap.clear();
+    }
 
 private:
+    typedef struct {
+	MailStore *store;
+	int refcount;
+    } mailbox_t;
+    typedef std::map<std::string, mailbox_t> MailboxMap;
+    static MailboxMap m_mailboxMap;
+    static pthread_mutex_t m_mailboxMapMutex;
+
     MailStore *getNameSpace(const std::string &name);
     NamespaceMap namespaces;
     NAMESPACE_TYPES defaultType;
