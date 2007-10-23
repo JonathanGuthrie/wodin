@@ -674,9 +674,7 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
     size_t messageSize = 0; // This is an upper bound on the message size
 
     messageMetaData.start = inFile.tellg();
-    // SYZYGY -- need to parse the from line for the internal date
-    getline(inFile, line);  // Skip over the "From " line
-    // inFile >> line; // Skip over the "From " line
+    getline(inFile, line);  // Parse the "From " line for the internal date
     int pos = line.find_first_of(' ');
     if (std::string::npos != pos) {
 	pos = line.find_first_of(' ', pos+1);
