@@ -81,7 +81,8 @@ public:
     virtual unsigned GetUidValidityNumber() = 0;
     virtual MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true) = 0;
 
-    virtual MAIL_STORE_RESULT PurgeDeletedMessages(NUMBER_LIST *nowGone) = 0;
+    virtual MAIL_STORE_RESULT ListDeletedMessages(NUMBER_LIST *uidsToBeExpunged) = 0;
+    virtual MAIL_STORE_RESULT ExpungeThisUid(unsigned long uid) = 0;
     virtual MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 					       unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity, unsigned &firstUnseen) = 0;
 
@@ -110,7 +111,7 @@ public:
     // mail stores, which is why it has to return a list of expunged MSN's.  However, MailboxUpdateStats
     // doesn't do any expunges.  The difference is that MailboxFlushBuffers is called by the handler for
     // CHECK and MailboxUpdateStats is called by the handler for NOOP
-    virtual MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone) = 0;
+    virtual MAIL_STORE_RESULT MailboxFlushBuffers(void) = 0;
     virtual MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone) = 0;
     // SYZYGY -- I also need a function that will cause the system to recalculate the
     // SYZYGY -- number of messages in the file and the next UID value, for those mailstores

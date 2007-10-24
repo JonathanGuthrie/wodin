@@ -620,8 +620,9 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpda
 	    int message_number;
 	    std::ostringstream ss;
 
-	    message_number = *i;
+	    message_number = m_store->MailboxUidToMsn(*i);
 	    ss << "* " << message_number << " EXPUNGE\r\n";
+	    m_store->ExpungeThisUid(*i);
 	}
 	m_purgedMessages.clear();
 
@@ -2484,12 +2485,7 @@ IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size
     IMAP_RESULTS result = IMAP_OK;
     NUMBER_LIST purgedMessages;
 
-    if (MailStore::SUCCESS == m_store->MailboxFlushBuffers(&purgedMessages)) {
-	m_purgedMessages.splice(m_purgedMessages.end(), purgedMessages);
-    }
-    else {
-	result = IMAP_MBOX_ERROR;
-    }
+    m_store->MailboxFlushBuffers();
 
     return result;
 }
@@ -2497,8 +2493,12 @@ IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size
 IMAP_RESULTS ImapSession::CloseHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
     // If the mailbox is open, close it
     // In IMAP, deleted messages are always purged before a close
-    NUMBER_LIST dummy;
-    m_store->PurgeDeletedMessages(&dummy);
+    NUMBER_LIST purgedMessages;
+    m_store->ListDeletedMessages(&purgedMessages);
+    m_purgedMessages.splice(m_purgedMessages.end(), purgedMessages);
+    for(NUMBER_LIST::iterator i=purgedMessages.begin(); i!=purgedMessages.end(); ++i) {
+	m_store->ExpungeThisUid(*i);
+    }
     m_store->MailboxClose();
     m_state = ImapAuthenticated;
     return IMAP_OK;
@@ -2508,7 +2508,7 @@ IMAP_RESULTS ImapSession::ExpungeHandler(uint8_t *data, const size_t dataLen, si
     IMAP_RESULTS result = IMAP_OK;
     NUMBER_LIST purgedMessages;
 
-    MailStore::MAIL_STORE_RESULT purge_status = m_store->PurgeDeletedMessages(&purgedMessages);
+    MailStore::MAIL_STORE_RESULT purge_status = m_store->ListDeletedMessages(&purgedMessages);
     if (MailStore::SUCCESS == purge_status) {
 	m_purgedMessages.splice(m_purgedMessages.end(), purgedMessages);
     }

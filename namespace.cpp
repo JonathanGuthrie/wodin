@@ -93,7 +93,7 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
 		delete selectedNamespace;
 	    }
 	    else {
-		selectedNamespace->MailboxFlushBuffers(NULL);
+		selectedNamespace->MailboxFlushBuffers();
 	    }
 	}
 	pthread_mutex_unlock(&Namespace::m_mailboxMapMutex);
@@ -215,10 +215,19 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxNa
     return result;
 }
 
-MailStore::MAIL_STORE_RESULT Namespace::PurgeDeletedMessages(NUMBER_LIST *nowGone) {
+MailStore::MAIL_STORE_RESULT Namespace::ListDeletedMessages(NUMBER_LIST *nowGone) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     if (NULL != selectedNamespace) {
-	result = selectedNamespace->PurgeDeletedMessages(nowGone);
+	result = selectedNamespace->ListDeletedMessages(nowGone);
+    }
+    return result;
+}
+
+
+MailStore::MAIL_STORE_RESULT Namespace::ExpungeThisUid(unsigned long uid) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    if (NULL != selectedNamespace) {
+	result = selectedNamespace->ExpungeThisUid(uid);
     }
     return result;
 }
@@ -322,10 +331,10 @@ std::string Namespace::GetMailboxUserPath() const {
     return result;
 }
 
-MailStore::MAIL_STORE_RESULT Namespace::MailboxFlushBuffers(NUMBER_LIST *nowGone) {
+MailStore::MAIL_STORE_RESULT Namespace::MailboxFlushBuffers(void) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxFlushBuffers(nowGone);
+	result = selectedNamespace->MailboxFlushBuffers();
     }
     return result;
 }

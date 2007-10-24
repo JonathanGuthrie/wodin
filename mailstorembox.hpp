@@ -23,7 +23,8 @@ public:
     virtual unsigned GetSerialNumber();
     virtual unsigned GetUidValidityNumber() { return m_uidValidity; }
     virtual MailStore::MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true);
-    virtual MailStore::MAIL_STORE_RESULT PurgeDeletedMessages(NUMBER_LIST *nowGone);
+    virtual MailStore::MAIL_STORE_RESULT ListDeletedMessages(NUMBER_LIST *uidsToBeExpunged);
+    virtual MailStore::MAIL_STORE_RESULT ExpungeThisUid(unsigned long uid);
 
     virtual MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 					       unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity, unsigned &firstUnseen);
@@ -41,7 +42,7 @@ public:
     virtual MailStore::MAIL_STORE_RESULT MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags);
 
     virtual std::string GetMailboxUserPath() const ;
-    virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone);
+    virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(void);
     virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
     virtual void BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~MailStoreMbox();
@@ -63,6 +64,7 @@ private:
 	std::fstream::pos_type start;
 	MailMessage *messageData;
 	size_t rfc822MessageSize;
+	bool isExpunged;
 	bool isDirty;
 	DateTime internalDate;
     } MessageIndex_t;
@@ -77,7 +79,7 @@ private:
     unsigned m_uidValidity;
     unsigned m_uidLast;
     bool m_hasHiddenMessage;
-    bool m_hasDeletedMessage;
+    bool m_hasExpungedMessage;
     bool m_isDirty;
     std::ofstream *m_outFile;
     // Appendstate is used as part of the append process.  It's used to detect any "\n>*From " strings in messages so that I can 
@@ -90,7 +92,7 @@ private:
     bool ListAllHelper(const regex_t *compiled_regex, const char *home_directory, const char *working_dir, MAILBOX_LIST *result, int maxdepth);
     bool ParseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData);
     void AddDataToMessageFile(uint8_t *data, size_t length);
-    MailStore::MAIL_STORE_RESULT FlushAndExpunge(NUMBER_LIST *nowGone, bool doExpunge);
+    MailStore::MAIL_STORE_RESULT Flush(void);
     std::ifstream m_inFile;
     unsigned long m_readingMsn;
 };

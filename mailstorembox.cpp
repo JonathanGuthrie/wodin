@@ -356,7 +356,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 	}
     }
     if (NULL != m_openMailbox) {
-	MailboxFlushBuffers(NULL);
+	MailboxFlushBuffers();
 	m_messageIndex.clear();
 	delete m_openMailbox;
 	m_openMailbox = NULL;
@@ -787,6 +787,7 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
 	messageMetaData.messageData = NULL;
 	messageMetaData.rfc822MessageSize = messageSize;
 	messageMetaData.isDirty = !seenStatus || !seenUid;
+	messageMetaData.isExpunged = false;
     }
 
     return result;
@@ -859,16 +860,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	m_uidLast = 0;
 	m_uidValidity = 0;
 	m_hasHiddenMessage = false;
-	m_hasDeletedMessage = false;
+	m_hasExpungedMessage = false;
 	while (!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidLast, messageMetaData))) {
 	    if (countMessage) {
 		++m_mailboxMessageCount;
 		if (0 != (MailStore::IMAP_MESSAGE_RECENT & messageMetaData.flags)) {
 		    ++m_recentCount;
 		    m_isDirty = true;
-		}
-		if (0 != (MailStore::IMAP_MESSAGE_DELETED & messageMetaData.flags)) {
-		    m_hasDeletedMessage = true;
 		}
 		if ((0 == m_firstUnseen) && (0 == (MailStore::IMAP_MESSAGE_SEEN & messageMetaData.flags))) {
 		    m_firstUnseen = m_mailboxMessageCount;
@@ -922,8 +920,34 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 }
 
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::PurgeDeletedMessages(NUMBER_LIST *nowGone) {
-    return FlushAndExpunge(nowGone, true);
+MailStore::MAIL_STORE_RESULT MailStoreMbox::ListDeletedMessages(NUMBER_LIST *uidsToBeExpunged) {
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+    if (NULL != uidsToBeExpunged) {
+	for (MESSAGE_INDEX::iterator p = m_messageIndex.begin(); p != m_messageIndex.end(); ++p) {
+	    if ((0 != (p->flags & IMAP_MESSAGE_DELETED)) && !p->isExpunged) {
+		uidsToBeExpunged->push_back(p->uid);
+	    }
+	}
+    }
+    return result;
+}
+
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::ExpungeThisUid(unsigned long uid) {
+    MailStore::MAIL_STORE_RESULT result = MailStore::MESSAGE_NOT_FOUND;
+    for (MESSAGE_INDEX::iterator p = m_messageIndex.begin(); p != m_messageIndex.end(); ++p) {
+	if (p->uid == uid) {
+	    p->isExpunged = true;
+	    m_hasExpungedMessage = true;
+	    result = MailStore::SUCCESS;
+	    MSN_TO_UID::iterator i = find(m_uidGivenMsn.begin(), m_uidGivenMsn.end(), uid);
+
+	    if (m_uidGivenMsn.end() != i) {
+		m_uidGivenMsn.erase(i);
+	    }
+	    break;
+	}
+    }
 }
 
 
@@ -1048,7 +1072,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MessageUpdateFlags(unsigned long uid
 std::string MailStoreMbox::GetMailboxUserPath() const {
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone, bool doExpunge) {
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
     // If there are changes, I need to flush them.  I also need to reparse the file
     // to calculate new statistics.  The thing is, although this method should always
     // write the 'O' flag to the status line, it shouldn't reset any "recent" flags in
@@ -1075,7 +1100,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 
 	struct stat stat_buf;
 	if (0 == lstat(fullPath.c_str(), &stat_buf)) {
-	    while (m_isDirty || (doExpunge && m_hasDeletedMessage) || (stat_buf.st_mtime > m_lastMtime)) {
+	    while (m_isDirty || m_hasExpungedMessage || (stat_buf.st_mtime > m_lastMtime)) {
 		std::fstream::pos_type lastGetPos, lastPutPos;
 		size_t messageSize;
 
@@ -1120,7 +1145,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		    messageIndex = -1;
 		}
 		m_isDirty = false;
-		m_hasDeletedMessage = false;
+		m_hasExpungedMessage = false;
 		while (notDone) {
 		    int messageStartOffset;
 		    updateFile.seekg(lastGetPos);
@@ -1240,9 +1265,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				    // If I'm done purging this message, remove the message from the index and
 				    // record messageIndex in the list of purged messages
 				    if (purgeThisMessage) {
-					if (NULL != nowGone) {
-					    nowGone->push_back(messageIndex+1);
-					}
 					MESSAGE_INDEX::iterator message = m_messageIndex.begin();
 					m_messageIndex.erase(message+messageIndex);
 				    }
@@ -1265,7 +1287,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				// in the file.  That's because what's in the file may be stale, and I have no way
 				// of knowing whether it is or not.
 				if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
-				    if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+				    if (m_messageIndex[messageIndex].isExpunged) {
 					purgeThisMessage = true;
 				    }
 				    else {
@@ -1526,9 +1548,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				// If I'm done purging this message, remove the message from the index and
 				// record messageIndex in the list of purged messages
 				if (purgeThisMessage) {
-				    if (NULL != nowGone) {
-					nowGone->push_back(messageIndex+1);
-				    }
 				    MESSAGE_INDEX::iterator message = m_messageIndex.begin();
 				    m_messageIndex.erase(message+messageIndex);
 				}
@@ -1546,7 +1565,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 				// in the file.  That's because what's in the file may be stale, and I have no way
 				// of knowing whether it is or not.
 				if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
-				    if (doExpunge && (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_DELETED))) {
+				    if (m_messageIndex[messageIndex].isExpunged) {
 					purgeThisMessage = true;
 				    }
 				    else {
@@ -1919,9 +1938,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
 		    // If I'm done purging this message, remove the message from the index and
 		    // record messageIndex in the list of purged messages
 		    if (purgeThisMessage) {
-			if (NULL != nowGone) {
-			    nowGone->push_back(messageIndex+1);
-			}
 			MESSAGE_INDEX::iterator message = m_messageIndex.begin();
 			m_messageIndex.erase(message+messageIndex);
 		    }
@@ -2109,14 +2125,15 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::FlushAndExpunge(NUMBER_LIST *nowGone
     return result;
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(NUMBER_LIST *nowGone) {
-    return FlushAndExpunge(nowGone, false);
-}
-
-
 MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxUpdateStats(NUMBER_LIST *nowGone)
 {
-    return MailStore::SUCCESS;
+    // This function has to check for new messages arriving.  It doesn't have to check for
+    // expunged messages because the mail stores don't handle multiple simultaneous access
+    // because that's the job of the namespace class.
+
+    // Since this function is intended to be called asynchronously, I don't care how long it
+    // takes, so I can just call MailboxFlushBuffers() and be done with it for the mbox class
+    return MailboxFlushBuffers();
 }
 
 

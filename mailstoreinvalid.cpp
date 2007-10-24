@@ -53,7 +53,11 @@ MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxOpen(const std::string &Ma
     return GENERAL_FAILURE;
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreInvalid::PurgeDeletedMessages(NUMBER_LIST *nowGone) {
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::ListDeletedMessages(NUMBER_LIST *nowGone) {
+    return GENERAL_FAILURE;
+}
+
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::ExpungeThisUid(unsigned long uid) {
     return GENERAL_FAILURE;
 }
 
@@ -89,7 +93,7 @@ std::string MailStoreInvalid::GetMailboxUserPath() const {
     return "";
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxFlushBuffers(NUMBER_LIST *nowGone) {
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxFlushBuffers(void) {
     return GENERAL_FAILURE;
 }
 

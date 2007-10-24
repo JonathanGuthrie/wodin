@@ -38,7 +38,8 @@ public:
     virtual unsigned GetSerialNumber();
     virtual unsigned GetUidValidityNumber();
     virtual MailStore::MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true);
-    virtual MailStore::MAIL_STORE_RESULT PurgeDeletedMessages(NUMBER_LIST *nowGone);
+    virtual MailStore::MAIL_STORE_RESULT ListDeletedMessages(NUMBER_LIST *uidsToBeExpunged);
+    virtual MailStore::MAIL_STORE_RESULT ExpungeThisUid(unsigned long uid);
 
     virtual MailStore::MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 							  unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity,
@@ -61,7 +62,7 @@ public:
     virtual MailStore::MAIL_STORE_RESULT MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags);
 
     virtual std::string GetMailboxUserPath() const ;
-    virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(NUMBER_LIST *nowGone);
+    virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(void);
     virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
     virtual void BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~Namespace();
