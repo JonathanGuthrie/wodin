@@ -64,6 +64,7 @@ private:
 	std::fstream::pos_type start;
 	MailMessage *messageData;
 	size_t rfc822MessageSize;
+	bool isNotified;
 	bool isExpunged;
 	bool isDirty;
 	DateTime internalDate;

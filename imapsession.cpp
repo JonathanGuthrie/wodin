@@ -623,6 +623,7 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpda
 	    message_number = m_store->MailboxUidToMsn(*i);
 	    ss << "* " << message_number << " EXPUNGE\r\n";
 	    m_store->ExpungeThisUid(*i);
+	    m_s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
 	}
 	m_purgedMessages.clear();
 

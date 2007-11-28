@@ -1,4 +1,5 @@
 #include <iostream>
+#include <utility>
 
 #include "namespace.hpp"
 
@@ -9,7 +10,7 @@ Namespace::MailboxMap Namespace::m_mailboxMap;
 Namespace::Namespace(ImapSession *session) : MailStore(session) {
     defaultNamespace = NULL;
     selectedNamespace = NULL;
-    m_openMailbox = NULL;
+    m_openMailboxName = NULL;
     defaultType = BAD_NAMESPACE;
 }
 
@@ -45,6 +46,9 @@ MailStore::MAIL_STORE_RESULT Namespace::CreateMailbox(const std::string &FullNam
     return result;
 }
 
+
+// SYZYGY -- what are the consequences to deleting a mailbox that is open in another session?
+// SYZYGY -- probably not good.  I should deal with it, shouldn't I?
 MailStore::MAIL_STORE_RESULT Namespace::DeleteMailbox(const std::string &FullName) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     MailStore *store = getNameSpace(FullName);
@@ -71,6 +75,15 @@ MailStore::MAIL_STORE_RESULT Namespace::RenameMailbox(const std::string &SourceN
     return result;
 }
 
+
+void Namespace::dump_message_session_info(const char *s, ExpungedMessageMap &m) {
+    for (ExpungedMessageMap::iterator i = m.begin(); i != m.end(); ++i) {
+	for (SessionList::iterator j = i->second.expungedSessions.begin(); j != i->second.expungedSessions.end(); ++j) {
+	    std::cout << s << " " << i->second.uid << " " << &*j << std::endl;
+	}
+    }
+}
+
 // SYZYGY -- this now depends upon the reference count
 MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
@@ -79,12 +92,11 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
 	// about deleted messages wherever it appears.  I also check to see if there are any more
 	// to purge from the back end and call the purge function if there are any additional
 	// and then I call MailboxFlushBuffers
-	std::string mailboxUrl = selectedNamespace->GenerateUrl(*m_openMailbox);
+	std::string mailboxUrl = selectedNamespace->GenerateUrl(*m_openMailboxName);
 	pthread_mutex_lock(&Namespace::m_mailboxMapMutex);
 	MailboxMap::iterator found = m_mailboxMap.find(mailboxUrl);
 	if (found != m_mailboxMap.end()) {
 	    --(found->second.refcount);
-	    // SYZYGY -- need to update the list of sessions notified about messages from this mailstore
 	    if (1 > found->second.refcount) {
 		// If the reference count is zero, then call mailboxClose and remove this from the mailboxMap and then
 		// delete the mailstore
@@ -93,6 +105,18 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
 		delete selectedNamespace;
 	    }
 	    else {
+		// SYZYGY -- need to test the update of the list of sessions notified about messages from this mailstore
+		dump_message_session_info("before", found->second.messages);
+		for (ExpungedMessageMap::iterator i = found->second.messages.begin(); i != found->second.messages.end(); ++i) {
+		    for (SessionList::iterator j = i->second.expungedSessions.begin(); j != i->second.expungedSessions.end(); ++j) {
+			if (m_session == *j) {
+			    i->second.expungedSessions.erase(j);
+			    break;
+			}
+		    }
+		}
+		dump_message_session_info("after", found->second.messages);
+		// and flush the buffers
 		selectedNamespace->MailboxFlushBuffers();
 	    }
 	}
@@ -100,7 +124,7 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
 
 	// And I now have no selectedNamespace nor do I have an open mailbox
 	selectedNamespace = NULL;
-	m_openMailbox = NULL;
+	m_openMailboxName = NULL;
 
     }
     return result;
@@ -175,11 +199,35 @@ unsigned Namespace::GetUidValidityNumber() {
     return result;
 }
 
+bool Namespace::addSession(int refCount, expunged_message_t &message) {
+    bool result = false;
+    SessionList::iterator i = std::find(message.expungedSessions.begin(), message.expungedSessions.end(), m_session);
+    if (message.expungedSessions.end() == i) {
+	message.expungedSessions.push_back(m_session);
+	++(message.expungedSessionCount);
+	--m_mailboxMessageCount;
+	if (refCount > message.expungedSessionCount) {
+	    selectedNamespace->ExpungeThisUid(message.uid);
+	    true;
+	}
+    }
+    return result;
+}
+
+void Namespace::removeUid(unsigned long uid) {
+    MSN_TO_UID::iterator i = std::find(m_uidGivenMsn.begin(), m_uidGivenMsn.end(), uid);
+    if (m_uidGivenMsn.end() != i) {
+	m_uidGivenMsn.erase(i);
+    }
+}
+
 
 MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxName, bool readWrite) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     MailStore *store = getNameSpace(MailboxName);
     if (NULL != store) {
+	int refCount;
+
 	// SYZYGY -- I need to strip off the namespace, I think
 	std::string mailboxUrl = store->GenerateUrl(MailboxName);
 	pthread_mutex_lock(&Namespace::m_mailboxMapMutex);
@@ -187,30 +235,47 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxNa
 	if (found == m_mailboxMap.end()) {
 	    selectedNamespace = store->clone();
 	    if (SUCCESS == (result = selectedNamespace->MailboxOpen(MailboxName, readWrite))) {
-		m_openMailbox = selectedNamespace->GetMailboxName();
+		std::pair<MailboxMap::iterator, bool> insert_result;
+		m_openMailboxName = selectedNamespace->GetMailboxName();
 
 		mailbox_t boxToInsert;
 		boxToInsert.store = selectedNamespace;
-		boxToInsert.refcount = 1;
-		m_mailboxMap.insert(MailboxMap::value_type(mailboxUrl, boxToInsert));
+		refCount = boxToInsert.refcount = 1;
+		boxToInsert.messages.clear();
+		insert_result = m_mailboxMap.insert(MailboxMap::value_type(mailboxUrl, boxToInsert));
+		m_openMailbox = &(insert_result.first->second);
 	    }
 	    else {
 		delete selectedNamespace;
 		selectedNamespace = NULL;
+		m_openMailboxName = NULL;
 		m_openMailbox = NULL;
 	    }
 	}
 	else {
 	    result = MailStore::SUCCESS;
+	    m_openMailbox = &(found->second);
 	    selectedNamespace = found->second.store;
-	    m_openMailbox = found->second.store->GetMailboxName();
+	    m_openMailboxName = found->second.store->GetMailboxName();
 	    ++(found->second.refcount);
+	    refCount = found->second.refcount;
 	}
-	pthread_mutex_unlock(&Namespace::m_mailboxMapMutex);
 	if (NULL != selectedNamespace) {
 	    // SYZYGY -- if selectedNamespace is not NULL then I need to generate the MSN/UID mapping for the
 	    // SYZYGY -- session and generate a message count
+	    m_mailboxMessageCount = selectedNamespace->MailboxMessageCount();
+	    m_uidGivenMsn.assign(selectedNamespace->uidGivenMsn().begin(), selectedNamespace->uidGivenMsn().end());
+	    if (NULL != m_openMailbox) {
+		for (ExpungedMessageMap::iterator i = m_openMailbox->messages.begin(); i!= m_openMailbox->messages.end(); ++i) {
+		    --m_mailboxMessageCount;
+		    removeUid(i->second.uid);
+		    if (addSession(refCount, i->second)) {
+			m_openMailbox->messages.erase(i);
+		    }
+		}
+	    }
 	}
+	pthread_mutex_unlock(&Namespace::m_mailboxMapMutex);
     }
     return result;
 }
@@ -225,10 +290,46 @@ MailStore::MAIL_STORE_RESULT Namespace::ListDeletedMessages(NUMBER_LIST *nowGone
 
 
 MailStore::MAIL_STORE_RESULT Namespace::ExpungeThisUid(unsigned long uid) {
+    // SYZYGY -- find the uid in the map
+    // SYZYGY -- then add this session to the list of those who have seen it as deleted
+    // SYZYGY -- if addSession returns true, then actually expunge it and pull it out of the list of messages waiting to be expunged
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->ExpungeThisUid(uid);
+    pthread_mutex_lock(&Namespace::m_mailboxMapMutex);
+    dump_message_session_info("before", m_openMailbox->messages);
+    ExpungedMessageMap::iterator found = m_openMailbox->messages.find(uid);
+    if (m_openMailbox->messages.end() != found) {
+	if (addSession(m_openMailbox->refcount, found->second)) {
+	    if (NULL != selectedNamespace) {
+		result = selectedNamespace->ExpungeThisUid(uid);
+	    }
+	    m_openMailbox->messages.erase(found);
+	}
     }
+    else {
+	// I have to add it, if the refcount is greater than one
+	// if it's not greater than one, I can just purge it, no harm done
+	if (1 < m_openMailbox->refcount) {
+	    std::pair<ExpungedMessageMap::iterator, bool> insert_result;
+	    expunged_message_t message;
+	    message.uid = uid;
+	    message.expungedSessionCount  = 0;
+	    insert_result = m_openMailbox->messages.insert(ExpungedMessageMap::value_type(uid, message));
+	    addSession(m_openMailbox->refcount, insert_result.first->second);
+	}
+	else {
+	    if (NULL != selectedNamespace) {
+		result = selectedNamespace->ExpungeThisUid(uid);
+	    }
+	}
+    }
+    // SYZYGY -- working here
+    // SYZYGY -- I need to determine the reference count
+    // SYZYGY -- and insert the current session, if it's not already in
+    // SYZYGY -- and
+    dump_message_session_info("after", m_openMailbox->messages);
+    pthread_mutex_unlock(&Namespace::m_mailboxMapMutex);
+    removeUid(uid);
+    --m_mailboxMessageCount;
     return result;
 }
 
@@ -244,15 +345,11 @@ MailStore::MAIL_STORE_RESULT Namespace::GetMailboxCounts(const std::string &Mail
     return result;
 }
 
-// SYZYGY -- this is now a per-session number
 unsigned Namespace::MailboxMessageCount() {
-    unsigned result = 0;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxMessageCount();
-    }
-    return result;
+    return m_mailboxMessageCount;
 }
 
+// SYZYGY -- Recent is now more complicted GRRR!
 unsigned Namespace::MailboxRecentCount() {
     unsigned result = 0;
     if (NULL != selectedNamespace) {
@@ -278,39 +375,35 @@ const DateTime &Namespace::MessageInternalDate(const unsigned long uid) {
     return result;
 }
 
-// SYZYGY -- this is now a per-session number
 NUMBER_LIST Namespace::MailboxMsnToUid(const NUMBER_LIST &msns) {
     NUMBER_LIST result;
-
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxMsnToUid(msns);
+    for (NUMBER_LIST::const_iterator i=msns.begin(); i!=msns.end(); ++i) {
+	result.push_back(MailboxMsnToUid(*i));
     }
     return result;
 }
 
-// SYZYGY -- this is now a per-session number
-unsigned long Namespace::MailboxMsnToUid(unsigned long msn) {
+unsigned long Namespace::MailboxMsnToUid(const unsigned long msn) {
     unsigned long result = 0;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxMsnToUid(msn);
+    if (msn <= m_uidGivenMsn.size()) {
+	result = m_uidGivenMsn[msn-1];
     }
     return result;
 }
 
 NUMBER_LIST Namespace::MailboxUidToMsn(const NUMBER_LIST &uids) {
     NUMBER_LIST result;
-
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxUidToMsn(uids);
+    for (NUMBER_LIST::const_iterator i=uids.begin(); i!=uids.end(); ++i) {
+	result.push_back(MailboxUidToMsn(*i));
     }
-    return result;
 }
 
 unsigned long Namespace::MailboxUidToMsn(unsigned long uid) {
     unsigned long result = 0;
 
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxUidToMsn(uid);
+    MSN_TO_UID::const_iterator i = find(m_uidGivenMsn.begin(), m_uidGivenMsn.end(), uid);
+    if (i != m_uidGivenMsn.end()) {
+	result = (i - m_uidGivenMsn.begin()) + 1;
     }
     return result;
 }
@@ -348,7 +441,7 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxUpdateStats(NUMBER_LIST *nowGone)
 }
 
 Namespace::~Namespace() {
-    m_openMailbox = NULL;
+    m_openMailboxName = NULL;
     for (NamespaceMap::iterator i = namespaces.begin(); i != namespaces.end(); ++i) {
 	delete i->second.store;
     }

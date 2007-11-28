@@ -127,8 +127,8 @@ public:
     std::string TurnErrorCodeIntoString(MAIL_STORE_RESULT code);
     // This deletes a message in a mail box
     virtual MAIL_STORE_RESULT DeleteMessage(const std::string &MailboxName, unsigned long uid) = 0;
-    bool IsMailboxOpen(void) { return NULL != m_openMailbox; }
-    std::string *GetMailboxName(void) const { return m_openMailbox; }
+    bool IsMailboxOpen(void) { return NULL != m_openMailboxName; }
+    std::string *GetMailboxName(void) const { return m_openMailboxName; }
     virtual MailMessage::MAIL_MESSAGE_RESULT GetMessageData(MailMessage **message, unsigned long uid) = 0;
     virtual size_t GetBufferLength(unsigned long uid) = 0;
     virtual MAIL_STORE_RESULT OpenMessageFile(unsigned long uid) = 0;
@@ -137,12 +137,15 @@ public:
     virtual const SEARCH_RESULT *SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate) = 0;
     virtual const std::string GenerateUrl(const std::string MailboxName) const = 0;
     virtual MailStore *clone(void) = 0;
+    const MSN_TO_UID &uidGivenMsn(void) const {
+	return m_uidGivenMsn;
+    }
 
 protected:
     MSN_TO_UID m_uidGivenMsn;
     ImapSession *m_session;
     int m_errnoFromLibrary;
-    std::string *m_openMailbox;
+    std::string *m_openMailboxName;
 };
 
 #endif // _MAILSTORE_HPP_INCLUDED_

@@ -2,6 +2,7 @@
 #define _NAMESPACE_HPP_INCLUDED_
 
 #include <map>
+#include <list>
 
 #include <pthread.h>
 
@@ -85,20 +86,38 @@ public:
     }
 
 private:
+    // SYZYGY -- each item in the MailboxMap class must have a mail store that is talking to the
+    // SYZYGY -- mail store for that mailbox, a ref count so that it knows when to clean up, and
+    // SYZYGY -- a list of messages that are in the process of being expunged.  Each message
+    // SYZYGY -- consists of a message's UID, a count of how many sessions have expunged that
+    // SYZYGY -- message, and a list of all the sessions that have expunged it.
+    typedef std::list<ImapSession *> SessionList;
+    typedef struct {
+	unsigned long uid;
+	unsigned expungedSessionCount;
+	SessionList expungedSessions;
+    } expunged_message_t;
+    typedef std::map<unsigned, expunged_message_t> ExpungedMessageMap;
     typedef struct {
 	MailStore *store;
+	ExpungedMessageMap messages;
 	int refcount;
     } mailbox_t;
     typedef std::map<std::string, mailbox_t> MailboxMap;
     static MailboxMap m_mailboxMap;
     static pthread_mutex_t m_mailboxMapMutex;
 
+    mailbox_t *m_openMailbox;
     MailStore *getNameSpace(const std::string &name);
     NamespaceMap namespaces;
     NAMESPACE_TYPES defaultType;
     MailStore *defaultNamespace;
     MailStore *selectedNamespace;
     char defaultSeparator;
+    void removeUid(unsigned long uid);
+    bool addSession(int refCount, expunged_message_t &message);
+    unsigned m_mailboxMessageCount;
+    void dump_message_session_info(const char *s, ExpungedMessageMap &m);
 };
 
 #endif // _NAMESPACE_HPP_INCLUDED_

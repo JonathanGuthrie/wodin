@@ -24,7 +24,7 @@ MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, c
     m_uidLast = 0;
     m_uidValidity = 0;
     m_outFile = NULL;
-    m_openMailbox = NULL;
+    m_openMailboxName = NULL;
     m_isDirty = false;
     m_inboxPath = new std::string(usersInboxPath);
     m_homeDirectory = new std::string(usersHomeDirectory);
@@ -355,11 +355,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 	    p->messageData = NULL;
 	}
     }
-    if (NULL != m_openMailbox) {
+    if (NULL != m_openMailboxName) {
 	MailboxFlushBuffers();
 	m_messageIndex.clear();
-	delete m_openMailbox;
-	m_openMailbox = NULL;
+	delete m_openMailboxName;
+	m_openMailboxName = NULL;
     }
     return MailStore::SUCCESS;
 }
@@ -534,19 +534,19 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	(('o' == MailboxName[3]) || ('O' == MailboxName[3])) &&
 	(('x' == MailboxName[4]) || ('X' == MailboxName[4])) &&
 	('\0' == MailboxName[5])) {
-	if ((NULL != m_openMailbox) &&
-	    (('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
-	    (('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
-	    (('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
-	    (('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
-	    (('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
-	    ('\0' == (*m_openMailbox)[5])) {
+	if ((NULL != m_openMailboxName) &&
+	    (('i' == (*m_openMailboxName)[0]) || ('I' == (*m_openMailboxName)[0])) &&
+	    (('n' == (*m_openMailboxName)[1]) || ('N' == (*m_openMailboxName)[1])) &&
+	    (('b' == (*m_openMailboxName)[2]) || ('B' == (*m_openMailboxName)[2])) &&
+	    (('o' == (*m_openMailboxName)[3]) || ('O' == (*m_openMailboxName)[3])) &&
+	    (('x' == (*m_openMailboxName)[4]) || ('X' == (*m_openMailboxName)[4])) &&
+	    ('\0' == (*m_openMailboxName)[5])) {
 	    m_isDirty = true;
 	}
 	fullPath = *m_inboxPath;
     }
     else {
-	if ((NULL != m_openMailbox) && (*m_openMailbox == MailboxName)) {
+	if ((NULL != m_openMailboxName) && (*m_openMailboxName == MailboxName)) {
 	    m_isDirty = true;
 	}
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
@@ -611,7 +611,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 		// read it, so I need to compare the modification time now with the modification time when
 		// I last parsed the mailbox.  Instead, I'll assign UID numbers at the next checkpoint when I
 		// reparse the message base.
-		if ((NULL != m_openMailbox) && (*m_openMailbox == FullName) && (stat_buf.st_mtime <= m_lastMtime)) {
+		if ((NULL != m_openMailboxName) && (*m_openMailboxName == FullName) && (stat_buf.st_mtime <= m_lastMtime)) {
 		    if (0 != (m_uidLast)) {
 			*m_outFile << "X-UID: " << ++m_uidLast;
 			*m_outFile << '\n';
@@ -788,6 +788,7 @@ bool MailStoreMbox::ParseMessage(std::ifstream &inFile, bool firstMessage, bool 
 	messageMetaData.rfc822MessageSize = messageSize;
 	messageMetaData.isDirty = !seenStatus || !seenUid;
 	messageMetaData.isExpunged = false;
+	messageMetaData.isNotified = false;
     }
 
     return result;
@@ -905,7 +906,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 
 	if (0 == lstat(fullPath.c_str(), &stat_buf)) {
 	    m_lastMtime = stat_buf.st_mtime;
-	    m_openMailbox = new std::string(FullName);
+	    m_openMailboxName = new std::string(FullName);
 	}
 	else {
 	    m_errnoFromLibrary = errno;
@@ -924,8 +925,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::ListDeletedMessages(NUMBER_LIST *uid
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     if (NULL != uidsToBeExpunged) {
 	for (MESSAGE_INDEX::iterator p = m_messageIndex.begin(); p != m_messageIndex.end(); ++p) {
-	    if ((0 != (p->flags & IMAP_MESSAGE_DELETED)) && !p->isExpunged) {
+	    if ((0 != (p->flags & IMAP_MESSAGE_DELETED)) && !p->isNotified && !p->isExpunged) {
 		uidsToBeExpunged->push_back(p->uid);
+		p->isNotified = true;
 	    }
 	}
     }
@@ -940,11 +942,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::ExpungeThisUid(unsigned long uid) {
 	    p->isExpunged = true;
 	    m_hasExpungedMessage = true;
 	    result = MailStore::SUCCESS;
-	    MSN_TO_UID::iterator i = find(m_uidGivenMsn.begin(), m_uidGivenMsn.end(), uid);
+#if 0
+	    MSN_TO_UID::iterator i = std::find(m_uidGivenMsn.begin(), m_uidGivenMsn.end(), uid);
 
 	    if (m_uidGivenMsn.end() != i) {
 		m_uidGivenMsn.erase(i);
 	    }
+#endif // 0
 	    break;
 	}
     }
@@ -1083,19 +1087,19 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     std::string fullPath;
 
-    if (NULL != m_openMailbox) {
-	if ((('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
-	    (('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
-	    (('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
-	    (('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
-	    (('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
-	    ('\0' == (*m_openMailbox)[5])) {
+    if (NULL != m_openMailboxName) {
+	if ((('i' == (*m_openMailboxName)[0]) || ('I' == (*m_openMailboxName)[0])) &&
+	    (('n' == (*m_openMailboxName)[1]) || ('N' == (*m_openMailboxName)[1])) &&
+	    (('b' == (*m_openMailboxName)[2]) || ('B' == (*m_openMailboxName)[2])) &&
+	    (('o' == (*m_openMailboxName)[3]) || ('O' == (*m_openMailboxName)[3])) &&
+	    (('x' == (*m_openMailboxName)[4]) || ('X' == (*m_openMailboxName)[4])) &&
+	    ('\0' == (*m_openMailboxName)[5])) {
 	    fullPath = *m_inboxPath;
 	}
 	else {
 	    fullPath = *m_homeDirectory;
 	    fullPath += "/";
-	    fullPath += *m_openMailbox;
+	    fullPath += *m_openMailboxName;
 	}
 
 	struct stat stat_buf;
@@ -1289,6 +1293,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 				if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
 				    if (m_messageIndex[messageIndex].isExpunged) {
 					purgeThisMessage = true;
+					MSN_TO_UID::iterator i = std::find(m_uidGivenMsn.begin(), m_uidGivenMsn.end(), m_messageIndex[messageIndex].uid);
+
+					if (m_uidGivenMsn.end() != i) {
+					    m_uidGivenMsn.erase(i);
+					}
 				    }
 				    else {
 					purgeThisMessage = false;
@@ -1567,6 +1576,11 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 				if ((0 <= messageIndex) && (messageIndex < m_messageIndex.size())) {
 				    if (m_messageIndex[messageIndex].isExpunged) {
 					purgeThisMessage = true;
+					MSN_TO_UID::iterator i = std::find(m_uidGivenMsn.begin(), m_uidGivenMsn.end(), m_messageIndex[messageIndex].uid);
+
+					if (m_uidGivenMsn.end() != i) {
+					    m_uidGivenMsn.erase(i);
+					}
 				    }
 				    else {
 					purgeThisMessage = false;
@@ -2603,7 +2617,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
 
 MailStoreMbox::~MailStoreMbox()
 {
-    if (NULL != m_openMailbox) {
+    if (NULL != m_openMailboxName) {
 	MailboxClose();
     }
     if (NULL != m_outFile) {
@@ -2657,18 +2671,18 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::OpenMessageFile(unsigned long uid) {
     CloseMessageFile();
 
     std::string fullPath;
-    if ((('i' == (*m_openMailbox)[0]) || ('I' == (*m_openMailbox)[0])) &&
-	(('n' == (*m_openMailbox)[1]) || ('N' == (*m_openMailbox)[1])) &&
-	(('b' == (*m_openMailbox)[2]) || ('B' == (*m_openMailbox)[2])) &&
-	(('o' == (*m_openMailbox)[3]) || ('O' == (*m_openMailbox)[3])) &&
-	(('x' == (*m_openMailbox)[4]) || ('X' == (*m_openMailbox)[4])) &&
-	('\0' == (*m_openMailbox)[5])) {
+    if ((('i' == (*m_openMailboxName)[0]) || ('I' == (*m_openMailboxName)[0])) &&
+	(('n' == (*m_openMailboxName)[1]) || ('N' == (*m_openMailboxName)[1])) &&
+	(('b' == (*m_openMailboxName)[2]) || ('B' == (*m_openMailboxName)[2])) &&
+	(('o' == (*m_openMailboxName)[3]) || ('O' == (*m_openMailboxName)[3])) &&
+	(('x' == (*m_openMailboxName)[4]) || ('X' == (*m_openMailboxName)[4])) &&
+	('\0' == (*m_openMailboxName)[5])) {
 	fullPath = *m_inboxPath;
     }
     else {
 	fullPath = *m_homeDirectory;
 	fullPath += "/";
-	fullPath += *m_openMailbox;
+	fullPath += *m_openMailboxName;
     }
 
     // std::cout << "Attempting to open the file \"" << fullPath << "\"" << std::endl;

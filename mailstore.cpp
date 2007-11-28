@@ -77,7 +77,7 @@ unsigned long MailStore::MailboxUidToMsn(unsigned long uid) {
 MailStore::MAIL_STORE_RESULT MailStore::MessageList(SEARCH_RESULT &msns) const {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     msns.clear(); 
-    if (NULL != m_openMailbox) {
+    if (NULL != m_openMailboxName) {
 	for (int i=0; i<m_uidGivenMsn.size(); ++i) {
 	    msns.push_back(m_uidGivenMsn[i]);
 	}
