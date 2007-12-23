@@ -110,7 +110,7 @@ private:
 
     mailbox_t *m_selectedMailbox;
 
-    MailStore *getNameSpace(const std::string &name);
+    MailStore *getNameSpace(std::string &name);
     NamespaceMap namespaces;
     NAMESPACE_TYPES defaultType;
     MailStore *m_defaultNamespace;

@@ -13,12 +13,13 @@ Namespace::Namespace(ImapSession *session) : MailStore(session) {
     defaultType = BAD_NAMESPACE;
 }
 
-MailStore *Namespace::getNameSpace(const std::string &name) {
+MailStore *Namespace::getNameSpace(std::string &name) {
     MailStore *result = m_defaultNamespace;
     NamespaceMap::const_iterator i;
 
     for (i = namespaces.begin(); i != namespaces.end(); ++i) {
 	if (0 == name.compare(0, i->first.size(), i->first)) {
+	    name.erase(0, i->first.size());
 	    result = i->second.store;
 	    break;
 	}
@@ -36,10 +37,10 @@ MailStore *Namespace::getNameSpace(const std::string &name) {
 
 MailStore::MAIL_STORE_RESULT Namespace::CreateMailbox(const std::string &FullName) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    MailStore *store = getNameSpace(FullName);
+    std::string changeableName = FullName;
+    MailStore *store = getNameSpace(changeableName);
     if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->CreateMailbox(FullName);
+	result = store->CreateMailbox(changeableName);
     }
 
     return result;
@@ -51,10 +52,10 @@ MailStore::MAIL_STORE_RESULT Namespace::CreateMailbox(const std::string &FullNam
 // SYZYGY -- I should refuse to allow a client to delete a mailbox if any clients have it open
 MailStore::MAIL_STORE_RESULT Namespace::DeleteMailbox(const std::string &FullName) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    MailStore *store = getNameSpace(FullName);
+    std::string changeableName = FullName;
+    MailStore *store = getNameSpace(changeableName);
     if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->DeleteMailbox(FullName);
+	result = store->DeleteMailbox(changeableName);
     }
     else {
 	if (NULL != m_defaultNamespace) {
@@ -66,11 +67,17 @@ MailStore::MAIL_STORE_RESULT Namespace::DeleteMailbox(const std::string &FullNam
 
 MailStore::MAIL_STORE_RESULT Namespace::RenameMailbox(const std::string &SourceName, const std::string &DestinationName) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    // SYZYGY -- I need to find out about how renaming works WRT name spaces
-    MailStore *store = getNameSpace(SourceName);
-    if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->RenameMailbox(SourceName, DestinationName);
+    std::string changeableSource = SourceName;
+    std::string changeableDest = DestinationName;
+    MailStore *sourceStore = getNameSpace(changeableSource);
+    MailStore *destStore = getNameSpace(changeableDest);
+    if (NULL != sourceStore) {
+	if (sourceStore == destStore) {
+	    result = sourceStore->RenameMailbox(SourceName, changeableDest);
+	}
+	else {
+	    result = NAMESPACES_DONT_MATCH;
+	}
     }
     return result;
 }
@@ -133,19 +140,19 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
 
 void Namespace::BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll) {
     MailStore *store = NULL;
-    store = getNameSpace(pattern);
+    std::string changeablePattern = pattern;
+    store = getNameSpace(changeablePattern);
     if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	store->BuildMailboxList(pattern, result, listAll);
+	store->BuildMailboxList(changeablePattern, result, listAll);
     }
 }
 
 MailStore::MAIL_STORE_RESULT Namespace::SubscribeMailbox(const std::string &MailboxName, bool isSubscribe) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    MailStore *store = getNameSpace(MailboxName);
+    std::string changeableName = MailboxName;
+    MailStore *store = getNameSpace(changeableName);
     if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->SubscribeMailbox(MailboxName, isSubscribe);
+	result = store->SubscribeMailbox(changeableName, isSubscribe);
     }
     return result;
 }
@@ -153,30 +160,30 @@ MailStore::MAIL_STORE_RESULT Namespace::SubscribeMailbox(const std::string &Mail
 MailStore::MAIL_STORE_RESULT Namespace::AddMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
 						 DateTime &createTime, uint32_t messageFlags, size_t *newUid) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    MailStore *store = getNameSpace(MailboxName);
+    std::string changeableName = MailboxName;
+    MailStore *store = getNameSpace(changeableName);
     if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->AddMessageToMailbox(MailboxName, data, length, createTime, messageFlags, newUid);
+	result = store->AddMessageToMailbox(changeableName, data, length, createTime, messageFlags, newUid);
     }
     return result;
 }
 
 MailStore::MAIL_STORE_RESULT Namespace::AppendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    MailStore *store = getNameSpace(MailboxName);
+    std::string changeableName = MailboxName;
+    MailStore *store = getNameSpace(changeableName);
     if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->AppendDataToMessage(MailboxName, uid, data, length);
+	result = store->AppendDataToMessage(changeableName, uid, data, length);
     }
     return result;
 }
 
 MailStore::MAIL_STORE_RESULT Namespace::DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    MailStore *store = getNameSpace(MailboxName);
+    std::string changeableName = MailboxName;
+    MailStore *store = getNameSpace(changeableName);
     if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->DoneAppendingDataToMessage(MailboxName, uid);
+	result = store->DoneAppendingDataToMessage(changeableName, uid);
     }
     return result;
 }
@@ -230,12 +237,12 @@ void Namespace::removeUid(unsigned long uid) {
 
 MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxName, bool readWrite) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    MailStore *store = getNameSpace(MailboxName);
+    std::string changeableName = MailboxName;
+    MailStore *store = getNameSpace(changeableName);
     if (NULL != store) {
 	int refCount;
 
-	// SYZYGY -- I need to strip off the namespace, I think
-	std::string mailboxUrl = store->GenerateUrl(MailboxName);
+	std::string mailboxUrl = store->GenerateUrl(changeableName);
 	pthread_mutex_lock(&Namespace::m_mailboxMapMutex);
 	MailboxMap::iterator found = m_mailboxMap.find(mailboxUrl);
 	if (found == m_mailboxMap.end()) {
@@ -339,7 +346,8 @@ MailStore::MAIL_STORE_RESULT Namespace::GetMailboxCounts(const std::string &Mail
 							 unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity,
 							 unsigned &firstUnseen) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    MailStore *store = getNameSpace(MailboxName);
+    std::string changeableName = MailboxName;
+    MailStore *store = getNameSpace(changeableName);
     if (NULL != store) {
 	result = store->GetMailboxCounts(MailboxName, which, messageCount, recentCount, uidNext, uidValidity, firstUnseen);
     }
@@ -552,10 +560,10 @@ const std::string Namespace::ListNamespaces(void) const {
 
 MailStore::MAIL_STORE_RESULT Namespace::DeleteMessage(const std::string &MailboxName, unsigned long uid) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    MailStore *store = getNameSpace(MailboxName);
+    std::string changeableName = MailboxName;
+    MailStore *store = getNameSpace(changeableName);
     if (NULL != store) {
-	// SYZYGY -- I need to strip off the namespace, I think
-	result = store->DeleteMessage(MailboxName, uid);
+	result = store->DeleteMessage(changeableName, uid);
     }
     return result;
 }

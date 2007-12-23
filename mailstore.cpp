@@ -25,7 +25,8 @@ std::string MailStore::TurnErrorCodeIntoString(MAIL_STORE_RESULT code) {
 	"No mailbox is open",
 	"Message file open failed",
 	"Message file write failed",
-	"Message not found"
+	"Message not found",
+	"The Namespaces Don't Match"
     };
     if (code < (sizeof(response) / sizeof(const char*))) {
 	std::string result = response[code];
