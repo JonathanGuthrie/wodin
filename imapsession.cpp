@@ -2486,6 +2486,9 @@ IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size
     IMAP_RESULTS result = IMAP_OK;
     NUMBER_LIST purgedMessages;
 
+    if (MailStore::SUCCESS == m_store->MailboxUpdateStats(&purgedMessages)) {
+	m_purgedMessages.splice(m_purgedMessages.end(), purgedMessages);
+    }
     m_store->MailboxFlushBuffers();
 
     return result;

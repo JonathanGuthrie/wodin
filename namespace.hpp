@@ -102,17 +102,18 @@ private:
 	MailStore *store;
 	ExpungedMessageMap messages;
 	int refcount;
+	pthread_mutex_t mutex;
     } mailbox_t;
     typedef std::map<std::string, mailbox_t> MailboxMap;
     static MailboxMap m_mailboxMap;
     static pthread_mutex_t m_mailboxMapMutex;
 
-    mailbox_t *m_openMailbox;
+    mailbox_t *m_selectedMailbox;
+
     MailStore *getNameSpace(const std::string &name);
     NamespaceMap namespaces;
     NAMESPACE_TYPES defaultType;
-    MailStore *defaultNamespace;
-    MailStore *selectedNamespace;
+    MailStore *m_defaultNamespace;
     char defaultSeparator;
     void removeUid(unsigned long uid);
     bool addSession(int refCount, expunged_message_t &message);

@@ -8,14 +8,13 @@ pthread_mutex_t Namespace::m_mailboxMapMutex;
 Namespace::MailboxMap Namespace::m_mailboxMap;
 
 Namespace::Namespace(ImapSession *session) : MailStore(session) {
-    defaultNamespace = NULL;
-    selectedNamespace = NULL;
+    m_defaultNamespace = NULL;
     m_openMailboxName = NULL;
     defaultType = BAD_NAMESPACE;
 }
 
 MailStore *Namespace::getNameSpace(const std::string &name) {
-    MailStore *result = defaultNamespace;
+    MailStore *result = m_defaultNamespace;
     NamespaceMap::const_iterator i;
 
     for (i = namespaces.begin(); i != namespaces.end(); ++i) {
@@ -49,6 +48,7 @@ MailStore::MAIL_STORE_RESULT Namespace::CreateMailbox(const std::string &FullNam
 
 // SYZYGY -- what are the consequences to deleting a mailbox that is open in another session?
 // SYZYGY -- probably not good.  I should deal with it, shouldn't I?
+// SYZYGY -- I should refuse to allow a client to delete a mailbox if any clients have it open
 MailStore::MAIL_STORE_RESULT Namespace::DeleteMailbox(const std::string &FullName) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     MailStore *store = getNameSpace(FullName);
@@ -57,8 +57,8 @@ MailStore::MAIL_STORE_RESULT Namespace::DeleteMailbox(const std::string &FullNam
 	result = store->DeleteMailbox(FullName);
     }
     else {
-	if (NULL != defaultNamespace) {
-	    result = defaultNamespace->DeleteMailbox(FullName);
+	if (NULL != m_defaultNamespace) {
+	    result = m_defaultNamespace->DeleteMailbox(FullName);
 	}
     }
     return result;
@@ -84,15 +84,14 @@ void Namespace::dump_message_session_info(const char *s, ExpungedMessageMap &m) 
     }
 }
 
-// SYZYGY -- this now depends upon the reference count
 MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    if (NULL != selectedNamespace) {
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
 	// I reduce the reference count and remove this session from the list of those notified
 	// about deleted messages wherever it appears.  I also check to see if there are any more
 	// to purge from the back end and call the purge function if there are any additional
 	// and then I call MailboxFlushBuffers
-	std::string mailboxUrl = selectedNamespace->GenerateUrl(*m_openMailboxName);
+	std::string mailboxUrl = m_selectedMailbox->store->GenerateUrl(*m_openMailboxName);
 	pthread_mutex_lock(&Namespace::m_mailboxMapMutex);
 	MailboxMap::iterator found = m_mailboxMap.find(mailboxUrl);
 	if (found != m_mailboxMap.end()) {
@@ -100,30 +99,32 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxClose() {
 	    if (1 > found->second.refcount) {
 		// If the reference count is zero, then call mailboxClose and remove this from the mailboxMap and then
 		// delete the mailstore
-		result = selectedNamespace->MailboxClose();
+		result = m_selectedMailbox->store->MailboxClose();
+		pthread_mutex_destroy(&found->second.mutex);
 		m_mailboxMap.erase(found);
-		delete selectedNamespace;
+		delete m_selectedMailbox->store;
 	    }
 	    else {
 		// SYZYGY -- need to test the update of the list of sessions notified about messages from this mailstore
-		dump_message_session_info("before", found->second.messages);
+		dump_message_session_info("before_a", found->second.messages);
 		for (ExpungedMessageMap::iterator i = found->second.messages.begin(); i != found->second.messages.end(); ++i) {
 		    for (SessionList::iterator j = i->second.expungedSessions.begin(); j != i->second.expungedSessions.end(); ++j) {
 			if (m_session == *j) {
 			    i->second.expungedSessions.erase(j);
+			    i->second.expungedSessionCount--;
 			    break;
 			}
 		    }
 		}
-		dump_message_session_info("after", found->second.messages);
+		dump_message_session_info("after_a", found->second.messages);
 		// and flush the buffers
-		selectedNamespace->MailboxFlushBuffers();
+		m_selectedMailbox->store->MailboxFlushBuffers();
 	    }
 	}
 	pthread_mutex_unlock(&Namespace::m_mailboxMapMutex);
 
 	// And I now have no selectedNamespace nor do I have an open mailbox
-	selectedNamespace = NULL;
+	m_selectedMailbox = NULL;
 	m_openMailboxName = NULL;
 
     }
@@ -185,20 +186,25 @@ MailStore::MAIL_STORE_RESULT Namespace::DoneAppendingDataToMessage(const std::st
 // enforced by the IMAP server logic because they're only meaningful in the selected state
 unsigned Namespace::GetSerialNumber() {
     unsigned result = 0;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->GetSerialNumber();
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->GetSerialNumber();
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
 unsigned Namespace::GetUidValidityNumber() {
     unsigned result = 0;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->GetUidValidityNumber();
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->GetUidValidityNumber();
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
+// This needs to be called ONLY when the m_selectedMailbox->mutex has been locked
 bool Namespace::addSession(int refCount, expunged_message_t &message) {
     bool result = false;
     SessionList::iterator i = std::find(message.expungedSessions.begin(), message.expungedSessions.end(), m_session);
@@ -207,8 +213,8 @@ bool Namespace::addSession(int refCount, expunged_message_t &message) {
 	++(message.expungedSessionCount);
 	--m_mailboxMessageCount;
 	if (refCount > message.expungedSessionCount) {
-	    selectedNamespace->ExpungeThisUid(message.uid);
-	    true;
+	    m_selectedMailbox->store->ExpungeThisUid(message.uid);
+	    result = true;
 	}
     }
     return result;
@@ -233,47 +239,47 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxNa
 	pthread_mutex_lock(&Namespace::m_mailboxMapMutex);
 	MailboxMap::iterator found = m_mailboxMap.find(mailboxUrl);
 	if (found == m_mailboxMap.end()) {
-	    selectedNamespace = store->clone();
+	    MailStore *selectedNamespace = store->clone();
 	    if (SUCCESS == (result = selectedNamespace->MailboxOpen(MailboxName, readWrite))) {
 		std::pair<MailboxMap::iterator, bool> insert_result;
 		m_openMailboxName = selectedNamespace->GetMailboxName();
 
 		mailbox_t boxToInsert;
+		pthread_mutex_init(&boxToInsert.mutex, NULL);
 		boxToInsert.store = selectedNamespace;
 		refCount = boxToInsert.refcount = 1;
 		boxToInsert.messages.clear();
 		insert_result = m_mailboxMap.insert(MailboxMap::value_type(mailboxUrl, boxToInsert));
-		m_openMailbox = &(insert_result.first->second);
+		m_selectedMailbox = &(insert_result.first->second);
 	    }
 	    else {
 		delete selectedNamespace;
 		selectedNamespace = NULL;
 		m_openMailboxName = NULL;
-		m_openMailbox = NULL;
+		m_selectedMailbox = NULL;
 	    }
 	}
 	else {
 	    result = MailStore::SUCCESS;
-	    m_openMailbox = &(found->second);
-	    selectedNamespace = found->second.store;
+	    m_selectedMailbox = &(found->second);
 	    m_openMailboxName = found->second.store->GetMailboxName();
 	    ++(found->second.refcount);
 	    refCount = found->second.refcount;
 	}
-	if (NULL != selectedNamespace) {
+	if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	    pthread_mutex_lock(&m_selectedMailbox->mutex);
 	    // SYZYGY -- if selectedNamespace is not NULL then I need to generate the MSN/UID mapping for the
 	    // SYZYGY -- session and generate a message count
-	    m_mailboxMessageCount = selectedNamespace->MailboxMessageCount();
-	    m_uidGivenMsn.assign(selectedNamespace->uidGivenMsn().begin(), selectedNamespace->uidGivenMsn().end());
-	    if (NULL != m_openMailbox) {
-		for (ExpungedMessageMap::iterator i = m_openMailbox->messages.begin(); i!= m_openMailbox->messages.end(); ++i) {
-		    --m_mailboxMessageCount;
-		    removeUid(i->second.uid);
-		    if (addSession(refCount, i->second)) {
-			m_openMailbox->messages.erase(i);
-		    }
+	    m_mailboxMessageCount = m_selectedMailbox->store->MailboxMessageCount();
+	    m_uidGivenMsn.assign(m_selectedMailbox->store->uidGivenMsn().begin(), m_selectedMailbox->store->uidGivenMsn().end());
+	    for (ExpungedMessageMap::iterator i = m_selectedMailbox->messages.begin(); i!= m_selectedMailbox->messages.end(); ++i) {
+		--m_mailboxMessageCount;
+		removeUid(i->second.uid);
+		if (addSession(refCount, i->second)) {
+		    m_selectedMailbox->messages.erase(i);
 		}
 	    }
+	    pthread_mutex_unlock(&m_selectedMailbox->mutex);
 	}
 	pthread_mutex_unlock(&Namespace::m_mailboxMapMutex);
     }
@@ -282,8 +288,10 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxNa
 
 MailStore::MAIL_STORE_RESULT Namespace::ListDeletedMessages(NUMBER_LIST *nowGone) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->ListDeletedMessages(nowGone);
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->ListDeletedMessages(nowGone);
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
@@ -294,42 +302,35 @@ MailStore::MAIL_STORE_RESULT Namespace::ExpungeThisUid(unsigned long uid) {
     // SYZYGY -- then add this session to the list of those who have seen it as deleted
     // SYZYGY -- if addSession returns true, then actually expunge it and pull it out of the list of messages waiting to be expunged
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    pthread_mutex_lock(&Namespace::m_mailboxMapMutex);
-    dump_message_session_info("before", m_openMailbox->messages);
-    ExpungedMessageMap::iterator found = m_openMailbox->messages.find(uid);
-    if (m_openMailbox->messages.end() != found) {
-	if (addSession(m_openMailbox->refcount, found->second)) {
-	    if (NULL != selectedNamespace) {
-		result = selectedNamespace->ExpungeThisUid(uid);
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	dump_message_session_info("before_b", m_selectedMailbox->messages);
+	ExpungedMessageMap::iterator found = m_selectedMailbox->messages.find(uid);
+	if (m_selectedMailbox->messages.end() != found) {
+	    if (addSession(m_selectedMailbox->refcount, found->second)) {
+		result = m_selectedMailbox->store->ExpungeThisUid(uid);
 	    }
-	    m_openMailbox->messages.erase(found);
-	}
-    }
-    else {
-	// I have to add it, if the refcount is greater than one
-	// if it's not greater than one, I can just purge it, no harm done
-	if (1 < m_openMailbox->refcount) {
-	    std::pair<ExpungedMessageMap::iterator, bool> insert_result;
-	    expunged_message_t message;
-	    message.uid = uid;
-	    message.expungedSessionCount  = 0;
-	    insert_result = m_openMailbox->messages.insert(ExpungedMessageMap::value_type(uid, message));
-	    addSession(m_openMailbox->refcount, insert_result.first->second);
+	    m_selectedMailbox->messages.erase(found);
 	}
 	else {
-	    if (NULL != selectedNamespace) {
-		result = selectedNamespace->ExpungeThisUid(uid);
+	    // I have to add it, if the refcount is greater than one
+	    // if it's not greater than one, I can just purge it, no harm done
+	    if (1 < m_selectedMailbox->refcount) {
+		std::pair<ExpungedMessageMap::iterator, bool> insert_result;
+		expunged_message_t message;
+		message.uid = uid;
+		message.expungedSessionCount  = 0;
+		insert_result = m_selectedMailbox->messages.insert(ExpungedMessageMap::value_type(uid, message));
+		addSession(m_selectedMailbox->refcount, insert_result.first->second);
+	    }
+	    else {
+		result = m_selectedMailbox->store->ExpungeThisUid(uid);
 	    }
 	}
+	dump_message_session_info("after_b", m_selectedMailbox->messages);
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
-    // SYZYGY -- working here
-    // SYZYGY -- I need to determine the reference count
-    // SYZYGY -- and insert the current session, if it's not already in
-    // SYZYGY -- and
-    dump_message_session_info("after", m_openMailbox->messages);
-    pthread_mutex_unlock(&Namespace::m_mailboxMapMutex);
     removeUid(uid);
-    --m_mailboxMessageCount;
     return result;
 }
 
@@ -352,16 +353,20 @@ unsigned Namespace::MailboxMessageCount() {
 // SYZYGY -- Recent is now more complicted GRRR!
 unsigned Namespace::MailboxRecentCount() {
     unsigned result = 0;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxRecentCount();
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->MailboxRecentCount();
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
 unsigned Namespace::MailboxFirstUnseen() {
     unsigned result = 0;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxFirstUnseen();
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->MailboxFirstUnseen();
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
@@ -369,8 +374,10 @@ unsigned Namespace::MailboxFirstUnseen() {
 const DateTime &Namespace::MessageInternalDate(const unsigned long uid) {
     // SYZYGY -- I need something like a void cast to DateTime that returns an error
     static DateTime result;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MessageInternalDate(uid);
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->MessageInternalDate(uid);
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
@@ -410,32 +417,52 @@ unsigned long Namespace::MailboxUidToMsn(unsigned long uid) {
 
 MailStore::MAIL_STORE_RESULT Namespace::MessageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MessageUpdateFlags(uid, andMask, orMask, flags);
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->MessageUpdateFlags(uid, andMask, orMask, flags);
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
 std::string Namespace::GetMailboxUserPath() const {
     std::string result = "";
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->GetMailboxUserPath();
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->GetMailboxUserPath();
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
 MailStore::MAIL_STORE_RESULT Namespace::MailboxFlushBuffers(void) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxFlushBuffers();
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->MailboxFlushBuffers();
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
 MailStore::MAIL_STORE_RESULT Namespace::MailboxUpdateStats(NUMBER_LIST *nowGone) {
-    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->MailboxUpdateStats(nowGone);
+    MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+    if (NULL != m_selectedMailbox) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	for (ExpungedMessageMap::iterator i = m_selectedMailbox->messages.begin(); i!= m_selectedMailbox->messages.end(); ++i) {
+	    bool found = false;
+
+	    for (SessionList::iterator j = i->second.expungedSessions.begin(); j != i->second.expungedSessions.end(); ++j) {
+		if (m_session == *j) {
+		    found = true;
+		    break;
+		}
+	    }
+	    if (!found) {
+		nowGone->push_back(i->first);
+	    }
+	}
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
@@ -446,18 +473,18 @@ Namespace::~Namespace() {
 	delete i->second.store;
     }
     namespaces.clear();
-    if (NULL != defaultNamespace) {
-	delete defaultNamespace;
+    if (NULL != m_defaultNamespace) {
+	delete m_defaultNamespace;
     }
 }
 
 void Namespace::AddNamespace(NAMESPACE_TYPES type, const std::string &name, MailStore *handler, char separator) {
     if ("" == name) {
-	if (NULL != defaultNamespace) {
-	    delete defaultNamespace;
+	if (NULL != m_defaultNamespace) {
+	    delete m_defaultNamespace;
 	}
 	defaultType = type;
-	defaultNamespace = handler;
+	m_defaultNamespace = handler;
 	defaultSeparator = separator;
     }
     else {
@@ -535,47 +562,59 @@ MailStore::MAIL_STORE_RESULT Namespace::DeleteMessage(const std::string &Mailbox
 
 MailMessage::MAIL_MESSAGE_RESULT Namespace::GetMessageData(MailMessage **message, unsigned long uid) {
     MailMessage::MAIL_MESSAGE_RESULT result = MailMessage::GENERAL_FAILURE;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->GetMessageData(message, uid);
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->GetMessageData(message, uid);
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
 MailStore::MAIL_STORE_RESULT Namespace::OpenMessageFile(unsigned long uid) {
     MailStore::MAIL_STORE_RESULT result = MailStore::GENERAL_FAILURE;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->OpenMessageFile(uid);
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->OpenMessageFile(uid);
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
 size_t Namespace::GetBufferLength(unsigned long uid) {
     size_t result = 0;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->GetBufferLength(uid);
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->GetBufferLength(uid);
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
 size_t Namespace::ReadMessage(char *buffer, size_t offset, size_t length) {
     size_t result = 0;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->ReadMessage(buffer, offset, length);
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->ReadMessage(buffer, offset, length);
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
 
 void Namespace::CloseMessageFile(void) {
-    if (NULL != selectedNamespace) {
-	selectedNamespace->CloseMessageFile();
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	m_selectedMailbox->store->CloseMessageFile();
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
 }
 
 
 const SEARCH_RESULT *Namespace::SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate) {
     const SEARCH_RESULT *result = NULL;
-    if (NULL != selectedNamespace) {
-	result = selectedNamespace->SearchMetaData(xorMask, andMask, smallestSize, largestSize, beginInternalDate, endInternalDate);
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->SearchMetaData(xorMask, andMask, smallestSize, largestSize, beginInternalDate, endInternalDate);
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;
 }
