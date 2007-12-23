@@ -1,6 +1,7 @@
 #if !defined(_MAILSTORE_HPP_INCLUDED_)
 #define _MAILSTORE_HPP_INCLUDED_
 
+#include <set>
 #include <list>
 #include <vector>
 #include <string>
@@ -16,6 +17,7 @@ typedef struct
 
 typedef std::list<MAILBOX_NAME> MAILBOX_LIST;
 typedef std::list<unsigned long> NUMBER_LIST;
+typedef std::set<unsigned long> NUMBER_SET;
 typedef std::vector<unsigned long> MSN_TO_UID;
 typedef std::vector<unsigned long> SEARCH_RESULT;
 
@@ -82,7 +84,7 @@ public:
     virtual unsigned GetUidValidityNumber() = 0;
     virtual MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true) = 0;
 
-    virtual MAIL_STORE_RESULT ListDeletedMessages(NUMBER_LIST *uidsToBeExpunged) = 0;
+    virtual MAIL_STORE_RESULT ListDeletedMessages(NUMBER_SET *uidsToBeExpunged) = 0;
     virtual MAIL_STORE_RESULT ExpungeThisUid(unsigned long uid) = 0;
     virtual MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 					       unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity, unsigned &firstUnseen) = 0;
@@ -113,7 +115,7 @@ public:
     // doesn't do any expunges.  The difference is that MailboxFlushBuffers is called by the handler for
     // CHECK and MailboxUpdateStats is called by the handler for NOOP
     virtual MAIL_STORE_RESULT MailboxFlushBuffers(void) = 0;
-    virtual MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone) = 0;
+    virtual MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_SET *nowGone) = 0;
     // SYZYGY -- I also need a function that will cause the system to recalculate the
     // SYZYGY -- number of messages in the file and the next UID value, for those mailstores
     // SYZYGY -- where that is a lengthy operation so that I can recalculate it periodically

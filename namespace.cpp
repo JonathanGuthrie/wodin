@@ -293,7 +293,7 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxOpen(const std::string &MailboxNa
     return result;
 }
 
-MailStore::MAIL_STORE_RESULT Namespace::ListDeletedMessages(NUMBER_LIST *nowGone) {
+MailStore::MAIL_STORE_RESULT Namespace::ListDeletedMessages(NUMBER_SET *nowGone) {
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
 	pthread_mutex_lock(&m_selectedMailbox->mutex);
@@ -470,6 +470,17 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxUpdateStats(NUMBER_LIST *nowGone)
 		nowGone->push_back(i->first);
 	    }
 	}
+	if (!found) {
+	    nowGone->insert(nowGone->begin(), i->first);
+	}
+    }
+}
+
+MailStore::MAIL_STORE_RESULT Namespace::MailboxUpdateStats(NUMBER_SET *nowGone) {
+    MailStore::MAIL_STORE_RESULT result = MailStore::GENERAL_FAILURE;
+    if (NULL != m_selectedMailbox) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = MailboxUpdateStatsInternal(nowGone);
 	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
     return result;

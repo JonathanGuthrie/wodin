@@ -25,7 +25,7 @@ public:
     virtual unsigned GetSerialNumber();
     virtual unsigned GetUidValidityNumber();
     virtual MailStore::MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true);
-    virtual MailStore::MAIL_STORE_RESULT ListDeletedMessages(NUMBER_LIST *uidsToBeExpunged);
+    virtual MailStore::MAIL_STORE_RESULT ListDeletedMessages(NUMBER_SET *uidsToBeExpunged);
     virtual MailStore::MAIL_STORE_RESULT ExpungeThisUid(unsigned long uid);
 
     virtual MailStore::MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
@@ -46,7 +46,7 @@ public:
 
     virtual std::string GetMailboxUserPath() const ;
     virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(void);
-    virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
+    virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_SET *nowGone);
     virtual void BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~MailStoreInvalid();
     // This deletes a message in a mail box

@@ -228,7 +228,7 @@ private:
     ImapServer *m_server;
     Sasl *m_auth;
     time_t m_lastCommandTime;
-    NUMBER_LIST m_purgedMessages;
+    NUMBER_SET m_purgedMessages;
 };
 
 #endif //_IMAPSESSION_HPP_INCLUDED_

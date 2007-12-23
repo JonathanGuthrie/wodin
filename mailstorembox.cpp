@@ -921,12 +921,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 }
 
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::ListDeletedMessages(NUMBER_LIST *uidsToBeExpunged) {
+MailStore::MAIL_STORE_RESULT MailStoreMbox::ListDeletedMessages(NUMBER_SET *uidsToBeExpunged) {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     if (NULL != uidsToBeExpunged) {
 	for (MESSAGE_INDEX::iterator p = m_messageIndex.begin(); p != m_messageIndex.end(); ++p) {
 	    if ((0 != (p->flags & IMAP_MESSAGE_DELETED)) && !p->isNotified && !p->isExpunged) {
-		uidsToBeExpunged->push_back(p->uid);
+		uidsToBeExpunged->insert(uidsToBeExpunged->begin(), p->uid);
 		p->isNotified = true;
 	    }
 	}
@@ -2139,7 +2139,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
     return result;
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxUpdateStats(NUMBER_LIST *nowGone)
+MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxUpdateStats(NUMBER_SET *nowGone)
 {
     // This function has to check for new messages arriving.  It doesn't have to check for
     // expunged messages because the mail stores don't handle multiple simultaneous access

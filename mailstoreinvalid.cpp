@@ -53,7 +53,7 @@ MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxOpen(const std::string &Ma
     return GENERAL_FAILURE;
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreInvalid::ListDeletedMessages(NUMBER_LIST *nowGone) {
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::ListDeletedMessages(NUMBER_SET *nowGone) {
     return GENERAL_FAILURE;
 }
 
@@ -97,7 +97,7 @@ MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxFlushBuffers(void) {
     return GENERAL_FAILURE;
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxUpdateStats(NUMBER_LIST *nowGone) {
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxUpdateStats(NUMBER_SET *nowGone) {
     return GENERAL_FAILURE;
 }
 

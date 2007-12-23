@@ -39,7 +39,7 @@ public:
     virtual unsigned GetSerialNumber();
     virtual unsigned GetUidValidityNumber();
     virtual MailStore::MAIL_STORE_RESULT MailboxOpen(const std::string &MailboxName, bool readWrite = true);
-    virtual MailStore::MAIL_STORE_RESULT ListDeletedMessages(NUMBER_LIST *uidsToBeExpunged);
+    virtual MailStore::MAIL_STORE_RESULT ListDeletedMessages(NUMBER_SET *uidsToBeExpunged);
     virtual MailStore::MAIL_STORE_RESULT ExpungeThisUid(unsigned long uid);
 
     virtual MailStore::MAIL_STORE_RESULT GetMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
@@ -64,7 +64,7 @@ public:
 
     virtual std::string GetMailboxUserPath() const ;
     virtual MailStore::MAIL_STORE_RESULT MailboxFlushBuffers(void);
-    virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_LIST *nowGone);
+    virtual MailStore::MAIL_STORE_RESULT MailboxUpdateStats(NUMBER_SET *nowGone);
     virtual void BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll);
     virtual ~Namespace();
     void AddNamespace(NAMESPACE_TYPES type, const std::string &name, MailStore *handler, char separator = '\0');
@@ -119,6 +119,7 @@ private:
     bool addSession(int refCount, expunged_message_t &message);
     unsigned m_mailboxMessageCount;
     void dump_message_session_info(const char *s, ExpungedMessageMap &m);
+    MailStore::MAIL_STORE_RESULT MailboxUpdateStatsInternal(NUMBER_SET *uidsToBeExpunged);
 };
 
 #endif // _NAMESPACE_HPP_INCLUDED_
