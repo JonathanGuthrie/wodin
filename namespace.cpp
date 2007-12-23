@@ -297,6 +297,9 @@ MailStore::MAIL_STORE_RESULT Namespace::ListDeletedMessages(NUMBER_SET *nowGone)
     MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
     if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
 	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	// This gets the messages that some other session has expunged and this one hasn't
+	MailboxUpdateStatsInternal(nowGone);
+	// This gets the messages that no sessions know about but which need to be expunged
 	result = m_selectedMailbox->store->ListDeletedMessages(nowGone);
 	pthread_mutex_unlock(&m_selectedMailbox->mutex);
     }
@@ -453,21 +456,19 @@ MailStore::MAIL_STORE_RESULT Namespace::MailboxFlushBuffers(void) {
     return result;
 }
 
-MailStore::MAIL_STORE_RESULT Namespace::MailboxUpdateStats(NUMBER_LIST *nowGone) {
+// This does the work from MailboxUpdateStats and also some of the work for ListDeletedMessages
+// I can't just call MailboxUpdateStats from ListDeletedMessages because then I get a deadlock
+// because both of them MUST lock the m_selectedMailboxMutex but both of them can call this
+// function because this function doesn't lock anything.
+MailStore::MAIL_STORE_RESULT Namespace::MailboxUpdateStatsInternal(NUMBER_SET *nowGone) {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-    if (NULL != m_selectedMailbox) {
-	pthread_mutex_lock(&m_selectedMailbox->mutex);
-	for (ExpungedMessageMap::iterator i = m_selectedMailbox->messages.begin(); i!= m_selectedMailbox->messages.end(); ++i) {
-	    bool found = false;
+    for (ExpungedMessageMap::iterator i = m_selectedMailbox->messages.begin(); i!= m_selectedMailbox->messages.end(); ++i) {
+	bool found = false;
 
-	    for (SessionList::iterator j = i->second.expungedSessions.begin(); j != i->second.expungedSessions.end(); ++j) {
-		if (m_session == *j) {
-		    found = true;
-		    break;
-		}
-	    }
-	    if (!found) {
-		nowGone->push_back(i->first);
+	for (SessionList::iterator j = i->second.expungedSessions.begin(); j != i->second.expungedSessions.end(); ++j) {
+	    if (m_session == *j) {
+		found = true;
+		break;
 	    }
 	}
 	if (!found) {
