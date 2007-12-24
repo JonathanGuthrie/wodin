@@ -334,6 +334,7 @@ MailStore::MAIL_STORE_RESULT Namespace::ExpungeThisUid(unsigned long uid) {
 		addSession(m_selectedMailbox->refcount, insert_result.first->second);
 	    }
 	    else {
+		--m_mailboxMessageCount;
 		result = m_selectedMailbox->store->ExpungeThisUid(uid);
 	    }
 	}
