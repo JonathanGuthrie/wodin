@@ -30,8 +30,11 @@ MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, c
     m_homeDirectory = new std::string(usersHomeDirectory);
 }
 
-static int writeMailboxMetadataFile(const char *filename, const char *fqdn) {
+static int writeMailboxMetadataFile(const char *filename, const char *fqdn, uid_t userId) {
     int result = 0;
+
+    uid_t savedUserId = geteuid();
+    seteuid(userId);
 
     struct tm *tm_now;
     time_t now;
@@ -76,6 +79,7 @@ static int writeMailboxMetadataFile(const char *filename, const char *fqdn) {
 	result = errno;
     }
 
+    seteuid(savedUserId);
     return result;
 }
 
@@ -88,6 +92,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
     std::string MailboxName = FullName;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
 	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
 	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
@@ -159,7 +165,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			}
 		    }
 		    else {
-			if (0 != (m_errnoFromLibrary = writeMailboxMetadataFile(fullPath.c_str(), m_session->GetServer()->GetFQDN().c_str()))) {
+			if (0 != (m_errnoFromLibrary = writeMailboxMetadataFile(fullPath.c_str(), m_session->GetServer()->GetFQDN().c_str(), m_session->GetUser()->GetUid()))) {
 			    result = MAILBOX_PATH_BAD;
 			}
 		    }
@@ -174,6 +180,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 	    }
 	}
     }
+    seteuid(savedUserId);
     return result;
 }
 
@@ -186,6 +193,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Ful
     std::string MailboxName = FullName;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
 	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
 	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
@@ -236,6 +245,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMailbox(const std::string &Ful
 	}
     }
 
+    seteuid(savedUserId);
     return result;
 }
 
@@ -244,6 +254,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
     std::string sourcePath, destPath;
     bool isInbox = false;
 
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     if ((('i' == SourceName[0]) || ('I' == SourceName[0])) &&
 	(('n' == SourceName[1]) || ('N' == SourceName[1])) &&
 	(('b' == SourceName[2]) || ('B' == SourceName[2])) &&
@@ -335,7 +347,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 	// std::cout << "Attempting to rename \"" << sourcePath << "\" to \"" << destPath << "\"" << std::endl;
 	if (0 == rename(sourcePath.c_str(), destPath.c_str())) {
 	    if (isInbox) {
-		writeMailboxMetadataFile(sourcePath.c_str(), m_session->GetServer()->GetFQDN().c_str());
+		writeMailboxMetadataFile(sourcePath.c_str(), m_session->GetServer()->GetFQDN().c_str(), m_session->GetUser()->GetUid());
 	    }
 	}
 	else {
@@ -343,6 +355,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 	}
     }
 
+    seteuid(savedUserId);
     return result;
 }
 
@@ -365,6 +378,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxClose()
 }
 
 void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
+
     for (int i=0; i<length; ++i) {
 	switch(m_appendState) {
 	case 0:
@@ -520,6 +536,7 @@ void MailStoreMbox::AddDataToMessageFile(uint8_t *data, size_t length) {
 	    break;
 	}
     }
+    seteuid(savedUserId);
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::string &FullName, uint8_t *data, size_t length,
@@ -528,6 +545,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
     std::string fullPath;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
 	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
 	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
@@ -639,6 +658,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 	    result = MailStore::GENERAL_FAILURE;
 	}
     }
+    seteuid(savedUserId);
     return result;
 }
 
@@ -648,10 +668,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AppendDataToMessage(const std::strin
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::DoneAppendingDataToMessage(const std::string &MailboxName, size_t uid) {
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     m_outFile->write("\n", 1);
     m_outFile->close();
     delete m_outFile;
     m_outFile = NULL;
+    seteuid(savedUserId);
     return MailStore::SUCCESS; // SYZYGY
 }
 
@@ -810,6 +833,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
     std::string fullPath;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
 	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
 	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
@@ -917,6 +942,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	    result = MailStore::GENERAL_FAILURE;
 	}
     }
+    seteuid(savedUserId);
     return result;
 }
 
@@ -962,6 +988,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
     std::string fullPath;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     if ((('i' == MailboxName[0]) || ('I' == MailboxName[0])) &&
 	(('n' == MailboxName[1]) || ('N' == MailboxName[1])) &&
 	(('b' == MailboxName[2]) || ('B' == MailboxName[2])) &&
@@ -1033,6 +1061,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::GetMailboxCounts(const std::string &
 	    result = MailStore::GENERAL_FAILURE;
 	}
     }
+    seteuid(savedUserId);
     return result;
 }
 
@@ -1087,6 +1116,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     std::string fullPath;
 
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     if (NULL != m_openMailboxName) {
 	if ((('i' == (*m_openMailboxName)[0]) || ('I' == (*m_openMailboxName)[0])) &&
 	    (('n' == (*m_openMailboxName)[1]) || ('N' == (*m_openMailboxName)[1])) &&
@@ -2136,6 +2167,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 	    result = MailStore::GENERAL_FAILURE;
 	}
     }
+    seteuid(savedUserId);
     return result;
 }
 
@@ -2554,6 +2586,8 @@ void MailStoreMbox::ListSubscribed(const std::string &pattern, MAILBOX_LIST *res
 
 void MailStoreMbox::BuildMailboxList(const std::string &pattern, MAILBOX_LIST *result, bool listAll)
 {
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     if (listAll)
     {
 	ListAll(pattern, result);
@@ -2562,12 +2596,16 @@ void MailStoreMbox::BuildMailboxList(const std::string &pattern, MAILBOX_LIST *r
     {
 	ListSubscribed(pattern, result);
     }
+    seteuid(savedUserId);
 }
 
 
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &MailboxName, bool isSubscribe)
 {
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
+
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     bool foundLine = false;
     std::string in_file_name = *m_homeDirectory;
@@ -2611,6 +2649,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::SubscribeMailbox(const std::string &
     }
 
     ::rename(out_file_name.c_str(), in_file_name.c_str());
+    seteuid(savedUserId);
     return result;
 }
 
@@ -2641,6 +2680,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::DeleteMessage(const std::string &Mai
 MailMessage::MAIL_MESSAGE_RESULT MailStoreMbox::GetMessageData(MailMessage **message, unsigned long uid) {
     MailMessage::MAIL_MESSAGE_RESULT result = MailMessage::SUCCESS;
 
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
+
     unsigned long msn = MailboxUidToMsn(uid);
     if ((msn > 0) && (msn <= m_messageIndex.size())) {
 	if (NULL == m_messageIndex[msn-1].messageData) {
@@ -2653,6 +2695,7 @@ MailMessage::MAIL_MESSAGE_RESULT MailStoreMbox::GetMessageData(MailMessage **mes
     else {
 	result = MailMessage::MESSAGE_DOESNT_EXIST;
     }
+    seteuid(savedUserId);
     return result;
 }
 
@@ -2668,6 +2711,8 @@ size_t MailStoreMbox::GetBufferLength(unsigned long uid) {
 
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::OpenMessageFile(unsigned long uid) {
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
     CloseMessageFile();
 
     std::string fullPath;
@@ -2694,6 +2739,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::OpenMessageFile(unsigned long uid) {
     char buffer[1000];
     m_inFile.getline(buffer, 1000);
 
+    seteuid(savedUserId);
     return MailStore::SUCCESS;
 }
 
@@ -2705,6 +2751,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::OpenMessageFile(unsigned long uid) {
 // relative to the start of the message as it was originally received
 // Oh, and it also must not return the last linefeed.
 size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
+    uid_t savedUserId = geteuid();
+    seteuid(m_session->GetUser()->GetUid());
+
     size_t srcPtr = 0;
     // The difference between destPtr and destChar is tht destChar counts the number of characters that
     // would be in buff up to that point if the offset was zero, and destPtr counts the character position
@@ -4147,6 +4196,7 @@ size_t MailStoreMbox::ReadMessage(char *buff, size_t offset, size_t length) {
 
     // std::cout << "Returning " << destPtr << std::endl;
     delete[] readBuffer;
+    seteuid(savedUserId);
     return destPtr;
 }
 

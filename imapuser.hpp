@@ -2,6 +2,9 @@
 #define _IMAPUSER_HPP_INCLUDED_
 
 #include <string>
+#include <unistd.h>
+
+class ImapServer;
 
 // SYZYGY -- I need to know whether HavePlaintextPassword will return true or not
 // SYZYGY -- even under circumstances when I can't create a user because I haven't
@@ -15,16 +18,20 @@
 // SYZYGY -- I don't know which I like better.
 class ImapUser {
 public:
-    ImapUser(const char *user);
+    ImapUser(const char *user, const ImapServer *server);
     virtual ~ImapUser();
     virtual bool HavePlaintextPassword() = 0;
     virtual bool CheckCredentials(const char *password) = 0;
     virtual char *GetPassword(void) const = 0;
     virtual char *GetHomeDir(void) const = 0;
     const char *GetName(void) const { return name->c_str(); }
+    uid_t GetUid(void) const { return m_uid; }
+    gid_t GetGid(void) const { return m_gid; }
 
 protected:
     std::string *name;
+    uid_t m_uid;
+    gid_t m_gid;
     bool userFound;
 };
 

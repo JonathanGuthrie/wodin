@@ -60,6 +60,10 @@ public:
     void ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds);
     void KillSession(SessionDriver *driver);
     const std::string GetFQDN(void);
+    bool UseConfiguredUid(void) const { return m_useConfiguredUid; }
+    uid_t GetConfiguredUid(void) const { return m_configuredUid; }
+    bool UseConfiguredGid(void) const { return m_useConfiguredGid; }
+    uid_t GetConfiguredGid(void) const { return m_configuredGid; }
 
 private:
     bool isRunning;
@@ -79,6 +83,10 @@ private:
     unsigned idleTimeout;
     unsigned loginTimeout;
     unsigned asynchronousEventTime;
+    bool m_useConfiguredUid;
+    uid_t m_configuredUid;
+    bool m_useConfiguredGid;
+    gid_t m_configuredGid;
 };
 
 #endif // _IMAPSERVER_HPP_INCLUDED_

@@ -322,11 +322,6 @@ ImapSession::ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver
 }
 
 ImapSession::~ImapSession() {
-    if (NULL != m_userData)
-    {
-	delete m_userData;
-    }
-    m_userData = NULL;
     if (ImapSelected == m_state) {
 	m_store->MailboxClose();
     }
@@ -334,6 +329,11 @@ ImapSession::~ImapSession() {
 	delete m_store;
     }
     m_store = NULL;
+    if (NULL != m_userData)
+    {
+	delete m_userData;
+    }
+    m_userData = NULL;
     std::string bye = "* BYE SimDesk IMAP4rev1 server shutting down\r\n";
     m_s->Send((uint8_t *)bye.data(), bye.size());
 }
@@ -481,9 +481,6 @@ void ImapSession::AsynchronousEvent(void) {
 /*--------------------------------------------------------------------------------------*/
 int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
     m_lastCommandTime = time(NULL);
-    if (NULL != m_userData) {
-	setfsuid(1000); // SYZYGY -- how do I set the privileges I need to access the files?
-    }
 
     uint32_t newDataBase = 0;
     int result = 0;

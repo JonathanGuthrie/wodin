@@ -2,7 +2,7 @@
 
 #include "imapuser.hpp"
 
-ImapUser::ImapUser(const char *user)
+ImapUser::ImapUser(const char *user, const ImapServer *server)
 {
     name = new std::string(user);
     userFound = false;

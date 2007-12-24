@@ -7,7 +7,7 @@
 
 class ImapUnixUser : ImapUser {
 public:
-    ImapUnixUser(const char *user);
+    ImapUnixUser(const char *user, const ImapServer *server);
     virtual ~ImapUnixUser();
     virtual bool HavePlaintextPassword();
     virtual bool CheckCredentials(const char *password);
@@ -15,8 +15,6 @@ public:
     virtual char *GetHomeDir(void) const { return home; };
 
 private:
-    uid_t uid;
-    gid_t gid;
     char *home;
 };
 

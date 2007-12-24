@@ -79,6 +79,10 @@ void SessionDriver::NewSession(Socket *s)
 
 ImapServer::ImapServer(uint32_t bind_address, short bind_port, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time)
 {
+    m_useConfiguredUid = false;
+    m_configuredUid = 0;
+    m_useConfiguredGid = false;
+    m_configuredGid = 0;
     loginTimeout = login_timeout;
     idleTimeout = idle_timeout;
     asynchronousEventTime = asynchronous_event_time;
@@ -240,7 +244,7 @@ void ImapServer::KillSession(SessionDriver *driver)
 
 ImapUser *ImapServer::GetUserInfo(const char *userid)
 {
-    return (ImapUser *) new ImapUnixUser(userid);
+    return (ImapUser *) new ImapUnixUser(userid, this);
 }
 
 Namespace *ImapServer::GetMailStore(ImapSession *session)
