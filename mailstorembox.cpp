@@ -880,11 +880,15 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 	MessageIndex_t messageMetaData;
 	bool parseSuccess;
 
+	time_t now;
+	now = time(NULL);
+
 	m_mailboxMessageCount = 0;
 	m_recentCount = 0;
 	m_firstUnseen = 0;
 	m_uidLast = 0;
-	m_uidValidity = 0;
+	// This is the default value.  It will be overridden if the file has a value in it
+	m_uidValidity = now;
 	m_hasHiddenMessage = false;
 	m_hasExpungedMessage = false;
 	while (!inFile.eof() && (parseSuccess = ParseMessage(inFile, firstMessage, countMessage, m_uidValidity, m_uidLast, messageMetaData))) {
@@ -1178,6 +1182,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 		unsigned uidFromMessage = 0;
 		uint32_t flagsFromMessage;
 		bool purgeThisMessage = false;
+		unsigned uidLastWritten = 0;
 
 		if (m_hasHiddenMessage) {
 		    messageIndex = -2;
@@ -1409,6 +1414,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 					    }
 					    if (!purgeThisMessage) {
 						std::ostringstream ss;
+						// If it's the first message and I don't have a hidden message in this mailbox, then I want to flush
+						// the metadata headers
+						if ((0 == messageIndex) && !m_hasHiddenMessage) {
+						    ss << "X-IMAPbase: " << m_uidValidity << " " << m_uidLast << "\n";
+						    uidLastWritten = m_uidLast;
+						}
 						ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
 						ss << "X-Status: ";
 						if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
@@ -1428,7 +1439,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 						    ss << 'R';
 						}
 						ss << '\n';
-
 						if (8192 > (charactersAdded + ss.str().length())) {
 						    charactersAdded += ss.str().length();
 						    // std::cout << "I'm trying to write \"" << ss.str() << "\" To the buffer, which is " << ss.str().length() << " characters long" << std::endl;
@@ -1544,7 +1554,13 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 					    m_messageIndex.push_back(messageMetaData);
 					}
 					if (!purgeThisMessage) {
+					    // If it's the first message and I don't have a hidden message in this mailbox, then I want to flush
+					    // the metadata headers
 					    std::ostringstream ss;
+					    if ((0 == messageIndex) && !m_hasHiddenMessage) {
+						ss << "X-IMAPbase: " << m_uidValidity << " " << m_uidLast << "\n";
+						uidLastWritten = m_uidLast;
+					    }
 					    ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
 					    ss << "X-Status: ";
 					    if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
@@ -1662,6 +1678,9 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 			    else if ('U' == curr->data[i]) {
 				parseState = 21;
 			    }
+			    else if ('I' == curr->data[i]) {
+				parseState = 26;
+			    }
 			    else {
 				if (purgeThisMessage) {
 				    charactersAdded -= 3;
@@ -1713,6 +1732,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 					charactersAdded -= 2;
 				    }
 				    else {
+					charactersCopied += 2;
 					updateFile.write("X-", 2);
 				    }
 				}
@@ -1943,6 +1963,152 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 				parseState = 26;
 			    }
 			    break;
+
+			case 26:
+			    // seen '\nX-I'
+			    if ('M' == curr->data[i]) {
+				parseState = 27;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 4;
+				}
+				else {
+				    charactersCopied += 4;
+				    updateFile.write("X-I", 3);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 27:
+			    // seen '\nX-IM'
+			    if ('A' == curr->data[i]) {
+				parseState = 28;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 5;
+				}
+				else {
+				    charactersCopied += 5;
+				    updateFile.write("X-IM", 4);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 28:
+			    // seen '\nX-IMA'
+			    if ('P' == curr->data[i]) {
+				parseState = 29;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 6;
+				}
+				else {
+				    charactersCopied += 6;
+				    updateFile.write("X-IMA", 5);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 29:
+			    // seen '\nX-IMAP'
+			    if ('b' == curr->data[i]) {
+				parseState = 30;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 7;
+				}
+				else {
+				    charactersCopied += 7;
+				    updateFile.write("X-IMAP", 6);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 30:
+			    // seen '\nX-IMAPb'
+			    if ('a' == curr->data[i]) {
+				parseState = 31;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 8;
+				}
+				else {
+				    charactersCopied += 8;
+				    updateFile.write("X-IMAPb", 7);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 31:
+			    // seen '\nX-IMAPba'
+			    if ('s' == curr->data[i]) {
+				parseState = 32;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 9;
+				}
+				else {
+				    charactersCopied += 9;
+				    updateFile.write("X-IMAPba", 8);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 32:
+			    // seen '\nX-IMAPbas'
+			    if ('e' == curr->data[i]) {
+				parseState = 33;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 10;
+				}
+				else {
+				    charactersCopied += 10;
+				    updateFile.write("X-IMAPbas", 9);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
+			case 33:
+			    // seen '\nX-IMAPbase'
+			    if (':' == curr->data[i]) {
+				charactersAdded -= 11;
+				parseState = 20;
+			    }
+			    else {
+				parseState = 6;
+				if (purgeThisMessage) {
+				    charactersAdded -= 11;
+				}
+				else {
+				    charactersCopied += 11;
+				    updateFile.write("X-IMAPbase", 10);
+				    updateFile.write((char *)&curr->data[i], 1);
+				}
+			    }
+			    break;
+
 			}
 		    }
 		    curr = curr->next;
@@ -1956,6 +2122,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 			    updateFile.write("\n", 1);
 			}
 			std::ostringstream ss;
+			// If it's the first message and I don't have a hidden message in this mailbox, then I want to flush
+			// the metadata headers
+			if ((0 == messageIndex) && !m_hasHiddenMessage) {
+			    ss << "X-IMAPbase: " << m_uidValidity << " " << m_uidLast << "\n";
+			    uidLastWritten = m_uidLast;
+			}
 			ss << "X-UID: " << m_messageIndex[messageIndex].uid << "\n";
 			ss << "X-Status: ";
 			if (0 != (m_messageIndex[messageIndex].flags & IMAP_MESSAGE_ANSWERED)) {
@@ -1982,6 +2154,17 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 			updateFile.flush();
 			m_messageIndex[messageIndex].isDirty = false;
 		    }
+		}
+
+		// If I've written a uidLast value to the file and it's less than the current
+		// uidLast value (because messages were appended) then I have to do the whole
+		// thing all over again.  Well, strictly speaking I don't have to do it ALL
+		// over again, but it's easier than finding the initial message and  updating the
+		// X-IMAPbase entry.  The only reason I would have written a uidLast value to the
+		// file at this point is because I don't have a hidden message and it has the wrong
+		// value in it.
+		if ((0 != uidLastWritten) && (uidLastWritten < m_uidLast)) {
+		    m_isDirty = true;
 		}
 
 		// The next thing to do is to handle the case where the last message was deleted
@@ -2011,159 +2194,122 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxFlushBuffers(void) {
 		    updateFile.open(fullPath.c_str(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
 		}
 
-		// The last thing I do is update the X-IMAP or X-IMAPbase information
-		updateFile.seekg(0, std::ios_base::beg);
-		updateFile.read((char *)buff1.data, 8192);
-		buff1.count = updateFile.gcount();
+		// The last thing I do is update the X-IMAP information
+		// I only have to worry about this if I've got a hidden internal message
+		if (m_hasHiddenMessage) {
+		    updateFile.seekg(0, std::ios_base::beg);
+		    updateFile.read((char *)buff1.data, 8192);
+		    buff1.count = updateFile.gcount();
 
-		// At this point, I'm assuming that the first message's header fits inside the
-		// first 8k. That won't necessarily be true when I start doing keyword flags, or when
-		// I start using generic messages for the metadata message.
+		    // At this point, I'm assuming that the first message's header fits inside the
+		    // first 8k. That won't necessarily be true when I start doing keyword flags, or when
+		    // I start using generic messages for the metadata message.
 
-		parseState = 1;
-		for (int i=0; (parseState<15) && (i<buff1.count); ++i) {
-		    // std::cout << "In state " << parseState << " message " << messageIndex << " reading character " << i << " which happens to be " << buff1.data[i] << std::endl;
-		    // This parser is simplified.  All I'm doing is looking for \nX-IMAP or \nX-IMAPbase
-		    // and then the second number after that, which I want to replace with the new number
-		    switch(parseState) {
-		    case 0:
-			if ('\n' == buff1.data[i]) {
-			    parseState = 1;
-			}
-			break;
+		    parseState = 1;
+		    for (int i=0; (parseState<15) && (i<buff1.count); ++i) {
+			// std::cout << "In state " << parseState << " message " << messageIndex << " reading character " << i << " which happens to be " << buff1.data[i] << std::endl;
+			// This parser is simplified.  All I'm doing is looking for \nX-IMAP or \nX-IMAPbase
+			// and then the second number after that, which I want to replace with the new number
+			switch(parseState) {
+			case 0:
+			    if ('\n' == buff1.data[i]) {
+				parseState = 1;
+			    }
+			    break;
 
-		    case 1:
-			if ('X' == buff1.data[i]) {
-			    parseState = 2;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 1:
+			    if ('X' == buff1.data[i]) {
+				parseState = 2;
+			    }
+			    else {
+				parseState = 0;
+			    }
+			    break;
 
-		    case 2:
-			if ('-' == buff1.data[i]) {
-			    parseState = 3;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 2:
+			    if ('-' == buff1.data[i]) {
+				parseState = 3;
+			    }
+			    else {
+				parseState = 0;
+			    }
+			    break;
 
-		    case 3:
-			if ('I' == buff1.data[i]) {
-			    parseState = 4;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 3:
+			    if ('I' == buff1.data[i]) {
+				parseState = 4;
+			    }
+			    else {
+				parseState = 0;
+			    }
+			    break;
 
-		    case 4:
-			if ('M' == buff1.data[i]) {
-			    parseState = 5;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 4:
+			    if ('M' == buff1.data[i]) {
+				parseState = 5;
+			    }
+			    else {
+				parseState = 0;
+			    }
+			    break;
 
-		    case 5:
-			if ('A' == buff1.data[i]) {
-			    parseState = 6;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 5:
+			    if ('A' == buff1.data[i]) {
+				parseState = 6;
+			    }
+			    else {
+				parseState = 0;
+			    }
+			    break;
 
-		    case 6:
-			if ('P' == buff1.data[i]) {
-			    parseState = 7;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 6:
+			    if ('P' == buff1.data[i]) {
+				parseState = 7;
+			    }
+			    else {
+				parseState = 0;
+			    }
+			    break;
 
-		    case 7:
-			if (':' == buff1.data[i]) {
-			    parseState = 12;
-			}
-			else if ('b' == buff1.data[i]) {
-			    parseState = 8;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 7:
+			    if (':' == buff1.data[i]) {
+				parseState = 8;
+			    }
+			    else {
+				parseState = 0;
+			    }
+			    break;
 
-		    case 8:
-			if ('a' == buff1.data[i]) {
-			    parseState = 9;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 8:
+			    // Okay, I've found the header, now skip over the whitespace
+			    if (isdigit(buff1.data[i])) {
+				parseState = 9;
+			    }
+			    break;
 
-		    case 9:
-			if ('s' == buff1.data[i]) {
-			    parseState = 10;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 9:
+			    if (!isdigit(buff1.data[i])) {
+				parseState = 10;
+			    }
+			    break;
 
-		    case 10:
-			if ('e' == buff1.data[i]) {
-			    parseState = 11;
-			}
-			else {
-			    parseState = 0;
-			}
-			break;
+			case 10:
+			    if (isdigit(buff1.data[i])) {
+				// i now has the offset of the string
+				// it's guaranteed 10 characters long
+				std::ostringstream ss;
 
-		    case 11:
-			if (':' == buff1.data[i]) {
-			    parseState = 12;
+				ss << std::setw(10) << std::setfill('0') << m_uidLast;
+				// std::cout << "Writing the string \"" << ss.str() << "\" as the uidLast value" << std::endl;
+				updateFile.clear();
+				updateFile.seekp(i, std::ios_base::beg);
+
+				updateFile.write((char *)ss.str().c_str(), 10);
+				parseState = 999;
+			    };
 			}
-			else {
-			    parseState = 0;
-			}
-			break;
-
-		    case 12:
-			// Okay, I've found the header, now skip over the whitespace
-			if (isdigit(buff1.data[i])) {
-			    parseState = 13;
-			}
-			break;
-
-		    case 13:
-			if (!isdigit(buff1.data[i])) {
-			    parseState = 14;
-			}
-			break;
-
-		    case 14:
-			if (isdigit(buff1.data[i])) {
-			    // i now has the offset of the stringxb
-			    // it's guaranteed 10 characters long
-			    std::ostringstream ss;
-
-			    ss << std::setw(10) << std::setfill('0') << m_uidLast;
-			    // std::cout << "Writing the string \"" << ss.str() << "\" as the uidLast value" << std::endl;
-			    updateFile.clear();
-			    updateFile.seekp(i, std::ios_base::beg);
-
-			    updateFile.write((char *)ss.str().c_str(), 10);
-			    parseState = 999;
-			};
 		    }
 		}
-
 		updateFile.close();
 		m_lastMtime = time(NULL);
 	    }
