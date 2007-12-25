@@ -89,9 +89,12 @@ done)  Change the mail store logic so that each session has it's own list of ava
    and so that the messages aren't purged until all sessions that are accessing a mailbox have
    been notified that the messages are going to be purged.
 
-31)  Fix the UIDNEXT of "select inbox" is 1 should be at least 5
+done)  Fix the UIDNEXT of "select inbox" is 1 should be at least 5
 
-30)  Move the body search and text search (largely) into the MailStore class.
+31)  Figure out how to deal with mailboxes whose metadata are in a visible message
+  and especially figure out what do to if the X-IMAPbase header line is not in that message
+
+32)  Move the body search and text search (largely) into the MailStore class.
 
 )  ImapServer::GetFQDN
 

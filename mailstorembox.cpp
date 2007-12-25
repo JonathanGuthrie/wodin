@@ -901,6 +901,12 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxOpen(const std::string &FullN
 		    messageMetaData.uid = ++m_uidLast;
 		    m_isDirty = true;
 		}
+		else {
+		    if (messageMetaData.uid > m_uidLast) {
+			m_uidLast = messageMetaData.uid;
+			m_isDirty = true;
+		    }
+		}
 		m_uidGivenMsn.push_back(messageMetaData.uid);
 		m_messageIndex.push_back(messageMetaData);
 	    }
