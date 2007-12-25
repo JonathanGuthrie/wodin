@@ -91,27 +91,23 @@ done)  Change the mail store logic so that each session has it's own list of ava
 
 done)  Fix the UIDNEXT of "select inbox" is 1 should be at least 5
 
-31)  Figure out how to deal with mailboxes whose metadata are in a visible message
+done)  Figure out how to deal with mailboxes whose metadata are in a visible message
   and especially figure out what do to if the X-IMAPbase header line is not in that message
 
-32)  Move the body search and text search (largely) into the MailStore class.
+32)  ImapServer::GetFQDN
 
-)  ImapServer::GetFQDN
+33)  Configurable invalid login delay
 
-)  Configurable invalid login delay
+34)  Throw exception for failures in ImapServer::ImapServer
 
-)  Throw exception for failures in ImapServer::ImapServer
+35)  Configurable home directory location
 
-)  Configurable home directory location
-
-)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf,
+36)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf,
   dot lock)
-
-)  LMTP support for local deliveries
 
 done)  Figure out how to not have SocketBindErrorException
 
-)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
+38)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
 )  Update the CAPABILITY code to handle the SASL authentication methods for
     those user bases for which plain text passwords are available
@@ -155,6 +151,10 @@ done)  Add support for a delay after a failed login (need a timer manager)
 
 )  Keep some sort of track about the number of connections a user has.  Maybe
   collect some state about each user in the IMAP server
+
+)  LMTP support for local deliveries
+
+)  Move the body search and text search (largely) into the MailStore class.
 
 )  Pluggable modules for mail stores
 
