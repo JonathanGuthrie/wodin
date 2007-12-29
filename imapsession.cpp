@@ -8,8 +8,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 
-// SYZYGY -- I need to have some sort of timer that can fire and handle several
-// different cases:
+// I have a timer that can fire and handle several different cases:
 //   Look for updated data for asynchronous notifies
 //   ***DONE*** Delay for failed LOGIN's or AUTHENTICATIONS
 //   ***DONE*** Handle idle timeouts, both for IDLE mode and inactivity in other modes.

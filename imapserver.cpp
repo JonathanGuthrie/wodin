@@ -73,11 +73,11 @@ void SessionDriver::DestroySession(void) {
 void SessionDriver::NewSession(Socket *s)
 {
     sock = s;
-    session = new ImapSession(s, server, this, 5); // SYZYGY -- What if I want something other than a five-second delay on invalid logins?
+    session = new ImapSession(s, server, this, server->GetBadLoginPause());
 }
 
 
-ImapServer::ImapServer(uint32_t bind_address, short bind_port, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time)
+ImapServer::ImapServer(uint32_t bind_address, short bind_port, std::string fqdn, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time, unsigned bad_login_pause)
 {
     m_useConfiguredUid = false;
     m_configuredUid = 0;
@@ -86,6 +86,7 @@ ImapServer::ImapServer(uint32_t bind_address, short bind_port, unsigned login_ti
     loginTimeout = login_timeout;
     idleTimeout = idle_timeout;
     asynchronousEventTime = asynchronous_event_time;
+    m_badLoginPause = bad_login_pause;
     pipe(pipeFd);  // SYZYGY exception on error
     isRunning = true;
     listener = new Socket(bind_address, bind_port);
@@ -287,10 +288,4 @@ void ImapServer::SetIdleTimer(SessionDriver *driver, unsigned seconds)
 
 void ImapServer::ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds) {
     timerQueue.AddAsynchronousAction(driver, seconds);
-}
-
-
-const std::string ImapServer::GetFQDN(void) {
-    // SYZYGY -- obviously, this can't last, but it'll do while I get the other parts up and working
-    return "husky.brokersys.com";
 }

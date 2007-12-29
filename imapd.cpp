@@ -12,7 +12,7 @@ int main() {
 
     Namespace::runtime_init();
 
-    ImapServer *server = new ImapServer(bind_address, port);
+    ImapServer *server = new ImapServer(bind_address, port, "husky.brokersys.com");
     
     server->Run();
     std::cout << "Hit q and return to exit" << std::endl;

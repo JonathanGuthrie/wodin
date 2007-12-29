@@ -94,9 +94,9 @@ done)  Fix the UIDNEXT of "select inbox" is 1 should be at least 5
 done)  Figure out how to deal with mailboxes whose metadata are in a visible message
   and especially figure out what do to if the X-IMAPbase header line is not in that message
 
-32)  ImapServer::GetFQDN
+done)  ImapServer::GetFQDN
 
-33)  Configurable invalid login delay
+done)  Configurable invalid login delay
 
 34)  Throw exception for failures in ImapServer::ImapServer
 
@@ -158,7 +158,7 @@ done)  Add support for a delay after a failed login (need a timer manager)
 
 )  Pluggable modules for mail stores
 
-)  Configuration
+)  Configuration infrastructure
 
 )  IPv6 support
 

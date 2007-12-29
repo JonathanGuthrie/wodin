@@ -41,7 +41,8 @@ typedef ThreadPool<SessionDriver *> ImapWorkerPool;
 
 class ImapServer {
 public:
-    ImapServer(uint32_t bind_address, short bind_port, unsigned login_timeout = 60, unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900);
+    ImapServer(uint32_t bind_address, short bind_port, std::string fqdn, unsigned login_timeout = 60,
+	       unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900, unsigned bad_login_pause = 5);
     ~ImapServer();
     void Run();
     void Shutdown();
@@ -59,11 +60,13 @@ public:
     void SetIdleTimer(SessionDriver *driver, unsigned seconds);
     void ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds);
     void KillSession(SessionDriver *driver);
-    const std::string GetFQDN(void);
+    const std::string &GetFQDN(void) const { return m_fqdn; }
     bool UseConfiguredUid(void) const { return m_useConfiguredUid; }
     uid_t GetConfiguredUid(void) const { return m_configuredUid; }
     bool UseConfiguredGid(void) const { return m_useConfiguredGid; }
     uid_t GetConfiguredGid(void) const { return m_configuredGid; }
+    void SetFQDN(const std::string &fqdn) { m_fqdn = fqdn; }
+    unsigned GetBadLoginPause(void) const { return m_badLoginPause; }
 
 private:
     bool isRunning;
@@ -87,6 +90,8 @@ private:
     uid_t m_configuredUid;
     bool m_useConfiguredGid;
     gid_t m_configuredGid;
+    std::string m_fqdn;
+    unsigned m_badLoginPause;
 };
 
 #endif // _IMAPSERVER_HPP_INCLUDED_
