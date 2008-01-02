@@ -39,10 +39,18 @@ private:
 
 typedef ThreadPool<SessionDriver *> ImapWorkerPool;
 
+class ServerErrorException
+{
+public:
+    ServerErrorException(int error) : m_systemError(error) {}
+private:
+    int m_systemError;
+};
+
 class ImapServer {
 public:
     ImapServer(uint32_t bind_address, short bind_port, std::string fqdn, unsigned login_timeout = 60,
-	       unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900, unsigned bad_login_pause = 5);
+	       unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900, unsigned bad_login_pause = 5) throw(ServerErrorException);
     ~ImapServer();
     void Run();
     void Shutdown();

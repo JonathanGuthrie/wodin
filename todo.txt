@@ -98,7 +98,7 @@ done)  ImapServer::GetFQDN
 
 done)  Configurable invalid login delay
 
-34)  Throw exception for failures in ImapServer::ImapServer
+done)  Throw exception for failures in ImapServer::ImapServer
 
 35)  Configurable home directory location
 

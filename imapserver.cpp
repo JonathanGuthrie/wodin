@@ -1,5 +1,6 @@
 #include <iostream>
 #include <time.h>
+#include <errno.h>
 
 #include "deltaqueue.hpp"
 
@@ -77,7 +78,7 @@ void SessionDriver::NewSession(Socket *s)
 }
 
 
-ImapServer::ImapServer(uint32_t bind_address, short bind_port, std::string fqdn, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time, unsigned bad_login_pause)
+ImapServer::ImapServer(uint32_t bind_address, short bind_port, std::string fqdn, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time, unsigned bad_login_pause) throw(ServerErrorException)
 {
     m_useConfiguredUid = false;
     m_configuredUid = 0;
@@ -87,7 +88,9 @@ ImapServer::ImapServer(uint32_t bind_address, short bind_port, std::string fqdn,
     idleTimeout = idle_timeout;
     asynchronousEventTime = asynchronous_event_time;
     m_badLoginPause = bad_login_pause;
-    pipe(pipeFd);  // SYZYGY exception on error
+    if (0 > pipe(pipeFd)) {
+	throw ServerErrorException(errno);
+    }
     isRunning = true;
     listener = new Socket(bind_address, bind_port);
     ImapSession::BuildSymbolTables();
