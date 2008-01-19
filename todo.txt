@@ -109,12 +109,13 @@ done)  Figure out how to not have SocketBindErrorException
 
 38)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
-)  Update the CAPABILITY code to handle the SASL authentication methods for
-    those user bases for which plain text passwords are available
-
 )  Test the SASL authentication modes
 
 )  Overwrite the strings that hold passwords
+
+)  Really add the support for STARTTLS
+
+)  Add the logic required to forbid logins outside of tls sessions
 
 )  Handle search charsets other than US-ASCII
 
@@ -132,11 +133,7 @@ done)  Add support for a delay after a failed login (need a timer manager)
 
 )  Add extension data to the BODYSTRUCTURE command
 
-)  Really add the support for STARTTLS
-
-)  Add the logic required to forbid logins outside of tls sessions
-
-)  Build the logic to handle multiple simultaneous access properly
+done)  Build the logic to handle multiple simultaneous access properly
 
 )  Use epoll for the thread pooling instead of select
 
