@@ -109,13 +109,13 @@ done)  Figure out how to not have SocketBindErrorException
 
 38)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
-)  Test the SASL authentication modes
+39)  Test the SASL authentication modes
 
-)  Overwrite the strings that hold passwords
+40)  Overwrite the strings that hold passwords
 
-)  Really add the support for STARTTLS
+41)  Really add the support for STARTTLS
 
-)  Add the logic required to forbid logins outside of tls sessions
+42)  Add the logic required to forbid logins outside of tls sessions
 
 )  Handle search charsets other than US-ASCII
 
