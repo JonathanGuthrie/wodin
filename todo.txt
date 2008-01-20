@@ -117,6 +117,8 @@ done)  Figure out how to not have SocketBindErrorException
 
 42)  Add the logic required to forbid logins outside of tls sessions
 
+43)  Compile without warnings with -Wall
+
 )  Handle search charsets other than US-ASCII
 
 )  Re-do the boyer-moore-pratt search so it's not downloaded code
