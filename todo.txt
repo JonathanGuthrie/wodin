@@ -100,7 +100,7 @@ done)  Configurable invalid login delay
 
 done)  Throw exception for failures in ImapServer::ImapServer
 
-35)  Configurable home directory location
+done)  Configurable home directory location
 
 36)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf,
   dot lock)

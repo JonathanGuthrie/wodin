@@ -25,6 +25,7 @@ public:
     virtual char *GetPassword(void) const = 0;
     virtual char *GetHomeDir(void) const = 0;
     const char *GetName(void) const { return name->c_str(); }
+    virtual std::string *ExpandPath(const std::string &specifier) const;
     uid_t GetUid(void) const { return m_uid; }
     gid_t GetGid(void) const { return m_gid; }
 

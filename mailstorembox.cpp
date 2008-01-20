@@ -16,7 +16,7 @@
 #define MAILBOX_LIST_FILE_NAME ".mailboxlist"
 
 
-MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, const char *usersHomeDirectory) : MailStore(session)
+MailStoreMbox::MailStoreMbox(ImapSession *session) : MailStore(session)
 {
     m_mailboxMessageCount = 0;
     m_recentCount = 0;
@@ -26,8 +26,8 @@ MailStoreMbox::MailStoreMbox(ImapSession *session, const char *usersInboxPath, c
     m_outFile = NULL;
     m_openMailboxName = NULL;
     m_isDirty = false;
-    m_inboxPath = new std::string(usersInboxPath);
-    m_homeDirectory = new std::string(usersHomeDirectory);
+    m_inboxPath = session->GetUser()->ExpandPath("/var/mail/%n");
+    m_homeDirectory = new std::string(session->GetUser()->GetHomeDir());
 }
 
 static int writeMailboxMetadataFile(const char *filename, const char *fqdn, uid_t userId) {
@@ -4400,5 +4400,5 @@ const std::string MailStoreMbox::GenerateUrl(const std::string MailboxName) cons
 
 
 MailStoreMbox *MailStoreMbox::clone(void) {
-    return new MailStoreMbox(m_session, m_inboxPath->c_str(), m_homeDirectory->c_str());
+    return new MailStoreMbox(m_session);
 }
