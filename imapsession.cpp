@@ -604,7 +604,7 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
 std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpdatedStatus) {
     std::string response;
 
-    if (sendUpdatedStatus && (ImapSelected == m_state)) {
+    if ((status != IMAP_NOTDONE) && sendUpdatedStatus && (ImapSelected == m_state)) {
 	// SYZYGY -- need to rework this for the new mail store logic
 	// SYZYGY -- basically, it works like this:  The front end requests that an
 	// SYZYGY -- expunge happen, and the back end notifies all of the front ends
