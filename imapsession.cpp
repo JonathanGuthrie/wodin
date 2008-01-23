@@ -161,6 +161,7 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.handler = &ImapSession::LogoutHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("LOGOUT", symbolToInsert));
 
+#if 0
     symbolToInsert.levels[0] = true;
     symbolToInsert.levels[1] = false;
     symbolToInsert.levels[2] = false;
@@ -229,6 +230,7 @@ void ImapSession::BuildSymbolTables()
     m_symbols.insert(IMAPSYMBOLS::value_type("FETCH", symbolToInsert));
     symbolToInsert.handler = &ImapSession::StoreHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("STORE", symbolToInsert));
+#endif // 0
 
     // This is the symbol table for the search keywords
     searchSymbolTable.insert(SEARCH_SYMBOL_T::value_type("ALL",        SSV_ALL));
@@ -721,7 +723,94 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpda
 int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
     std::string response;
     int result = 0;
+    size_t i;
+    bool commandFound = false;
 
+#if 1
+    if (NULL == m_currentHandler) {
+	dataLen -= 2;  // It's not literal data, so I can strip the CRLF off the end
+	data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	// std::cout << "In HandleOneLine, new command \"" << data << "\"" << std::endl;
+	// There's nothing magic about 10, it just seems a convenient size
+	// The initial value of parseBuffLen should be bigger than dwDataLen because
+	// if it's the same size or smaller, it WILL have to be reallocated at some point.
+	m_parseBuffLen = dataLen + 10;
+	m_parseBuffer = new uint8_t[m_parseBuffLen];
+	uint8_t *debug = m_parseBuffer;
+	m_parsePointer = 0; // It's a new command, so I need to reset the pointer
+
+	char *tagEnd = strchr((char *)data, ' ');
+	if (NULL != tagEnd) {
+	    i = (size_t) (tagEnd - ((char *)data));
+	}
+	else {
+	    i = dataLen;
+	}
+	AddToParseBuffer(data, i);
+	while ((i < dataLen) && (' ' == data[i])) {
+	    ++i;  // Lose the space separating the tag from the command
+	}
+	if (i < dataLen) {
+	    commandFound = true;
+	    m_commandString = m_parsePointer;
+	    tagEnd = strchr((char *)&data[i], ' ');
+	    if (NULL != tagEnd) {
+		AddToParseBuffer(&data[i], (size_t) (tagEnd - ((char *)&data[i])));
+		i = (size_t) (tagEnd - ((char *)data));
+	    }
+	    else {
+		AddToParseBuffer(&data[i], dataLen - i);
+		i = dataLen;
+	    }
+
+	    m_arguments = m_parsePointer;
+	    while ((i < dataLen) && (' ' == data[i])) {
+		++i;  // Lose the space between the command and the arguments
+	    }
+	    // std::cout << "Looking up the command \"" << &m_parseBuffer[m_commandString] << "\"" << std::endl;
+	    IMAPSYMBOLS::iterator found = m_symbols.find((char *)&m_parseBuffer[m_commandString]);
+	    if ((found != m_symbols.end()) && found->second.levels[m_state]) {
+		m_currentHandler = found->second.handler;
+		m_sendUpdatedStatus = found->second.sendUpdatedStatus;
+	    }
+	}
+    }
+    if (NULL != m_currentHandler) {
+		
+	IMAP_RESULTS status;
+	m_responseCode[0] = '\0';
+	strncpy(m_responseText, "Completed", MAX_RESPONSE_STRING_LENGTH);
+	status = (this->*m_currentHandler)(data, dataLen, i, m_parseStage);
+	response = FormatTaggedResponse(status, m_sendUpdatedStatus);
+	if (IMAP_NOTDONE != status) {
+	    m_currentHandler = NULL;
+	}
+	if (IMAP_NO_WITH_PAUSE == status) {
+	    result = 1;
+	    GetServer()->DelaySend(m_driver, m_failedLoginPause, response);
+	}
+	else {
+	    m_s->Send((uint8_t *)response.data(), response.length());
+	}
+    }
+    else {
+	if (commandFound) {
+	    strncpy(m_responseText, "Unrecognized Command", MAX_RESPONSE_STRING_LENGTH);
+	    m_responseCode[0] = '\0';
+	    response = FormatTaggedResponse(IMAP_BAD, true);
+	    m_s->Send((uint8_t *)response.data(), response.length());
+	}
+	else {
+	    response = (char *)m_parseBuffer;
+	    response += " BAD No Command\r\n";
+	    m_s->Send((uint8_t *)response.data(), response.length());
+	}
+    }
+    if (ImapLogoff <= m_state) {
+	// If I'm logged off, I'm obviously not expecting any more data
+	result = -1;
+    }
+#else // !1
     // std::cout << "In HandleOneLine, command " << m_inProgress << " in progress" << std::endl;
     // Some commands accumulate data over multiple lines.  Since the system
     // gives us data one line at a time, I have to put a state here for each
@@ -1527,6 +1616,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	    m_parseBuffLen = 0;
 	}
     }
+#endif // 1
     return result;
 }
 
@@ -1565,7 +1655,7 @@ std::string ImapSession::BuildCapabilityString()
  * context.  Further, since the capability string might be sent by multiple
  * different commands, that actual work will be done by a worker function.
  */
-IMAP_RESULTS ImapSession::CapabilityHandler(uint8_t *pData, size_t dwDataLen, size_t &r_dwParsingAt)
+IMAP_RESULTS ImapSession::CapabilityHandler(uint8_t *pData, size_t dwDataLen, size_t &r_dwParsingAt, uint32_t parseStage)
 {
     std::string response("* ");
     response += BuildCapabilityString() + "\r\n";
@@ -1578,9 +1668,9 @@ IMAP_RESULTS ImapSession::CapabilityHandler(uint8_t *pData, size_t dwDataLen, si
  * new messages although the server doesn't have to wait for this to do
  * things like that
  */
-IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, uint32_t parseStage) {
     // This command literally doesn't do anything.  If there was an update, it was found
-    // asynchronously and the updated info will be printed in FormatTaggedResponse
+    // asynchronously and the updated info that will be printed in FormatTaggedResponse
 
     return IMAP_OK;
 }
@@ -1590,7 +1680,7 @@ IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &par
  * processor gets the word about this because the state is set to "4" which
  * means "logout state"
  */
-IMAP_RESULTS ImapSession::LogoutHandler(uint8_t *pData, size_t dwDataLen, size_t &r_dwParsingAt) {
+IMAP_RESULTS ImapSession::LogoutHandler(uint8_t *pData, size_t dwDataLen, size_t &r_dwParsingAt, uint32_t parseStage) {
     // If the mailbox is open, close it
     // In IMAP, deleted messages are always purged before a close
     if (ImapSelected == m_state) {
@@ -1608,6 +1698,7 @@ IMAP_RESULTS ImapSession::LogoutHandler(uint8_t *pData, size_t dwDataLen, size_t
     return IMAP_OK;
 }
 
+#if 0
 IMAP_RESULTS ImapSession::StarttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     return UnimplementedHandler();
 }
@@ -5460,3 +5551,4 @@ IMAP_RESULTS ImapSession::UidHandler(uint8_t *data, const size_t dataLen, size_t
 	}
 	return result;
 }
+#endif // 0

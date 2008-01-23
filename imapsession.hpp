@@ -78,7 +78,7 @@ typedef enum
 typedef struct {
     bool levels[ImapLogoff+1];
     bool sendUpdatedStatus;
-    IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
 } symbol;
 
 typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
@@ -182,9 +182,11 @@ private:
     // What follows are the handlers for the various IMAP command.  These are grouped similarly to the
     // way the commands are grouped in RFC-3501.  They all have identical function signatures so that
     // they can be called indirectly through a function pointer returned from the command map.
-    IMAP_RESULTS CapabilityHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS NoopHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS LogoutHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+#if 1
+    IMAP_RESULTS CapabilityHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+    IMAP_RESULTS NoopHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+    IMAP_RESULTS LogoutHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+#else // !1
 
     IMAP_RESULTS LoginHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS StarttlsHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
@@ -211,6 +213,7 @@ private:
     IMAP_RESULTS StoreHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS CopyHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS UidHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+#endif // 1
 
     // These are for fetches, which are special because they can generate arbitrarily large responses
     void FetchResponseFlags(uint32_t flags);
@@ -229,6 +232,8 @@ private:
     Sasl *m_auth;
     time_t m_lastCommandTime;
     NUMBER_SET m_purgedMessages;
+    IMAP_RESULTS (ImapSession::*m_currentHandler)(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+    bool m_sendUpdatedStatus;
 };
 
 #endif //_IMAPSESSION_HPP_INCLUDED_
