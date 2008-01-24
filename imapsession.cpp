@@ -161,7 +161,6 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.handler = &ImapSession::LogoutHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("LOGOUT", symbolToInsert));
 
-#if 0
     symbolToInsert.levels[0] = true;
     symbolToInsert.levels[1] = false;
     symbolToInsert.levels[2] = false;
@@ -181,6 +180,7 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.sendUpdatedStatus = true;
     symbolToInsert.handler = &ImapSession::NamespaceHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("NAMESPACE", symbolToInsert));
+#if 0
     symbolToInsert.handler = &ImapSession::CreateHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("CREATE", symbolToInsert));
     symbolToInsert.handler = &ImapSession::DeleteHandler;
@@ -728,6 +728,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 
 #if 1
     if (NULL == m_currentHandler) {
+	m_parseStage = 0;
 	dataLen -= 2;  // It's not literal data, so I can strip the CRLF off the end
 	data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	// std::cout << "In HandleOneLine, new command \"" << data << "\"" << std::endl;
@@ -1698,25 +1699,70 @@ IMAP_RESULTS ImapSession::LogoutHandler(uint8_t *pData, size_t dwDataLen, size_t
     return IMAP_OK;
 }
 
-#if 0
-IMAP_RESULTS ImapSession::StarttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::StarttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, uint32_t parseStage) {
     return UnimplementedHandler();
 }
 
-IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, uint32_t parseStage) {
     IMAP_RESULTS result; 
-    m_userData = m_server->GetUserInfo((char *)&m_parseBuffer[m_arguments]);
-    atom(data, dataLen, parsingAt);
-    m_auth = SaslChooser(this, (char *)&m_parseBuffer[m_arguments]);
-    if (NULL != m_auth) {
-	m_inProgress = ImapCommandAuthenticate;
-	m_auth->SendChallenge(m_responseCode);
-	m_responseText[0] = '\0';
-	result = IMAP_NOTDONE;
-    }
-    else {
-	strncpy(m_responseText, "Unrecognized Authentication Method", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_NO;
+    switch (parseStage) {
+    case 0:
+	m_userData = m_server->GetUserInfo((char *)&m_parseBuffer[m_arguments]);
+	atom(data, dataLen, parsingAt);
+	m_auth = SaslChooser(this, (char *)&m_parseBuffer[m_arguments]);
+	if (NULL != m_auth) {
+	    m_inProgress = ImapCommandAuthenticate;
+	    m_auth->SendChallenge(m_responseCode);
+	    m_responseText[0] = '\0';
+	    m_parseStage = 1;
+	    result = IMAP_NOTDONE;
+	}
+	else {
+	    strncpy(m_responseText, "Unrecognized Authentication Method", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_NO;
+	}
+	break;
+
+    case 1:
+	std::string str((char*)data, dataLen - 2);
+
+	switch (m_auth->ReceiveResponse(str)) {
+	case Sasl::ok:
+	    result = IMAP_OK;
+	    // user->GetUserFileSystem();
+	    m_userData = m_server->GetUserInfo(m_auth->getUser().c_str());
+
+	    if (NULL == m_store) {
+		m_store = m_server->GetMailStore(this);
+	    }
+	    m_store->CreateMailbox("INBOX");
+
+	    // Log("Client %u logged-in user %s %lu\n", m_dwClientNumber, m_pUser->m_szUsername.c_str(), m_pUser->m_nUserID);
+
+	    m_state = ImapAuthenticated;
+	    break;
+
+	case Sasl::no:
+	    result = IMAP_NO_WITH_PAUSE;
+	    m_state = ImapNotAuthenticated;
+	    strncpy(m_responseText, "Authentication Failed", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+
+	case Sasl::bad:
+	default:
+	    result = IMAP_BAD;
+	    m_state = ImapNotAuthenticated;
+	    strncpy(m_responseText, "Authentication Cancelled", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+	}
+	delete m_auth;
+	m_auth = NULL;
+#if 0
+	response = FormatTaggedResponse(result, true);
+	m_s->Send((uint8_t *)response.data(), response.length());
+#endif // 0
+	m_inProgress = ImapCommandNone;
+	break;
     }
     return result;
 }
@@ -1751,6 +1797,7 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute() {
     return result;
 }
 
+
 /*
  * Okay, the login command's use is officially deprecated.  Instead, you're supposed
  * to use the AUTHENTICATE command with some SASL mechanism.  Since I'm trying to
@@ -1758,33 +1805,58 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute() {
  * but I'll also include a check of the login_disabled flag, which will set whether or
  * not this command is accepted by the command processor
  */
-IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, const size_t passedDataLen, size_t &parsingAt, uint32_t parseStage) {
+    size_t dataLen = passedDataLen;
+
     IMAP_RESULTS result = IMAP_OK;
+
     if (m_LoginDisabled) {
 	strncpy(m_responseText, "Login Disabled", MAX_RESPONSE_STRING_LENGTH);
 	return IMAP_NO;
     }
     else {
-	m_parseStage = 0;
-	do {
-	    switch (astring(data, dataLen, parsingAt, false, NULL)) {
-	    case ImapStringGood:
+	if (0 < m_literalLength) {
+	    if (dataLen >= m_literalLength) {
+		AddToParseBuffer(data, m_literalLength);
 		++m_parseStage;
-		if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
-		    ++parsingAt;
+		size_t i = m_literalLength;
+		m_literalLength = 0;
+		if ((i < dataLen) && (' ' == data[i])) {
+		    ++i;
 		}
-		break;
-
-	    case ImapStringBad:
-		result = IMAP_BAD;
-		break;
-
-	    case ImapStringPending:
-		result = IMAP_NOTDONE;
-		break;
+		if (2 < dataLen) {
+		    // Get rid of the CRLF if I have it
+		    dataLen -= 2;
+		    data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+		}
 	    }
-	} while((IMAP_OK == result) && (parsingAt < dataLen));
+	    else {
+		AddToParseBuffer(data, dataLen, false);
+		m_literalLength -= dataLen;
+	    }
+	}
+	if ((0 == m_literalLength) && (parsingAt < dataLen)) {
+	    do {
+		switch (astring(data, dataLen, parsingAt, false, NULL)) {
+		case ImapStringGood:
+		    ++m_parseStage;
+		    if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
+			++parsingAt;
+		    }
+		    break;
+
+		case ImapStringBad:
+		    result = IMAP_BAD;
+		    break;
+
+		case ImapStringPending:
+		    result = IMAP_NOTDONE;
+		    break;
+		}
+	    } while((IMAP_OK == result) && (parsingAt < dataLen));
+	}
     }
+
     switch(result) {
     case IMAP_OK:
 	if (2 == m_parseStage) {
@@ -1812,7 +1884,7 @@ IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, const size_t dataLen, size
     return result;
 }
 
-IMAP_RESULTS ImapSession::NamespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::NamespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, uint32_t parseStage) {
     // SYZYGY parsingAt should be the index of a '\0'
     std::string str = "* NAMESPACE " + m_store->ListNamespaces();
     str += "\n";
@@ -1821,6 +1893,7 @@ IMAP_RESULTS ImapSession::NamespaceHandler(uint8_t *data, size_t dataLen, size_t
 }
 
 
+#if 0
 void ImapSession::SendSelectData(const std::string &mailbox, bool isReadWrite) {
     std::ostringstream ss;
     m_currentNextUid = m_store->GetSerialNumber();

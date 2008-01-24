@@ -186,13 +186,13 @@ private:
     IMAP_RESULTS CapabilityHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
     IMAP_RESULTS NoopHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
     IMAP_RESULTS LogoutHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
-#else // !1
 
-    IMAP_RESULTS LoginHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS StarttlsHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS AuthenticateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS StarttlsHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+    IMAP_RESULTS AuthenticateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+    IMAP_RESULTS LoginHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
  
-    IMAP_RESULTS NamespaceHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS NamespaceHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+#else // !1
     IMAP_RESULTS SelectHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS ExamineHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
