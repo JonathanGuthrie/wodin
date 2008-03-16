@@ -107,17 +107,19 @@ done)  Configurable home directory location
 
 done)  Figure out how to not have SocketBindErrorException
 
-38)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
+38)  Really add the support for STARTTLS
 
-39)  Test the SASL authentication modes
+39)  Support listening on multiple ports, and support ports that require SSL.
 
-40)  Overwrite the strings that hold passwords
+40)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
-41)  Really add the support for STARTTLS
+41)  Test the SASL authentication modes
 
-42)  Add the logic required to forbid logins outside of tls sessions
+42)  Overwrite the strings that hold passwords
 
-43)  Compile without warnings with -Wall
+43)  Add the logic required to forbid logins outside of tls sessions
+
+44)  Compile without warnings with -Wall
 
 )  Handle search charsets other than US-ASCII
 
