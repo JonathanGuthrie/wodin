@@ -5078,7 +5078,6 @@ IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, size_t dataLen, size_t &pa
     return FetchHandlerInternal(data, dataLen, parsingAt, false);
 }
 
-// SYZYGY -- working here
 IMAP_RESULTS ImapSession::StoreHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid) {
     IMAP_RESULTS result = IMAP_OK;
     size_t executePointer = m_parsePointer;
