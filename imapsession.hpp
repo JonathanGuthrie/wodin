@@ -69,7 +69,9 @@ typedef enum
     IMAP_BAD,
     IMAP_NOTDONE,
     IMAP_NO_WITH_PAUSE,
-    IMAP_MBOX_ERROR
+    IMAP_MBOX_ERROR,
+    IMAP_IN_LITERAL,
+    IMAP_TRY_AGAIN
 } IMAP_RESULTS;
 
 #define MAX_RESPONSE_STRING_LENGTH	80
@@ -78,7 +80,7 @@ typedef enum
 typedef struct {
     bool levels[ImapLogoff+1];
     bool sendUpdatedStatus;
-    IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+    IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, size_t dataLen, size_t &parsingAt);
 } symbol;
 
 typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
@@ -148,11 +150,12 @@ private:
     void AddToParseBuffer(const uint8_t *data, size_t length, bool bNulTerminate = true);
 
     IMAP_RESULTS LoginHandlerExecute();
-    IMAP_RESULTS SearchHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
-    IMAP_RESULTS SearchKeyParse(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS StoreHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
-    IMAP_RESULTS FetchHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
-    IMAP_RESULTS CopyHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid);
+    IMAP_RESULTS SearchKeyParse(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS SearchHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid);
+    IMAP_RESULTS StoreHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid);
+    IMAP_RESULTS FetchHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid);
+    IMAP_RESULTS CopyHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid);
+
     size_t ReadEmailFlags(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool &okay);
     bool UpdateSearchTerms(MailSearch &searchTerm, size_t &tokenPointer, bool isSubExpression);
     bool MsnSequenceSet(SEARCH_RESULT &r_srVector, size_t &tokenPointer);
@@ -165,8 +168,8 @@ private:
     IMAP_RESULTS RenameHandlerExecute();
     IMAP_RESULTS SubscribeHandlerExecute(bool isSubscribe);
     IMAP_RESULTS ListHandlerExecute(bool listAll);
-    IMAP_RESULTS StatusHandlerExecute(uint8_t *data, const size_t dataLen, size_t parsingAt);
-    IMAP_RESULTS AppendHandlerExecute(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS StatusHandlerExecute(uint8_t *data, size_t dataLen, size_t parsingAt);
+    IMAP_RESULTS AppendHandlerExecute(uint8_t *data, size_t dataLen, size_t &parsingAt);
     IMAP_RESULTS SearchHandlerExecute(bool usingUid);
     IMAP_RESULTS FetchHandlerExecute(bool usingUid);
     IMAP_RESULTS CopyHandlerExecute(bool usingUid);
@@ -182,38 +185,35 @@ private:
     // What follows are the handlers for the various IMAP command.  These are grouped similarly to the
     // way the commands are grouped in RFC-3501.  They all have identical function signatures so that
     // they can be called indirectly through a function pointer returned from the command map.
-#if 1
-    IMAP_RESULTS CapabilityHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
-    IMAP_RESULTS NoopHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
-    IMAP_RESULTS LogoutHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+    IMAP_RESULTS CapabilityHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS NoopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS LogoutHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
 
-    IMAP_RESULTS StarttlsHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
-    IMAP_RESULTS AuthenticateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
-    IMAP_RESULTS LoginHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+    IMAP_RESULTS StarttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS AuthenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS LoginHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
  
-    IMAP_RESULTS NamespaceHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
-#else // !1
-    IMAP_RESULTS SelectHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS ExamineHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS DeleteHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS RenameHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS SubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS UnsubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS ListHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS LsubHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS StatusHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS AppendHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS NamespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS SelectHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS ExamineHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS CreateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS DeleteHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS RenameHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS SubscribeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS UnsubscribeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS ListHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS LsubHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS StatusHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS AppendHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
 
-    IMAP_RESULTS CheckHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS CloseHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS ExpungeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS SearchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS FetchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS StoreHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS CopyHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS UidHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt);
-#endif // 1
+    IMAP_RESULTS CheckHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS CloseHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS ExpungeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS SearchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS FetchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS StoreHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS CopyHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS UidHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
 
     // These are for fetches, which are special because they can generate arbitrarily large responses
     void FetchResponseFlags(uint32_t flags);
@@ -232,7 +232,7 @@ private:
     Sasl *m_auth;
     time_t m_lastCommandTime;
     NUMBER_SET m_purgedMessages;
-    IMAP_RESULTS (ImapSession::*m_currentHandler)(uint8_t *data, const size_t dataLen, size_t &parsingAt, uint32_t parseStage);
+    IMAP_RESULTS (ImapSession::*m_currentHandler)(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     bool m_sendUpdatedStatus;
 };
 

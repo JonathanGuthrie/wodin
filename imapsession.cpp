@@ -180,7 +180,6 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.sendUpdatedStatus = true;
     symbolToInsert.handler = &ImapSession::NamespaceHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("NAMESPACE", symbolToInsert));
-#if 0
     symbolToInsert.handler = &ImapSession::CreateHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("CREATE", symbolToInsert));
     symbolToInsert.handler = &ImapSession::DeleteHandler;
@@ -200,7 +199,7 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.handler = &ImapSession::AppendHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("APPEND", symbolToInsert));
     // My justification for not allowing the updating of the status after the select and examine commands
-    // is because they can like a close if they're executed in the selected state, and it's not allowed
+    // is because they can act like a close if they're executed in the selected state, and it's not allowed
     // after a close as per RFC 3501 6.4.2
     symbolToInsert.sendUpdatedStatus = false;
     symbolToInsert.handler = &ImapSession::SelectHandler;
@@ -230,7 +229,6 @@ void ImapSession::BuildSymbolTables()
     m_symbols.insert(IMAPSYMBOLS::value_type("FETCH", symbolToInsert));
     symbolToInsert.handler = &ImapSession::StoreHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("STORE", symbolToInsert));
-#endif // 0
 
     // This is the symbol table for the search keywords
     searchSymbolTable.insert(SEARCH_SYMBOL_T::value_type("ALL",        SSV_ALL));
@@ -340,7 +338,7 @@ ImapSession::~ImapSession() {
 }
 
 
-void ImapSession::atom(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+void ImapSession::atom(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     static char include_list[] = "!#$&'+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[^_`abcdefghijklmnopqrstuvwxyz|}~";
  
     while (parsingAt < dataLen) {
@@ -356,7 +354,7 @@ void ImapSession::atom(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
     }
 }
 
-enum ImapStringState ImapSession::astring(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool makeUppercase,
+enum ImapStringState ImapSession::astring(uint8_t *data, size_t dataLen, size_t &parsingAt, bool makeUppercase,
 					  const char *additionalChars) {
     ImapStringState result = ImapStringGood;
     if (parsingAt < dataLen) {
@@ -607,13 +605,6 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpda
     std::string response;
 
     if ((status != IMAP_NOTDONE) && sendUpdatedStatus && (ImapSelected == m_state)) {
-	// SYZYGY -- need to rework this for the new mail store logic
-	// SYZYGY -- basically, it works like this:  The front end requests that an
-	// SYZYGY -- expunge happen, and the back end notifies all of the front ends
-	// SYZYGY -- of the list of messages that are being expunged.  Then, as each
-	// SYZYGY -- front end notifies their client that messages are being expunged,
-	// SYZYGY -- that front end also notifies the back end that those messages are
-	// SYZYGY -- no longer visible to the front end
 	for (NUMBER_SET::iterator i=m_purgedMessages.begin() ; i!= m_purgedMessages.end(); ++i) {
 	    int message_number;
 	    std::ostringstream ss;
@@ -701,6 +692,10 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpda
 	response += "\"\r\n";
 	break;
 
+    case IMAP_IN_LITERAL:
+	response = "";
+	break;
+
     default:
     case IMAP_BAD:
 	response = (char *)m_parseBuffer;
@@ -726,7 +721,6 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
     size_t i;
     bool commandFound = false;
 
-#if 1
     if (NULL == m_currentHandler) {
 	m_parseStage = 0;
 	dataLen -= 2;  // It's not literal data, so I can strip the CRLF off the end
@@ -777,13 +771,12 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	}
     }
     if (NULL != m_currentHandler) {
-		
 	IMAP_RESULTS status;
 	m_responseCode[0] = '\0';
 	strncpy(m_responseText, "Completed", MAX_RESPONSE_STRING_LENGTH);
-	status = (this->*m_currentHandler)(data, dataLen, i, m_parseStage);
+	status = (this->*m_currentHandler)(data, dataLen, i);
 	response = FormatTaggedResponse(status, m_sendUpdatedStatus);
-	if (IMAP_NOTDONE != status) {
+	if ((IMAP_NOTDONE != status) && (IMAP_IN_LITERAL != status)) {
 	    m_currentHandler = NULL;
 	}
 	if (IMAP_NO_WITH_PAUSE == status) {
@@ -791,7 +784,9 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	    GetServer()->DelaySend(m_driver, m_failedLoginPause, response);
 	}
 	else {
-	    m_s->Send((uint8_t *)response.data(), response.length());
+	    if (IMAP_IN_LITERAL != status) {
+		m_s->Send((uint8_t *)response.data(), response.length());
+	    }
 	}
     }
     else {
@@ -811,805 +806,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	// If I'm logged off, I'm obviously not expecting any more data
 	result = -1;
     }
-#else // !1
-    // std::cout << "In HandleOneLine, command " << m_inProgress << " in progress" << std::endl;
-    // Some commands accumulate data over multiple lines.  Since the system
-    // gives us data one line at a time, I have to put a state here for each
-    // command that is processed over multiple calls to ReceiveData
-    switch (m_inProgress) {
-    case ImapCommandNone:
-    default:
-    {
-	size_t i;
-	dataLen -= 2;  // It's not literal data, so I can strip the CRLF off the end
-	data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	// std::cout << "In HandleOneLine, new command \"" << data << "\"" << std::endl;
-	// There's nothing magic about 10, it just seems a convenient size
-	// The initial value of parseBuffLen should be bigger than dwDataLen because
-	// if it's the same size or smaller, it WILL have to be reallocated at some point.
-	m_parseBuffLen = dataLen + 10;
-	m_parseBuffer = new uint8_t[m_parseBuffLen];
-	uint8_t *debug = m_parseBuffer;
-	m_parsePointer = 0; // It's a new command, so I need to reset the pointer
-
-	char *tagEnd = strchr((char *)data, ' ');
-	if (NULL != tagEnd) {
-	    i = (size_t) (tagEnd - ((char *)data));
-	}
-	else {
-	    i = dataLen;
-	}
-	AddToParseBuffer(data, i);
-	while ((i < dataLen) && (' ' == data[i])) {
-	    ++i;  // Lose the space separating the tag from the command
-	}
-	if (i < dataLen) {
-	    m_commandString = m_parsePointer;
-	    tagEnd = strchr((char *)&data[i], ' ');
-	    if (NULL != tagEnd) {
-		AddToParseBuffer(&data[i], (size_t) (tagEnd - ((char *)&data[i])));
-		i = (size_t) (tagEnd - ((char *)data));
-	    }
-	    else {
-		AddToParseBuffer(&data[i], dataLen - i);
-		i = dataLen;
-	    }
-
-	    m_arguments = m_parsePointer;
-	    while ((i < dataLen) && (' ' == data[i])) {
-		++i;  // Lose the space between the command and the arguments
-	    }
-	    // std::cout << "Looking up the command \"" << &m_parseBuffer[m_commandString] << "\"" << std::endl;
-	    IMAPSYMBOLS::iterator found = m_symbols.find((char *)&m_parseBuffer[m_commandString]);
-	    if ((found != m_symbols.end()) && found->second.levels[m_state]) {
-		IMAP_RESULTS status;
-		m_responseCode[0] = '\0';
-		strncpy(m_responseText, "Completed", MAX_RESPONSE_STRING_LENGTH);
-		status = (this->*found->second.handler)(data, dataLen, i);
-		response = FormatTaggedResponse(status, found->second.sendUpdatedStatus);
-		if (IMAP_NO_WITH_PAUSE == status) {
-		    result = 1;
-		    GetServer()->DelaySend(m_driver, m_failedLoginPause, response);
-		}
-		else {
-		    m_s->Send((uint8_t *)response.data(), response.length());
-		}
-	    }
-	    else {
-		strncpy(m_responseText, "Unrecognized Command", MAX_RESPONSE_STRING_LENGTH);
-		m_responseCode[0] = '\0';
-		response = FormatTaggedResponse(IMAP_BAD, true);
-		m_s->Send((uint8_t *)response.data(), response.length());
-	    }
-	    if (ImapLogoff <= m_state) {
-		// If I'm logged off, I'm obviously not expecting any more data
-		result = -1;
-	    }
-	}
-	else {
-	    response = (char *)m_parseBuffer;
-	    response += " BAD No Command\r\n";
-	    m_s->Send((uint8_t *)response.data(), response.length());
-	}
-    }
-    break;
-
-    case ImapCommandAuthenticate:
-    {
-	IMAP_RESULTS result;
-	std::string str((char*)data, dataLen - 2);
-
-	switch (m_auth->ReceiveResponse(str)) {
-	case Sasl::ok:
-	    result = IMAP_OK;
-	    // user->GetUserFileSystem();
-	    m_userData = m_server->GetUserInfo(m_auth->getUser().c_str());
-
-	    if (NULL == m_store) {
-		m_store = m_server->GetMailStore(this);
-	    }
-	    m_store->CreateMailbox("INBOX");
-
-	    // Log("Client %u logged-in user %s %lu\n", m_dwClientNumber, m_pUser->m_szUsername.c_str(), m_pUser->m_nUserID);
-
-	    m_state = ImapAuthenticated;
-	    break;
-
-	case Sasl::no:
-	    result = IMAP_NO_WITH_PAUSE;
-	    m_state = ImapNotAuthenticated;
-	    strncpy(m_responseText, "Authentication Failed", MAX_RESPONSE_STRING_LENGTH);
-	    break;
-
-	case Sasl::bad:
-	default:
-	    result = IMAP_BAD;
-	    m_state = ImapNotAuthenticated;
-	    strncpy(m_responseText, "Authentication Cancelled", MAX_RESPONSE_STRING_LENGTH);
-	    break;
-	}
-	delete m_auth;
-	m_auth = NULL;
-	response = FormatTaggedResponse(result, true);
-	m_s->Send((uint8_t *)response.data(), response.length());
-	m_inProgress = ImapCommandNone;
-    }
-    break;
-
-    case ImapCommandAppend:
-	// If I get here, I am waiting for a bunch of characters to arrive
-	if (0 == m_parseStage) {
-	    // It's the mailbox name that's arrived
-	    if (dataLen >= m_literalLength) {
-		AddToParseBuffer(data, m_literalLength);
-		++m_parseStage;
-		size_t i = m_literalLength;
-		m_literalLength = 0;
-		if (2 < dataLen) {
-		    // Get rid of the CRLF if I have it
-		    dataLen -= 2;
-		    data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-		}
-		m_responseText[0] = '\0';
-		std::string response = FormatTaggedResponse(AppendHandlerExecute(data, dataLen, i), true);
-		m_s->Send((uint8_t *)response.data(), response.length());
-	    }
-	    else {
-		AddToParseBuffer(data, m_literalLength, false);
-		m_literalLength -= dataLen;
-	    }
-	}
-	else {
-	    IMAP_RESULTS result = IMAP_OK;
-	    m_responseText[0] = '\0';
-	    if (1 == m_parseStage) {
-		size_t residue;
-		// It's the message body that's arrived
-		size_t len = MIN(m_literalLength, dataLen);
-		if (m_literalLength < dataLen) {
-		    residue = dataLen - m_literalLength;
-		}
-		else {
-		    residue = 0;
-		}
-		std::string mailbox((char *)&m_parseBuffer[m_arguments]);
-		m_inProgress = ImapCommandNone;
-		if (MailStore::SUCCESS == m_store->AppendDataToMessage(mailbox, m_appendingUid, data, len)) {
-		    m_literalLength -= len;
-		    if (0 == m_literalLength) {
-			m_store->DoneAppendingDataToMessage(mailbox, m_appendingUid);
-			m_parseStage = 2;
-			m_appendingUid = 0;
-		    }
-		    m_inProgress = ImapCommandAppend;
-		}
-		else {
-		    m_store->DoneAppendingDataToMessage(mailbox, m_appendingUid);
-		    m_store->DeleteMessage(mailbox, m_appendingUid);
-		    result = IMAP_MBOX_ERROR;
-		    m_appendingUid = 0;
-		    m_literalLength = 0;
-		}
-	    }
-	    else {
-		m_inProgress = ImapCommandNone;
-	    }
-	    if (ImapCommandNone == m_inProgress) {
-		// SYZYGY -- Notify the user that new mail has arrived if the mailbox that was just
-		// SYZYGY -- appended to is the currently selected mailbox.  See, for example,
-		// SYZYGY -- RFC 3501 section 6.3.11
-		std::string response = FormatTaggedResponse(result, true);
-		m_s->Send((uint8_t *)response.data(), response.length());
-	    }
-	}
-	break;
-
-    case ImapCommandLogin:
-	// If I get here, I know that I'm in a login command and a string literal is
-	// being sent by the client.  I need to accumulate characters into the parse
-	// buffer until I get to astrings read, when I do the work.
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    IMAP_RESULTS status = IMAP_OK;
-	    while ((2 > m_parseStage) && (IMAP_OK == status) && (i < dataLen)) {
-		switch (astring(data, dataLen, i, false, NULL)) {
-		case ImapStringGood:
-		    ++m_parseStage;
-		    if ((i < dataLen) && (' ' == data[i])) {
-			++i;
-		    }
-		    break;
-
-		case ImapStringBad:
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_BAD;
-		    break;
-
-		case ImapStringPending:
-		    m_inProgress = ImapCommandLogin;
-		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_NOTDONE;
-		    break;
-		}
-	    }
-	    if (IMAP_OK == status) {
-		if (2 == m_parseStage) {
-		    status = LoginHandlerExecute();
-		}
-		else {
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_BAD;
-		}
-	    }
-	    std::string response = FormatTaggedResponse(status, true);
-	    m_s->Send((uint8_t *)response.data(), response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandSelect:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(SelectHandlerExecute(true), false);
-	    m_s->Send((uint8_t *)response.data(), response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandExamine:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(SelectHandlerExecute(false), false);
-	    m_s->Send((uint8_t *)response.data(), response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandCreate:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(CreateHandlerExecute(), true);
-	    m_s->Send((uint8_t *)response.data(), (int)response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandDelete:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(DeleteHandlerExecute(), true);
-	    m_s->Send((uint8_t *)response.data(), (int)response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandRename:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    IMAP_RESULTS status = IMAP_OK;
-	    while((2 > m_parseStage) && (IMAP_OK == status) && (i < dataLen)) {
-		switch (astring(data, dataLen, i, false, NULL)) {
-		case ImapStringGood:
-		    ++m_parseStage;
-		    if ((i < dataLen) && (' ' == data[i])) {
-			++i;
-		    }
-		    break;
-
-		case ImapStringBad:
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_BAD;
-		    break;
-
-		case ImapStringPending:
-		    m_inProgress = ImapCommandRename;
-		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_NOTDONE;
-		    break;
-		}
-	    }
-	    if (IMAP_OK == status) {
-		if (2 == m_parseStage) {
-		    status = RenameHandlerExecute();
-		}
-		else {
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_BAD;
-		}
-	    }
-	    std::string response = FormatTaggedResponse(status, true);
-	    m_s->Send((uint8_t *)response.data(), (int)response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandSubscribe:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(SubscribeHandlerExecute(true), true);
-	    m_s->Send((uint8_t *)response.data(), (int)response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandUnsubscribe:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(SubscribeHandlerExecute(false), true);
-	    m_s->Send((uint8_t *)response.data(), (int)response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandList:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    IMAP_RESULTS status = IMAP_OK;
-	    while((2 > m_parseStage) && (IMAP_OK == status) && (i < dataLen)) {
-		enum ImapStringState state;
-		if (0 == m_parseStage) {
-		    state = astring(data, dataLen, i, false, NULL);
-		}
-		else {
-		    state = astring(data, dataLen, i, false, "%*");
-		}
-		switch (state) {
-		case ImapStringGood:
-		    ++m_parseStage;
-		    if ((i < dataLen) && (' ' == data[i])) {
-			++i;
-		    }
-		    break;
-
-		case ImapStringBad:
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_BAD;
-		    break;
-
-		case ImapStringPending:
-		    m_inProgress = ImapCommandList;
-		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_NOTDONE;
-		    break;
-		}
-	    }
-	    if (IMAP_OK == status) {
-		if (2 == m_parseStage) {
-		    status = ListHandlerExecute(true);
-		}
-		else {
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_BAD;
-		}
-	    }
-	    std::string response = FormatTaggedResponse(status, true);
-	    m_s->Send((uint8_t *)response.data(), (int)response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandLsub:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    IMAP_RESULTS status = IMAP_OK;
-	    while((2 > m_parseStage) && (IMAP_OK == status) && (i < dataLen)) {
-		enum ImapStringState state;
-		if (0 == m_parseStage) {
-		    state = astring(data, dataLen, i, false, NULL);
-		}
-		else {
-		    state = astring(data, dataLen, i, false, "%*");
-		}
-		switch (state) {
-		case ImapStringGood:
-		    ++m_parseStage;
-		    if ((i < dataLen) && (' ' == data[i])) {
-			++i;
-		    }
-		    break;
-
-		case ImapStringBad:
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_BAD;
-		    break;
-
-		case ImapStringPending:
-		    m_inProgress = ImapCommandLsub;
-		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_NOTDONE;
-		    break;
-		}
-	    }
-	    if (IMAP_OK == status) {
-		if (2 == m_parseStage) {
-		    status = ListHandlerExecute(false);
-		}
-		else {
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_BAD;
-		}
-	    }
-	    std::string response = FormatTaggedResponse(status, true);
-	    m_s->Send((uint8_t *)response.data(), (int)response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandStatus:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength) {
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(StatusHandlerExecute(data, dataLen, i), true);
-	    m_s->Send((uint8_t *)response.data(), response.length());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandSearch:
-	m_inProgress = ImapCommandNone;
-	strncpy(m_responseText, "Completed", MAX_RESPONSE_STRING_LENGTH);
-	if (0 == m_parseStage) {
-	    IMAP_RESULTS status;
-
-	    // It was receiving the charset astring
-	    // for the time being, it's the only charset I recognize
-	    if ((dataLen > m_literalLength) && (8 == m_literalLength)) {
-		for (int i=0; i<8; ++i) {
-		    data[i] = toupper(data[i]);
-		}
-		if (11 < dataLen) {
-		    // Get rid of the CRLF if I have it
-		    dataLen -= 2;
-		    data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-		}
-		if (0 == strncmp("US-ASCII ", (char *)data, 9)) {
-		    size_t i = 9;
-		    status = SearchKeyParse(data, dataLen, i);
-		}
-		else {
-		    strncpy(m_responseText, "Unrecognized Charset", MAX_RESPONSE_STRING_LENGTH);
-		    status = IMAP_BAD;
-		}
-	    }
-	    else {
-		strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		status = IMAP_BAD;
-	    }
-	    std::string response = FormatTaggedResponse(status, false);
-	    m_s->Send((uint8_t *)response.data(), response.length());
-	}
-	else {
-	    // It's somewhere in the middle of the search specification
-	    if (dataLen >= m_literalLength) {
-		AddToParseBuffer(data, m_literalLength);
-		size_t i = m_literalLength;
-		m_literalLength = 0;
-		if (2 < dataLen) {
-		    // Get rid of the CRLF if I have it
-		    dataLen -= 2;
-		    data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-		}
-		std::string response = FormatTaggedResponse(SearchKeyParse(data, dataLen, i), false);
-		m_s->Send((uint8_t *)response.data(), response.length());
-	    }
-	    else {
-		AddToParseBuffer(data, dataLen, false);
-		m_literalLength -= dataLen;
-	    }
-	}
-	break;
-
-    case ImapCommandFetch:
-	if (dataLen >= m_literalLength) {
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    if (0 == m_parseStage) {
-		IMAP_RESULTS result = IMAP_OK;
-		while ((IMAP_OK == result) && (dataLen > i)) {
-		    if((dataLen > i) && (' ' == data[i])) {
-			++i;
-		    }
-		    if((dataLen > i) && ('(' == data[i])) {
-			AddToParseBuffer(&data[i], 1);
-			++i;
-		    }
-		    if ((dataLen > i) && (')' != data[i])) {
-			switch (astring(data, dataLen, i, true, NULL)) {
-			case ImapStringGood:
-			    result = IMAP_OK;
-			    break;
-
-			case ImapStringBad:
-			    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-			    result = IMAP_BAD;
-			    break;
-
-			case ImapStringPending:
-			    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-			    result = IMAP_NOTDONE;
-			    break;
-
-			default:
-			    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-			    result = IMAP_BAD;
-			    break;
-			}				
-		    }
-		    if ((dataLen > i) && (')' == data[i])) {
-			AddToParseBuffer(&data[i], 1);
-			++i;
-		    }
-		}
-		if (IMAP_OK == result) {
-		    m_inProgress = ImapCommandNone;
-		    result = FetchHandlerExecute(m_usesUid);
-		}
-		std::string response = FormatTaggedResponse(result, false);
-		m_s->Send((uint8_t *)response.data(), response.size());
-	    }
-	    else {
-		IMAP_RESULTS result = IMAP_OK;
-		while ((IMAP_OK == result) && (dataLen > i) && (')' != data[i]) && (0 < m_parseStage)) {
-		    if((dataLen > i) && (' ' == data[i])) {
-			++i;
-		    }
-		    if((dataLen > i) && ('(' == data[i])) {
-			AddToParseBuffer(&data[i], 1);
-			++i;
-			++m_parseStage;
-		    }
-		    switch (astring(data, dataLen, i, true, NULL)) {
-		    case ImapStringGood:
-			result = IMAP_OK;
-			break;
-
-		    case ImapStringBad:
-			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_BAD;
-			break;
-
-		    case ImapStringPending:
-			strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_NOTDONE;
-			break;
-
-		    default:
-			strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_BAD;
-			break;
-		    }
-		    if ((dataLen > i) && (')' == data[i])) {
-			AddToParseBuffer(&data[i], 1);
-			++i;
-			--m_parseStage;
-		    }
-		}
-		if ((IMAP_OK == result) && (0 == m_parseStage)) {
-		    if (dataLen == i) {
-			result = FetchHandlerExecute(m_usesUid);
-		    }
-		    else {
-			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_BAD;
-		    }
-		}
-		if (IMAP_NOTDONE != result) {
-		    m_inProgress = ImapCommandNone;
-		    std::string response = FormatTaggedResponse(FetchHandlerExecute(m_usesUid), false);
-		    m_s->Send((uint8_t *)response.data(), response.size());
-		}
-	    }
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-
-    case ImapCommandCopy:
-	m_inProgress = ImapCommandNone;
-	if (dataLen >= m_literalLength)
-	{
-	    ++m_parseStage;
-	    AddToParseBuffer(data, m_literalLength);
-	    size_t i = m_literalLength;
-	    m_literalLength = 0;
-	    if ((i < dataLen) && (' ' == data[i])) {
-		++i;
-	    }
-	    if (2 < dataLen) {
-		// Get rid of the CRLF if I have it
-		dataLen -= 2;
-		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
-	    }
-	    m_responseText[0] = '\0';
-	    std::string response = FormatTaggedResponse(CopyHandlerExecute(m_usesUid), true);
-	    m_s->Send((uint8_t *)response.c_str(), response.size());
-	}
-	else {
-	    AddToParseBuffer(data, dataLen, false);
-	    m_literalLength -= dataLen;
-	}
-	break;
-    }
-    if (ImapCommandNone == m_inProgress) {
+    if (NULL == m_currentHandler) {
 	m_literalLength = 0;
 	if (NULL != m_parseBuffer) {
 	    delete[] m_parseBuffer;
@@ -1617,7 +814,7 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	    m_parseBuffLen = 0;
 	}
     }
-#endif // 1
+
     return result;
 }
 
@@ -1656,7 +853,7 @@ std::string ImapSession::BuildCapabilityString()
  * context.  Further, since the capability string might be sent by multiple
  * different commands, that actual work will be done by a worker function.
  */
-IMAP_RESULTS ImapSession::CapabilityHandler(uint8_t *pData, size_t dwDataLen, size_t &r_dwParsingAt, uint32_t parseStage)
+IMAP_RESULTS ImapSession::CapabilityHandler(uint8_t *pData, size_t dataLen, size_t &r_dwParsingAt)
 {
     std::string response("* ");
     response += BuildCapabilityString() + "\r\n";
@@ -1669,7 +866,7 @@ IMAP_RESULTS ImapSession::CapabilityHandler(uint8_t *pData, size_t dwDataLen, si
  * new messages although the server doesn't have to wait for this to do
  * things like that
  */
-IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, uint32_t parseStage) {
+IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     // This command literally doesn't do anything.  If there was an update, it was found
     // asynchronously and the updated info that will be printed in FormatTaggedResponse
 
@@ -1681,7 +878,7 @@ IMAP_RESULTS ImapSession::NoopHandler(uint8_t *data, size_t dataLen, size_t &par
  * processor gets the word about this because the state is set to "4" which
  * means "logout state"
  */
-IMAP_RESULTS ImapSession::LogoutHandler(uint8_t *pData, size_t dwDataLen, size_t &r_dwParsingAt, uint32_t parseStage) {
+IMAP_RESULTS ImapSession::LogoutHandler(uint8_t *pData, size_t dataLen, size_t &r_dwParsingAt) {
     // If the mailbox is open, close it
     // In IMAP, deleted messages are always purged before a close
     if (ImapSelected == m_state) {
@@ -1699,13 +896,13 @@ IMAP_RESULTS ImapSession::LogoutHandler(uint8_t *pData, size_t dwDataLen, size_t
     return IMAP_OK;
 }
 
-IMAP_RESULTS ImapSession::StarttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, uint32_t parseStage) {
+IMAP_RESULTS ImapSession::StarttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     return UnimplementedHandler();
 }
 
-IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, uint32_t parseStage) {
+IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result; 
-    switch (parseStage) {
+    switch (m_parseStage) {
     case 0:
 	m_userData = m_server->GetUserInfo((char *)&m_parseBuffer[m_arguments]);
 	atom(data, dataLen, parsingAt);
@@ -1757,10 +954,6 @@ IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, siz
 	}
 	delete m_auth;
 	m_auth = NULL;
-#if 0
-	response = FormatTaggedResponse(result, true);
-	m_s->Send((uint8_t *)response.data(), response.length());
-#endif // 0
 	m_inProgress = ImapCommandNone;
 	break;
     }
@@ -1805,16 +998,15 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute() {
  * but I'll also include a check of the login_disabled flag, which will set whether or
  * not this command is accepted by the command processor
  */
-IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, const size_t passedDataLen, size_t &parsingAt, uint32_t parseStage) {
-    size_t dataLen = passedDataLen;
-
-    IMAP_RESULTS result = IMAP_OK;
+IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
+    IMAP_RESULTS result;
 
     if (m_LoginDisabled) {
 	strncpy(m_responseText, "Login Disabled", MAX_RESPONSE_STRING_LENGTH);
 	return IMAP_NO;
     }
     else {
+	result = IMAP_OK;
 	if (0 < m_literalLength) {
 	    if (dataLen >= m_literalLength) {
 		AddToParseBuffer(data, m_literalLength);
@@ -1831,6 +1023,7 @@ IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, const size_t passedDataLen
 		}
 	    }
 	    else {
+		result = IMAP_IN_LITERAL;
 		AddToParseBuffer(data, dataLen, false);
 		m_literalLength -= dataLen;
 	    }
@@ -1877,6 +1070,9 @@ IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, const size_t passedDataLen
 	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	break;
 
+    case IMAP_IN_LITERAL:
+	break;
+
     default:
 	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
 	break;
@@ -1884,7 +1080,8 @@ IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, const size_t passedDataLen
     return result;
 }
 
-IMAP_RESULTS ImapSession::NamespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, uint32_t parseStage) {
+
+IMAP_RESULTS ImapSession::NamespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     // SYZYGY parsingAt should be the index of a '\0'
     std::string str = "* NAMESPACE " + m_store->ListNamespaces();
     str += "\n";
@@ -1893,7 +1090,6 @@ IMAP_RESULTS ImapSession::NamespaceHandler(uint8_t *data, size_t dataLen, size_t
 }
 
 
-#if 0
 void ImapSession::SendSelectData(const std::string &mailbox, bool isReadWrite) {
     std::ostringstream ss;
     m_currentNextUid = m_store->GetSerialNumber();
@@ -1958,54 +1154,104 @@ IMAP_RESULTS ImapSession::SelectHandlerExecute(bool openReadWrite) {
     return result;
 }
 
-IMAP_RESULTS ImapSession::SelectHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::SelectHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    switch (astring(data, dataLen, parsingAt, false, NULL)) {
-    case ImapStringGood:
-	result = SelectHandlerExecute(true);
-	break;
+    if (0 == m_parseStage) {
+	switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	case ImapStringGood:
+	    result = SelectHandlerExecute(true);
+	    break;
 
-    case ImapStringBad:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
-	break;
+	case ImapStringBad:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_BAD;
+	    break;
 
-    case ImapStringPending:
-	result = IMAP_NOTDONE;
-	m_inProgress = ImapCommandSelect;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	case ImapStringPending:
+	    result = IMAP_NOTDONE;
+	    ++m_parseStage;
+	    m_inProgress = ImapCommandSelect;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+	    break;
 
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+	}
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    result = SelectHandlerExecute(false);
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
+	}
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::ExamineHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::ExamineHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    switch (astring(data, dataLen, parsingAt, false, NULL)) {
-    case ImapStringGood:
-	result = SelectHandlerExecute(false);
-	break;
+    if (0 == m_parseStage) {
+	switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	case ImapStringGood:
+	    result = SelectHandlerExecute(false);
+	    break;
 
-    case ImapStringBad:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
-	break;
+	case ImapStringBad:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_BAD;
+	    break;
 
-    case ImapStringPending:
-	result = IMAP_NOTDONE;
-	m_inProgress = ImapCommandExamine;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	case ImapStringPending:
+	    result = IMAP_NOTDONE;
+	    ++m_parseStage;
+	    m_inProgress = ImapCommandExamine;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+	    break;
 
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+	}
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    result = SelectHandlerExecute(true);
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
+	}
     }
     return result;
 }
@@ -2021,28 +1267,54 @@ IMAP_RESULTS ImapSession::CreateHandlerExecute() {
     return result;
 }
 
-IMAP_RESULTS ImapSession::CreateHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::CreateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    switch (astring(data, dataLen, parsingAt, false, NULL)) {
-    case ImapStringGood:
-	result = CreateHandlerExecute();
-	break;
+    if (0 == m_parseStage) {
+	switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	case ImapStringGood:
+	    result = CreateHandlerExecute();
+	    break;
 
-    case ImapStringBad:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
-	break;
+	case ImapStringBad:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_BAD;
+	    break;
 
-    case ImapStringPending:
-	result = IMAP_NOTDONE;
-	m_inProgress = ImapCommandCreate;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	case ImapStringPending:
+	    result = IMAP_NOTDONE;
+	    ++m_parseStage;
+	    m_inProgress = ImapCommandCreate;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+	    break;
 
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+	}
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    result = CreateHandlerExecute();
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
+	}
     }
     return result;
 }
@@ -2058,29 +1330,55 @@ IMAP_RESULTS ImapSession::DeleteHandlerExecute() {
     return result;
 }
 
-IMAP_RESULTS ImapSession::DeleteHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::DeleteHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    // SYZYGY -- check to make sure that the argument list has just the one argument
-    switch (astring(data, dataLen, parsingAt, false, NULL)) {
-    case ImapStringGood:
-	result = DeleteHandlerExecute();
-	break;
+    if (0 == m_parseStage) {
+	// SYZYGY -- check to make sure that the argument list has just the one argument
+	switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	case ImapStringGood:
+	    result = DeleteHandlerExecute();
+	    break;
 
-    case ImapStringBad:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
-	break;
+	case ImapStringBad:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_BAD;
+	    break;
 
-    case ImapStringPending:
-	result = IMAP_NOTDONE;
-	m_inProgress = ImapCommandDelete;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	case ImapStringPending:
+	    result = IMAP_NOTDONE;
+	    ++m_parseStage;
+	    m_inProgress = ImapCommandDelete;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+	    break;
 
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+	}
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    DeleteHandlerExecute();
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
+	}
     }
     return result;
 }
@@ -2099,51 +1397,103 @@ IMAP_RESULTS ImapSession::RenameHandlerExecute() {
     return result;
 }
 
-IMAP_RESULTS ImapSession::RenameHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::RenameHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
-    m_parseStage = 0;
-    do {
-	switch (astring(data, dataLen, parsingAt, false, NULL)) {
-	case ImapStringGood:
-	    ++m_parseStage;
-	    if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
-		++parsingAt;
+    if (0 == m_parseStage) {
+	do {
+	    switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	    case ImapStringGood:
+		++m_parseStage;
+		if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
+		    ++parsingAt;
+		}
+		break;
+
+	    case ImapStringBad:
+		result = IMAP_BAD;
+		break;
+
+	    case ImapStringPending:
+		result = IMAP_NOTDONE;
+		break;
+	    }
+	} while((IMAP_OK == result) && (parsingAt < dataLen));
+	switch(result) {
+	case IMAP_OK:
+	    if (2 == m_parseStage) {
+		result = RenameHandlerExecute();
+	    }
+	    else {
+		strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		result = IMAP_BAD;
 	    }
 	    break;
 
-	case ImapStringBad:
-	    result = IMAP_BAD;
+	case IMAP_NOTDONE:
+	    m_inProgress = ImapCommandRename;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
 	    break;
 
-	case ImapStringPending:
-	    result = IMAP_NOTDONE;
+	case IMAP_BAD:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
 	    break;
 	}
-    } while((IMAP_OK == result) && (parsingAt < dataLen));
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    while((2 > m_parseStage) && (IMAP_OK == result) && (i < dataLen)) {
+		switch (astring(data, dataLen, i, false, NULL)) {
+		case ImapStringGood:
+		    ++m_parseStage;
+		    if ((i < dataLen) && (' ' == data[i])) {
+			++i;
+		    }
+		    break;
 
-    switch(result) {
-    case IMAP_OK:
-	if (2 == m_parseStage) {
-	    result = RenameHandlerExecute();
+		case ImapStringBad:
+		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		    result = IMAP_BAD;
+		    break;
+
+		case ImapStringPending:
+		    m_inProgress = ImapCommandRename;
+		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+		    result = IMAP_NOTDONE;
+		    break;
+		}
+	    }
+	    if (IMAP_OK == result) {
+		if (2 == m_parseStage) {
+		    result = RenameHandlerExecute();
+		}
+		else {
+		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		    result = IMAP_BAD;
+		}
+	    }
 	}
 	else {
-	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	    result = IMAP_BAD;
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
 	}
-	break;
-
-    case IMAP_NOTDONE:
-	m_inProgress = ImapCommandRename;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    case IMAP_BAD:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
     }
     return result;
 }
@@ -2159,54 +1509,106 @@ IMAP_RESULTS ImapSession::SubscribeHandlerExecute(bool isSubscribe) {
     return result;
 }
 
-IMAP_RESULTS ImapSession::SubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::SubscribeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    switch (astring(data, dataLen, parsingAt, false, NULL)) {
-    case ImapStringGood:
-	result = SubscribeHandlerExecute(true);
-	break;
+    if (0 == m_parseStage) {
+	switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	case ImapStringGood:
+	    result = SubscribeHandlerExecute(true);
+	    break;
 
-    case ImapStringBad:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
-	break;
+	case ImapStringBad:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_BAD;
+	    break;
 
-    case ImapStringPending:
-	result = IMAP_NOTDONE;
-	m_inProgress = ImapCommandSubscribe;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	case ImapStringPending:
+	    result = IMAP_NOTDONE;
+	    ++m_parseStage;
+	    m_inProgress = ImapCommandSubscribe;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+	    break;
 
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+	}
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    SubscribeHandlerExecute(true);
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
+	}
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::UnsubscribeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::UnsubscribeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    switch (astring(data, dataLen, parsingAt, false, NULL)) {
-    case ImapStringGood:
-	result = SubscribeHandlerExecute(false);
-	break;
+    if (0 == m_parseStage) {
+	switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	case ImapStringGood:
+	    result = SubscribeHandlerExecute(false);
+	    break;
 
-    case ImapStringBad:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
-	break;
+	case ImapStringBad:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_BAD;
+	    break;
 
-    case ImapStringPending:
-	result = IMAP_NOTDONE;
-	m_inProgress = ImapCommandUnsubscribe;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	case ImapStringPending:
+	    result = IMAP_NOTDONE;
+	    ++m_parseStage;
+	    m_inProgress = ImapCommandUnsubscribe;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+	    break;
 
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+	}
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    SubscribeHandlerExecute(false);
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
+	}
     }
     return result;
 }
@@ -2297,118 +1699,238 @@ IMAP_RESULTS ImapSession::ListHandlerExecute(bool listAll) {
     return IMAP_OK;
 }
 
-IMAP_RESULTS ImapSession::ListHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::ListHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
-    m_parseStage = 0;
-    do {
-	enum ImapStringState state;
-	if (0 == m_parseStage) {
-	    state = astring(data, dataLen, parsingAt, false, NULL);
-	}
-	else {
-	    state = astring(data, dataLen, parsingAt, false, "%*");
-	}
-	switch (state) {
-	case ImapStringGood:
-	    ++m_parseStage;
-	    if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
-		++parsingAt;
+    if (0 == m_parseStage) {
+	do {
+	    enum ImapStringState state;
+	    if (0 == m_parseStage) {
+		state = astring(data, dataLen, parsingAt, false, NULL);
+	    }
+	    else {
+		state = astring(data, dataLen, parsingAt, false, "%*");
+	    }
+	    switch (state) {
+	    case ImapStringGood:
+		++m_parseStage;
+		if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
+		    ++parsingAt;
+		}
+		break;
+
+	    case ImapStringBad:
+		result = IMAP_BAD;
+		break;
+
+	    case ImapStringPending:
+		result = IMAP_NOTDONE;
+		break;
+	    }
+	} while((IMAP_OK == result) && (parsingAt < dataLen));
+
+	switch(result) {
+	case IMAP_OK:
+	    if (2 == m_parseStage) {
+		result = ListHandlerExecute(true);
+	    }
+	    else {
+		strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		result = IMAP_BAD;
 	    }
 	    break;
 
-	case ImapStringBad:
-	    result = IMAP_BAD;
+	case IMAP_NOTDONE:
+	    m_inProgress = ImapCommandList;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
 	    break;
 
-	case ImapStringPending:
-	    result = IMAP_NOTDONE;
+	case IMAP_BAD:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
 	    break;
 	}
-    } while((IMAP_OK == result) && (parsingAt < dataLen));
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    while((2 > m_parseStage) && (IMAP_OK == result) && (i < dataLen)) {
+		enum ImapStringState state;
+		if (0 == m_parseStage) {
+		    state = astring(data, dataLen, i, false, NULL);
+		}
+		else {
+		    state = astring(data, dataLen, i, false, "%*");
+		}
+		switch (state) {
+		case ImapStringGood:
+		    ++m_parseStage;
+		    if ((i < dataLen) && (' ' == data[i])) {
+			++i;
+		    }
+		    break;
 
-    switch(result) {
-    case IMAP_OK:
-	if (2 == m_parseStage) {
-	    result = ListHandlerExecute(true);
+		case ImapStringBad:
+		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		    result = IMAP_BAD;
+		    break;
+
+		case ImapStringPending:
+		    m_inProgress = ImapCommandList;
+		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+		    result = IMAP_NOTDONE;
+		    break;
+		}
+	    }
+	    if (IMAP_OK == result) {
+		if (2 == m_parseStage) {
+		    result = ListHandlerExecute(true);
+		}
+		else {
+		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		    result = IMAP_BAD;
+		}
+	    }
 	}
 	else {
-	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	    result = IMAP_BAD;
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
 	}
-	break;
-
-    case IMAP_NOTDONE:
-	m_inProgress = ImapCommandList;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    case IMAP_BAD:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::LsubHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::LsubHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
-    m_parseStage = 0;
-    do {
-	enum ImapStringState state;
-	if (0 == m_parseStage) {
-	    state = astring(data, dataLen, parsingAt, false, NULL); 
-	}
-	else {
-	    state = astring(data, dataLen, parsingAt, false, "%*");
-	}
-	switch (state) {
-	case ImapStringGood:
-	    ++m_parseStage;
-	    if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
-		++parsingAt;
+    if (0 == m_parseStage) {
+	do {
+	    enum ImapStringState state;
+	    if (0 == m_parseStage) {
+		state = astring(data, dataLen, parsingAt, false, NULL); 
+	    }
+	    else {
+		state = astring(data, dataLen, parsingAt, false, "%*");
+	    }
+	    switch (state) {
+	    case ImapStringGood:
+		++m_parseStage;
+		if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
+		    ++parsingAt;
+		}
+		break;
+
+	    case ImapStringBad:
+		result = IMAP_BAD;
+		break;
+
+	    case ImapStringPending:
+		result = IMAP_NOTDONE;
+		break;
+	    }
+	} while((IMAP_OK == result) && (parsingAt < dataLen));
+	switch(result) {
+	case IMAP_OK:
+	    if (2 == m_parseStage) {
+		result = ListHandlerExecute(false);
+	    }
+	    else {
+		strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		result = IMAP_BAD;
 	    }
 	    break;
 
-	case ImapStringBad:
-	    result = IMAP_BAD;
+	case IMAP_NOTDONE:
+	    m_inProgress = ImapCommandLsub;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
 	    break;
 
-	case ImapStringPending:
-	    result = IMAP_NOTDONE;
+	case IMAP_BAD:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
 	    break;
 	}
-    } while((IMAP_OK == result) && (parsingAt < dataLen));
-    switch(result) {
-    case IMAP_OK:
-	if (2 == m_parseStage) {
-	    result = ListHandlerExecute(false);
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    while((2 > m_parseStage) && (IMAP_OK == result) && (i < dataLen)) {
+		enum ImapStringState state;
+		if (0 == m_parseStage) {
+		    state = astring(data, dataLen, i, false, NULL);
+		}
+		else {
+		    state = astring(data, dataLen, i, false, "%*");
+		}
+		switch (state) {
+		case ImapStringGood:
+		    ++m_parseStage;
+		    if ((i < dataLen) && (' ' == data[i])) {
+			++i;
+		    }
+		    break;
+
+		case ImapStringBad:
+		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		    result = IMAP_BAD;
+		    break;
+
+		case ImapStringPending:
+		    m_inProgress = ImapCommandLsub;
+		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+		    result = IMAP_NOTDONE;
+		    break;
+		}
+	    }
+	    if (IMAP_OK == result) {
+		if (2 == m_parseStage) {
+		    result = ListHandlerExecute(false);
+		}
+		else {
+		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		    result = IMAP_BAD;
+		}
+	    }
 	}
 	else {
-	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	    result = IMAP_BAD;
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
 	}
-	break;
-
-    case IMAP_NOTDONE:
-	m_inProgress = ImapCommandLsub;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    case IMAP_BAD:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	break;
-
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::StatusHandlerExecute(uint8_t *data, const size_t dataLen, size_t parsingAt) {
+IMAP_RESULTS ImapSession::StatusHandlerExecute(uint8_t *data, size_t dataLen, size_t parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
     std::string mailbox((char *)&m_parseBuffer[m_arguments]);
@@ -2486,33 +2008,56 @@ IMAP_RESULTS ImapSession::StatusHandlerExecute(uint8_t *data, const size_t dataL
     return result;
 }
 
-IMAP_RESULTS ImapSession::StatusHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::StatusHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    switch (astring(data, dataLen, parsingAt, false, NULL)) {
-    case ImapStringGood:
-	result = StatusHandlerExecute(data, dataLen, parsingAt);
-	break;
+    if (0 == m_parseStage) {
+	switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	case ImapStringGood:
+	    result = StatusHandlerExecute(data, dataLen, parsingAt);
+	    break;
 
-    case ImapStringBad:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
-	break;
+	case ImapStringBad:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_BAD;
+	    break;
 
-    case ImapStringPending:
-	result = IMAP_NOTDONE;
-	m_inProgress = ImapCommandStatus;
-	strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	case ImapStringPending:
+	    result = IMAP_NOTDONE;
+	    m_inProgress = ImapCommandStatus;
+	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+	    break;
 
-    default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	break;
+	default:
+	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+	    break;
+	}
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength) {
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    m_responseText[0] = '\0';
+	    result = StatusHandlerExecute(data, dataLen, i);
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
+	}
     }
     return result;
 }
 
-uint32_t ImapSession::ReadEmailFlags(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool &okay) {
+uint32_t ImapSession::ReadEmailFlags(uint8_t *data, size_t dataLen, size_t &parsingAt, bool &okay) {
     okay = true;
     uint32_t result = 0;
 
@@ -2541,7 +2086,7 @@ uint32_t ImapSession::ReadEmailFlags(uint8_t *data, const size_t dataLen, size_t
     return result;
 }
 
-IMAP_RESULTS ImapSession::AppendHandlerExecute(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::AppendHandlerExecute(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_BAD;
     m_inProgress = ImapCommandNone;
     DateTime messageDateTime;
@@ -2594,7 +2139,7 @@ IMAP_RESULTS ImapSession::AppendHandlerExecute(uint8_t *data, const size_t dataL
 		if (MailStore::SUCCESS == m_store->AddMessageToMailbox(mailbox, m_lineBuffer, 0, messageDateTime,
 								       m_mailFlags, &m_appendingUid)) {
 		    strncpy(m_responseText, "Ready for the Message Data", MAX_RESPONSE_STRING_LENGTH);
-		    m_parseStage = 1;
+		    m_parseStage = 2;
 		    m_inProgress = ImapCommandAppend;
 		    result = IMAP_NOTDONE;
 		}
@@ -2613,33 +2158,99 @@ IMAP_RESULTS ImapSession::AppendHandlerExecute(uint8_t *data, const size_t dataL
     return result;
 }
 
-IMAP_RESULTS ImapSession::AppendHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::AppendHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
 
-    switch (astring(data, dataLen, parsingAt, false, NULL)) {
-    case ImapStringGood:
-	result = AppendHandlerExecute(data, dataLen, parsingAt);
+    switch (m_parseStage) {
+    case 0:
+	switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	case ImapStringGood:
+	    result = AppendHandlerExecute(data, dataLen, parsingAt);
+	    break;
+
+	case ImapStringBad:
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_BAD;
+	    break;
+
+	case ImapStringPending:
+	    result = IMAP_NOTDONE;
+	    m_parseStage = 1;
+	    m_inProgress = ImapCommandAppend;
+	    break;
+
+	default:
+	    strncpy(m_responseText, "Failed -- internal error", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_NO;
+	    break;
+	}
 	break;
 
-    case ImapStringBad:
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
+    case 1:
+	// It's the mailbox name that's arrived
+	if (dataLen >= m_literalLength) {
+	    AddToParseBuffer(data, m_literalLength);
+	    ++m_parseStage;
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    m_responseText[0] = '\0';
+	    result = AppendHandlerExecute(data, dataLen, i);
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, m_literalLength, false);
+	    m_literalLength -= dataLen;
+	}
 	break;
 
-    case ImapStringPending:
-	result = IMAP_NOTDONE;
-	m_parseStage = 0;
-	m_inProgress = ImapCommandAppend;
+    case 2:
+	{
+	    size_t residue;
+	    // It's the message body that's arrived
+	    size_t len = MIN(m_literalLength, dataLen);
+	    if (m_literalLength < dataLen) {
+		result = IMAP_IN_LITERAL;
+		residue = dataLen - m_literalLength;
+	    }
+	    else {
+		residue = 0;
+	    }
+	    std::string mailbox((char *)&m_parseBuffer[m_arguments]);
+	    m_inProgress = ImapCommandNone;
+	    if (MailStore::SUCCESS == m_store->AppendDataToMessage(mailbox, m_appendingUid, data, len)) {
+		m_literalLength -= len;
+		if (0 == m_literalLength) {
+		    m_store->DoneAppendingDataToMessage(mailbox, m_appendingUid);
+		    m_parseStage = 3;
+		    m_appendingUid = 0;
+		}
+		m_inProgress = ImapCommandAppend;
+	    }
+	    else {
+		m_store->DoneAppendingDataToMessage(mailbox, m_appendingUid);
+		m_store->DeleteMessage(mailbox, m_appendingUid);
+		result = IMAP_MBOX_ERROR;
+		m_appendingUid = 0;
+		m_literalLength = 0;
+	    }
+	}
 	break;
 
     default:
-	strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+	strncpy(m_responseText, "Failed -- internal error", MAX_RESPONSE_STRING_LENGTH);
+	m_inProgress = ImapCommandNone;
+	result = IMAP_NO;
 	break;
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     // Unlike NOOP, I always call MailboxFlushBuffers because that recalculates the the cached data.
     // That may be the only way to find out that the number of messages or the UIDNEXT value has
     // changed.
@@ -2654,7 +2265,7 @@ IMAP_RESULTS ImapSession::CheckHandler(uint8_t *data, const size_t dataLen, size
     return result;
 }
 
-IMAP_RESULTS ImapSession::CloseHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::CloseHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     // If the mailbox is open, close it
     // In IMAP, deleted messages are always purged before a close
     NUMBER_SET purgedMessages;
@@ -2668,7 +2279,7 @@ IMAP_RESULTS ImapSession::CloseHandler(uint8_t *data, const size_t dataLen, size
     return IMAP_OK;
 }
 
-IMAP_RESULTS ImapSession::ExpungeHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::ExpungeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     IMAP_RESULTS result = IMAP_OK;
     NUMBER_SET purgedMessages;
 
@@ -3374,7 +2985,7 @@ IMAP_RESULTS ImapSession::SearchHandlerExecute(bool usingUid) {
     return result;
 }
 
-IMAP_RESULTS ImapSession::SearchKeyParse(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::SearchKeyParse(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     m_parseStage = 1;
     IMAP_RESULTS result = IMAP_OK;
     while((IMAP_OK == result) && (dataLen > parsingAt)) {
@@ -3498,53 +3109,91 @@ IMAP_RESULTS ImapSession::SearchKeyParse(uint8_t *data, const size_t dataLen, si
     return result;
 }
 
-IMAP_RESULTS ImapSession::SearchHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid) {
+IMAP_RESULTS ImapSession::SearchHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid) {
     IMAP_RESULTS result = IMAP_OK;
 
     m_usesUid = usingUid;
     size_t firstArgOffset = m_parsePointer;
     size_t savedParsePointer = parsingAt;
-    if (('(' == data[parsingAt]) || ('*' == data[parsingAt])) {
-	m_parsePointer = firstArgOffset;
-	parsingAt = savedParsePointer;
-	result = SearchKeyParse(data, dataLen, parsingAt);
-    }
-    else {
-	atom(data, dataLen, parsingAt);
-	if (0 == strcmp("CHARSET", (char *)&m_parseBuffer[firstArgOffset])) {
-	    if ((2 < (dataLen - parsingAt)) && (' ' == data[parsingAt])) {
-		++parsingAt;
-		m_parsePointer = firstArgOffset;
-		switch (astring(data, dataLen, parsingAt, true, NULL)) {
-		case ImapStringGood:
-		    // I have the charset astring--check to make sure it's "US-ASCII"
-		    // for the time being, it's the only charset I recognize
-		    if (0 == strcmp("US-ASCII", (char *)&m_parseBuffer[firstArgOffset])) {
-			m_parsePointer = firstArgOffset;
-			result = SearchKeyParse(data, dataLen, parsingAt);
-		    }
-		    else {
-			strncpy(m_responseText, "Unrecognized Charset", MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_BAD;
-		    }
-		    break;
+    if (0 == m_parseStage) {
+	if (('(' == data[parsingAt]) || ('*' == data[parsingAt])) {
+	    m_parsePointer = firstArgOffset;
+	    parsingAt = savedParsePointer;
+	    result = SearchKeyParse(data, dataLen, parsingAt);
+	}
+	else {
+	    atom(data, dataLen, parsingAt);
+	    if (0 == strcmp("CHARSET", (char *)&m_parseBuffer[firstArgOffset])) {
+		if ((2 < (dataLen - parsingAt)) && (' ' == data[parsingAt])) {
+		    ++parsingAt;
+		    m_parsePointer = firstArgOffset;
+		    switch (astring(data, dataLen, parsingAt, true, NULL)) {
+		    case ImapStringGood:
+			// I have the charset astring--check to make sure it's "US-ASCII"
+			// for the time being, it's the only charset I recognize
+			if (0 == strcmp("US-ASCII", (char *)&m_parseBuffer[firstArgOffset])) {
+			    m_parseStage = 2;
+			    m_parsePointer = firstArgOffset;
+			    result = SearchKeyParse(data, dataLen, parsingAt);
+			}
+			else {
+			    strncpy(m_responseText, "Unrecognized Charset", MAX_RESPONSE_STRING_LENGTH);
+			    result = IMAP_BAD;
+			}
+			break;
 
-		case ImapStringBad:
+		    case ImapStringBad:
+			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+			break;
+
+		    case ImapStringPending:
+			result = IMAP_NOTDONE;
+			m_parseStage = 1;
+			m_inProgress = ImapCommandSearch;
+			strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+			break;
+
+		    default:
+			strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+			break;
+		    }
+		}
+		else {
 		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 		    result = IMAP_BAD;
-		    break;
-
-		case ImapStringPending:
-		    result = IMAP_NOTDONE;
-		    m_parseStage = 0;
-		    m_inProgress = ImapCommandSearch;
-		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-		    break;
-
-		default:
-		    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+		}
+	    }
+	    else {
+		m_parsePointer = firstArgOffset;
+		parsingAt = savedParsePointer;
+		result = SearchKeyParse(data, dataLen, parsingAt);
+	    }
+	}
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	strncpy(m_responseText, "Completed", MAX_RESPONSE_STRING_LENGTH);
+	if (1 == m_parseStage) {
+	    // It was receiving the charset astring
+	    // for the time being, it's the only charset I recognize
+	    if ((dataLen > m_literalLength) && (8 == m_literalLength)) {
+		for (int i=0; i<8; ++i) {
+		    data[i] = toupper(data[i]);
+		}
+		if (11 < dataLen) {
+		    // Get rid of the CRLF if I have it
+		    dataLen -= 2;
+		    data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+		}
+		if (0 == strncmp("US-ASCII ", (char *)data, 9)) {
+		    size_t i = 9;
+		    result = SearchKeyParse(data, dataLen, i);
+		}
+		else {
+		    strncpy(m_responseText, "Unrecognized Charset", MAX_RESPONSE_STRING_LENGTH);
 		    result = IMAP_BAD;
-		    break;
 		}
 	    }
 	    else {
@@ -3553,15 +3202,29 @@ IMAP_RESULTS ImapSession::SearchHandlerInternal(uint8_t *data, const size_t data
 	    }
 	}
 	else {
-	    m_parsePointer = firstArgOffset;
-	    parsingAt = savedParsePointer;
-	    result = SearchKeyParse(data, dataLen, parsingAt);
+	    // It's somewhere in the middle of the search specification
+	    if (dataLen >= m_literalLength) {
+		AddToParseBuffer(data, m_literalLength);
+		size_t i = m_literalLength;
+		m_literalLength = 0;
+		if (2 < dataLen) {
+		    // Get rid of the CRLF if I have it
+		    dataLen -= 2;
+		    data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+		}
+		result = SearchKeyParse(data, dataLen, i);
+	    }
+	    else {
+		result = IMAP_IN_LITERAL;
+		AddToParseBuffer(data, dataLen, false);
+		m_literalLength -= dataLen;
+	    }
 	}
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::SearchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::SearchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     return SearchHandlerInternal(data, dataLen, parsingAt, false);
 }
 
@@ -5184,121 +4847,239 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
     return finalResult;
 }
 
-IMAP_RESULTS ImapSession::FetchHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid)
+// The problem is that I'm using m_parseStage to do the parenthesis balance, so this needs to be redesigned
+IMAP_RESULTS ImapSession::FetchHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid)
 {
     IMAP_RESULTS result = IMAP_OK;
 
     m_usesUid = usingUid;
     // The first thing up is a sequence set.  This is a sequence of digits, commas, and colons, followed by
     // a space
-    size_t len = strspn(((char *)data)+parsingAt, "0123456789,:*");
-    if ((0 < len) && (dataLen >= (parsingAt + len + 2)) && (' ' == data[parsingAt+len]) && 
-	(IMAP_BUFFER_LEN > (m_parsePointer+len+1)))  {
-	AddToParseBuffer(&data[parsingAt], len);
-	parsingAt += len + 1;
+    if (0 == m_parseStage) {
+	size_t len = strspn(((char *)data)+parsingAt, "0123456789,:*");
+	if ((0 < len) && (dataLen >= (parsingAt + len + 2)) && (' ' == data[parsingAt+len]) && 
+	    (IMAP_BUFFER_LEN > (m_parsePointer+len+1)))  {
+	    AddToParseBuffer(&data[parsingAt], len);
+	    parsingAt += len + 1;
 
-	m_parseStage = 0;
-	if ('(' == data[parsingAt]) {
-	    AddToParseBuffer(&data[parsingAt], 1);
-	    ++parsingAt;
 	    m_parseStage = 1;
-	    while ((IMAP_OK == result) && (dataLen > parsingAt) && (0 < m_parseStage)) {
-		if((dataLen > parsingAt) && (' ' == data[parsingAt])) {
-		    ++parsingAt;
-		}
-		if((dataLen > parsingAt) && ('(' == data[parsingAt])) {
-		    AddToParseBuffer(&data[parsingAt], 1);
-		    ++parsingAt;
-		    ++m_parseStage;
-		}
-		switch (astring(data, dataLen, parsingAt, true, NULL)) {
-		case ImapStringGood:
-		    result = IMAP_OK;
-		    break;
+	    if ('(' == data[parsingAt]) {
+		AddToParseBuffer(&data[parsingAt], 1);
+		++parsingAt;
+		++m_parseStage;
+		while ((IMAP_OK == result) && (dataLen > parsingAt) && (1 < m_parseStage)) {
+		    if((dataLen > parsingAt) && (' ' == data[parsingAt])) {
+			++parsingAt;
+		    }
+		    if((dataLen > parsingAt) && ('(' == data[parsingAt])) {
+			AddToParseBuffer(&data[parsingAt], 1);
+			++parsingAt;
+			++m_parseStage;
+		    }
+		    switch (astring(data, dataLen, parsingAt, true, NULL)) {
+		    case ImapStringGood:
+			result = IMAP_OK;
+			break;
 
-		case ImapStringBad:
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    result = IMAP_BAD;
-		    break;
+		    case ImapStringBad:
+			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+			break;
 
-		case ImapStringPending:
-		    m_inProgress = ImapCommandFetch;
-		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-		    result = IMAP_NOTDONE;
-		    break;
+		    case ImapStringPending:
+			m_inProgress = ImapCommandFetch;
+			strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_NOTDONE;
+			break;
 
-		default:
-		    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-		    result = IMAP_BAD;
-		    break;
+		    default:
+			strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+			break;
+		    }
+		    if ((dataLen > parsingAt) && (')' == data[parsingAt])) {
+			AddToParseBuffer(&data[parsingAt], 1);
+			++parsingAt;
+			--m_parseStage;
+		    }
 		}
-		if ((dataLen > parsingAt) && (')' == data[parsingAt])) {
-		    AddToParseBuffer(&data[parsingAt], 1);
-		    ++parsingAt;
-		    --m_parseStage;
+		if ((IMAP_OK == result) && (1 == m_parseStage)) {
+		    if (dataLen == parsingAt) {
+			result = FetchHandlerExecute(usingUid);
+		    }
+		    else {
+			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+		    }
 		}
 	    }
-	    if ((IMAP_OK == result) && (0 == m_parseStage)) {
-		if (dataLen == parsingAt) {
-		    result = FetchHandlerExecute(usingUid);
+	    else {
+		while ((IMAP_OK == result) && (dataLen > parsingAt)) {
+		    if (' ' == data[parsingAt]) {
+			++parsingAt;
+		    }
+		    if ((dataLen > parsingAt) && ('(' == data[parsingAt])) {
+			AddToParseBuffer(&data[parsingAt], 1);
+			++parsingAt;
+		    }
+		    if ((dataLen > parsingAt) && (')' == data[parsingAt])) {
+			AddToParseBuffer(&data[parsingAt], 1);
+			++parsingAt;
+		    }
+		    switch (astring(data, dataLen, parsingAt, true, NULL)) {
+		    case ImapStringGood:
+			break;
+
+		    case ImapStringBad:
+			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+			break;
+
+		    case ImapStringPending:
+			m_inProgress = ImapCommandFetch;
+			++m_parseStage;
+			strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_NOTDONE;
+			break;
+
+		    default:
+			strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+			break;
+		    }
 		}
-		else {
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    result = IMAP_BAD;
+		if (IMAP_OK == result) {
+		    result = FetchHandlerExecute(usingUid);
 		}
 	    }
 	}
 	else {
-	    while ((IMAP_OK == result) && (dataLen > parsingAt)) {
-		if (' ' == data[parsingAt]) {
-		    ++parsingAt;
-		}
-		if ((dataLen > parsingAt) && ('(' == data[parsingAt])) {
-		    AddToParseBuffer(&data[parsingAt], 1);
-		    ++parsingAt;
-		}
-		if ((dataLen > parsingAt) && (')' == data[parsingAt])) {
-		    AddToParseBuffer(&data[parsingAt], 1);
-		    ++parsingAt;
-		}
-		switch (astring(data, dataLen, parsingAt, true, NULL)) {
-		case ImapStringGood:
-		    break;
-
-		case ImapStringBad:
-		    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-		    result = IMAP_BAD;
-		    break;
-
-		case ImapStringPending:
-		    m_inProgress = ImapCommandFetch;
-		    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-		    result = IMAP_NOTDONE;
-		    break;
-
-		default:
-		    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-		    result = IMAP_BAD;
-		    break;
-		}
-	    }
-	    if (IMAP_OK == result) {
-		result = FetchHandlerExecute(usingUid);
-	    }
+	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	    result = IMAP_BAD;
 	}
     }
     else {
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
+	if (dataLen >= m_literalLength) {
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    if (1 == m_parseStage) {
+		IMAP_RESULTS result = IMAP_OK;
+		while ((IMAP_OK == result) && (dataLen > i)) {
+		    if((dataLen > i) && (' ' == data[i])) {
+			++i;
+		    }
+		    if((dataLen > i) && ('(' == data[i])) {
+			AddToParseBuffer(&data[i], 1);
+			++i;
+		    }
+		    if ((dataLen > i) && (')' != data[i])) {
+			switch (astring(data, dataLen, i, true, NULL)) {
+			case ImapStringGood:
+			    result = IMAP_OK;
+			    break;
+
+			case ImapStringBad:
+			    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+			    result = IMAP_BAD;
+			    break;
+
+			case ImapStringPending:
+			    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+			    result = IMAP_NOTDONE;
+			    break;
+
+			default:
+			    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+			    result = IMAP_BAD;
+			    break;
+			}
+		    }
+		    if ((dataLen > i) && (')' == data[i])) {
+			AddToParseBuffer(&data[i], 1);
+			++i;
+		    }
+		}
+		if (IMAP_OK == result) {
+		    m_inProgress = ImapCommandNone;
+		    result = FetchHandlerExecute(m_usesUid);
+		}
+	    }
+	    else {
+		IMAP_RESULTS result = IMAP_OK;
+		while ((IMAP_OK == result) && (dataLen > i) && (')' != data[i]) && (1 < m_parseStage)) {
+		    if((dataLen > i) && (' ' == data[i])) {
+			++i;
+		    }
+		    if((dataLen > i) && ('(' == data[i])) {
+			AddToParseBuffer(&data[i], 1);
+			++i;
+			++m_parseStage;
+		    }
+		    switch (astring(data, dataLen, i, true, NULL)) {
+		    case ImapStringGood:
+			result = IMAP_OK;
+			break;
+
+		    case ImapStringBad:
+			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+			break;
+
+		    case ImapStringPending:
+			strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_NOTDONE;
+			break;
+
+		    default:
+			strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+			break;
+		    }
+		    if ((dataLen > i) && (')' == data[i])) {
+			AddToParseBuffer(&data[i], 1);
+			++i;
+			--m_parseStage;
+		    }
+		}
+		if ((IMAP_OK == result) && (1 == m_parseStage)) {
+		    if (dataLen == i) {
+			result = FetchHandlerExecute(m_usesUid);
+		    }
+		    else {
+			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+			result = IMAP_BAD;
+		    }
+		}
+		if (IMAP_NOTDONE != result) {
+		    m_inProgress = ImapCommandNone;
+		    result = FetchHandlerExecute(m_usesUid);
+		}
+	    }
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
+	}
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     return FetchHandlerInternal(data, dataLen, parsingAt, false);
 }
 
-IMAP_RESULTS ImapSession::StoreHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid) {
+// SYZYGY -- working here
+IMAP_RESULTS ImapSession::StoreHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid) {
     IMAP_RESULTS result = IMAP_OK;
     size_t executePointer = m_parsePointer;
     int update = '=';
@@ -5468,11 +5249,10 @@ IMAP_RESULTS ImapSession::StoreHandlerInternal(uint8_t *data, const size_t dataL
     return result;
 }
 
-IMAP_RESULTS ImapSession::StoreHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::StoreHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     return StoreHandlerInternal(data, dataLen, parsingAt, false);
 }
 
-// SYZYGY working here
 IMAP_RESULTS ImapSession::CopyHandlerExecute(bool usingUid) {
     IMAP_RESULTS result = IMAP_OK;
     size_t execute_pointer = 0;
@@ -5538,52 +5318,79 @@ IMAP_RESULTS ImapSession::CopyHandlerExecute(bool usingUid) {
     return result;
 }
 
-IMAP_RESULTS ImapSession::CopyHandlerInternal(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool usingUid) {
+IMAP_RESULTS ImapSession::CopyHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid) {
     IMAP_RESULTS result = IMAP_OK;
 
-    while((parsingAt < dataLen) && (' ' != data[parsingAt])) {
-	AddToParseBuffer(&data[parsingAt++], 1, false);
-    }
-    AddToParseBuffer(NULL, 0);
-    if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
-	++parsingAt;
-    }
-    else {
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-	result = IMAP_BAD;
-    }
-
-    if (IMAP_OK == result) {
-	switch (astring(data, dataLen, parsingAt, false, NULL)) {
-	case ImapStringGood:
-	    result = CopyHandlerExecute(usingUid);
-	    break;
-
-	case ImapStringBad:
+    if (0 == m_parseStage) {
+	while((parsingAt < dataLen) && (' ' != data[parsingAt])) {
+	    AddToParseBuffer(&data[parsingAt++], 1, false);
+	}
+	AddToParseBuffer(NULL, 0);
+	if ((parsingAt < dataLen) && (' ' == data[parsingAt])) {
+	    ++parsingAt;
+	}
+	else {
 	    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 	    result = IMAP_BAD;
-	    break;
+	}
 
-	case ImapStringPending:
-	    result = IMAP_NOTDONE;
-	    m_usesUid = usingUid;
-	    m_inProgress = ImapCommandCopy;
-	    strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
-	    break;
+	if (IMAP_OK == result) {
+	    switch (astring(data, dataLen, parsingAt, false, NULL)) {
+	    case ImapStringGood:
+		result = CopyHandlerExecute(usingUid);
+		break;
 
-	default:
-	    strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
-	    break;
+	    case ImapStringBad:
+		strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+		result = IMAP_BAD;
+		break;
+
+	    case ImapStringPending:
+		result = IMAP_NOTDONE;
+		m_usesUid = usingUid;
+		m_inProgress = ImapCommandCopy;
+		strncpy(m_responseText, "Ready for Literal", MAX_RESPONSE_STRING_LENGTH);
+		break;
+
+	    default:
+		strncpy(m_responseText, "Failed", MAX_RESPONSE_STRING_LENGTH);
+		break;
+	    }
+	}
+    }
+    else {
+	m_inProgress = ImapCommandNone;
+	if (dataLen >= m_literalLength)
+	{
+	    ++m_parseStage;
+	    AddToParseBuffer(data, m_literalLength);
+	    size_t i = m_literalLength;
+	    m_literalLength = 0;
+	    if ((i < dataLen) && (' ' == data[i])) {
+		++i;
+	    }
+	    if (2 < dataLen) {
+		// Get rid of the CRLF if I have it
+		dataLen -= 2;
+		data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
+	    }
+	    m_responseText[0] = '\0';
+	    CopyHandlerExecute(m_usesUid);
+	}
+	else {
+	    result = IMAP_IN_LITERAL;
+	    AddToParseBuffer(data, dataLen, false);
+	    m_literalLength -= dataLen;
 	}
     }
     return result;
 }
 
-IMAP_RESULTS ImapSession::CopyHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::CopyHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
     return CopyHandlerInternal(data, dataLen, parsingAt, false);
 }
 
-IMAP_RESULTS ImapSession::UidHandler(uint8_t *data, const size_t dataLen, size_t &parsingAt) {
+IMAP_RESULTS ImapSession::UidHandler(uint8_t *data, size_t dataLen, size_t &parsingAt) {
 	IMAP_RESULTS result;
 
 	m_commandString = m_parsePointer;
@@ -5624,4 +5431,3 @@ IMAP_RESULTS ImapSession::UidHandler(uint8_t *data, const size_t dataLen, size_t
 	}
 	return result;
 }
-#endif // 0
