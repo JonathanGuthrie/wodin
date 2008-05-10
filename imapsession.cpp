@@ -1887,7 +1887,7 @@ IMAP_RESULTS ImapSession::StatusHandler(uint8_t *data, size_t dataLen, size_t &p
     return result;
 }
 
-uint32_t ImapSession::ReadEmailFlags(uint8_t *data, size_t dataLen, size_t &parsingAt, bool &okay) {
+size_t ImapSession::ReadEmailFlags(uint8_t *data, size_t dataLen, size_t &parsingAt, bool &okay) {
     okay = true;
     uint32_t result = 0;
 
