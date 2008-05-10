@@ -104,6 +104,17 @@ done)  Configurable home directory location
 
 36)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf,
   dot lock)
+  done)  Reformulate the handlers to get rid of the huge switch
+  done)  Add a "cannot_complete" result to Mail store
+  done)  Add a "try again" result to IMAP
+  done)  Redo all the mbox processing logic to handle the new mbox result includes enumerating all the parse states
+  done)  Fix RenameHandler
+  done)  Fix StatusHandler
+  done) rework the search logic because a search is no longer a pass/fail thing
+  h)  rework the fetch logic because message operations can fail
+  i)  check to make sure commands that are retried actually get retried
+  j)  Add retry logic to the mail store class
+  k)  Actually implement the locking in the mbox mail store class
 
 done)  Figure out how to not have SocketBindErrorException
 
@@ -111,27 +122,27 @@ done)  Figure out how to not have SocketBindErrorException
 
 39)  Support listening on multiple ports, and support ports that require SSL.
 
-40)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
+40)  Re-do the boyer-moore-pratt search so it's not downloaded code
 
-41)  Test the SASL authentication modes
+41)  Add support user-defined flags to the initial mailstore
 
-42)  Overwrite the strings that hold passwords
+42)  Add the logic required to forbid logins outside of tls sessions
 
-43)  Add the logic required to forbid logins outside of tls sessions
+43)  Compile without warnings with -Wall
 
-44)  Compile without warnings with -Wall
+44)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
+
+45)  Test the SASL authentication modes
+
+46)  Overwrite the strings that hold passwords
 
 )  Handle search charsets other than US-ASCII
-
-)  Re-do the boyer-moore-pratt search so it's not downloaded code
 
 )  Add anonymous authentication to the capability string (availability should be known by the server class--make that so as well)
 
 )  Deal with logging
 
 done)  Add an idle timer
-
-)  Add support user-defined flags to the initial mailstore
 
 done)  Add support for a delay after a failed login (need a timer manager)
 
@@ -164,3 +175,5 @@ done)  Build the logic to handle multiple simultaneous access properly
 )  IPv6 support
 
 )  profiling runs, memory leaks, etc.
+
+)  other things, as they occur to me

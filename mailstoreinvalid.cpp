@@ -145,3 +145,13 @@ const std::string MailStoreInvalid::GenerateUrl(const std::string MailboxName) c
 MailStoreInvalid *MailStoreInvalid::clone(void) {
     return new MailStoreInvalid(m_session);
 }
+
+
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxLock(void) {
+    return GENERAL_FAILURE;
+}
+
+
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::MailboxUnlock(void) {
+    return GENERAL_FAILURE;
+}

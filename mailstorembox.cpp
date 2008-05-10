@@ -4402,3 +4402,13 @@ const std::string MailStoreMbox::GenerateUrl(const std::string MailboxName) cons
 MailStoreMbox *MailStoreMbox::clone(void) {
     return new MailStoreMbox(m_session);
 }
+
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxLock(void) {
+    return MailStore::SUCCESS;
+}
+
+
+MailStore::MAIL_STORE_RESULT MailStoreMbox::MailboxUnlock(void) {
+    return MailStore::SUCCESS;
+}

@@ -28,6 +28,7 @@ public:
     typedef enum {
 	SUCCESS = 0,
 	GENERAL_FAILURE,
+	CANNOT_COMPLETE_ACTION,
 	CANNOT_CREATE_INBOX,
 	CANNOT_DELETE_INBOX,
 	MAILBOX_ALREADY_EXISTS,
@@ -143,6 +144,8 @@ public:
     const MSN_TO_UID &uidGivenMsn(void) const {
 	return m_uidGivenMsn;
     }
+    virtual MAIL_STORE_RESULT MailboxLock(void) = 0;
+    virtual MAIL_STORE_RESULT MailboxUnlock(void) = 0;
 
 protected:
     MSN_TO_UID m_uidGivenMsn;

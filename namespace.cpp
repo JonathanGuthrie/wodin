@@ -652,3 +652,25 @@ const std::string Namespace::GenerateUrl(const std::string MailboxName) const {
 Namespace *Namespace::clone(void) {
     return new Namespace(m_session);
 }
+
+
+MailStore::MAIL_STORE_RESULT Namespace::MailboxLock(void) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->MailboxLock();
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
+    }
+    return result;
+}
+
+
+MailStore::MAIL_STORE_RESULT Namespace::MailboxUnlock(void) {
+    MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+    if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+	pthread_mutex_lock(&m_selectedMailbox->mutex);
+	result = m_selectedMailbox->store->MailboxUnlock();
+	pthread_mutex_unlock(&m_selectedMailbox->mutex);
+    }
+    return result;
+}

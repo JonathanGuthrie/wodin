@@ -29,26 +29,6 @@ enum ImapState
     ImapLogoff
 };
 
-enum ImapCommandInProgress {
-    ImapCommandNone,
-    ImapCommandAuthenticate,
-    ImapCommandAppend,
-    ImapCommandLogin,
-    ImapCommandSelect,
-    ImapCommandExamine,
-    ImapCommandCreate,
-    ImapCommandDelete,
-    ImapCommandRename,
-    ImapCommandSubscribe,
-    ImapCommandUnsubscribe,
-    ImapCommandList,
-    ImapCommandLsub,
-    ImapCommandStatus,
-    ImapCommandSearch,
-    ImapCommandFetch,
-    ImapCommandCopy
-};
-
 enum ImapStringState
 {
     ImapStringGood,
@@ -80,7 +60,8 @@ typedef enum
 typedef struct {
     bool levels[ImapLogoff+1];
     bool sendUpdatedStatus;
-    IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    bool flag;
+    IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, size_t dataLen, size_t &parsingAt, bool flag);
 } symbol;
 
 typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
@@ -110,7 +91,8 @@ private:
     Socket *m_s;
     // These constitute the session's state
     enum ImapState m_state;
-    enum ImapCommandInProgress m_inProgress;
+    IMAP_RESULTS (ImapSession::*m_currentHandler)(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool flag);
+    bool m_flag;
 
     uint32_t m_mailFlags;
     uint8_t *m_lineBuffer;			// This buffers the incoming data into lines to be processed
@@ -185,35 +167,32 @@ private:
     // What follows are the handlers for the various IMAP command.  These are grouped similarly to the
     // way the commands are grouped in RFC-3501.  They all have identical function signatures so that
     // they can be called indirectly through a function pointer returned from the command map.
-    IMAP_RESULTS CapabilityHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS NoopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS LogoutHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS CapabilityHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS NoopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS LogoutHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
 
-    IMAP_RESULTS StarttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS AuthenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS LoginHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS StarttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS AuthenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS LoginHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
  
-    IMAP_RESULTS NamespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS SelectHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS ExamineHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS CreateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS DeleteHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS RenameHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS SubscribeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS UnsubscribeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS ListHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS LsubHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS StatusHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS AppendHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS NamespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS SelectHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool isReadOnly);
+    IMAP_RESULTS CreateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS DeleteHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS RenameHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS SubscribeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool isSubscribe);
+    IMAP_RESULTS ListHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool listAll);
+    IMAP_RESULTS StatusHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS AppendHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
 
-    IMAP_RESULTS CheckHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS CloseHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS ExpungeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS SearchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS FetchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS StoreHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS CopyHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
-    IMAP_RESULTS UidHandler(uint8_t *data, size_t dataLen, size_t &parsingAt);
+    IMAP_RESULTS CheckHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS CloseHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS ExpungeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+    IMAP_RESULTS SearchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool useUid);
+    IMAP_RESULTS FetchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool useUid);
+    IMAP_RESULTS StoreHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool useUid);
+    IMAP_RESULTS CopyHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool useUid);
+    IMAP_RESULTS UidHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
 
     // These are for fetches, which are special because they can generate arbitrarily large responses
     void FetchResponseFlags(uint32_t flags);
@@ -232,7 +211,6 @@ private:
     Sasl *m_auth;
     time_t m_lastCommandTime;
     NUMBER_SET m_purgedMessages;
-    IMAP_RESULTS (ImapSession::*m_currentHandler)(uint8_t *data, const size_t dataLen, size_t &parsingAt);
     bool m_sendUpdatedStatus;
 };
 

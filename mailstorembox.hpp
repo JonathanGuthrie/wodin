@@ -56,6 +56,8 @@ public:
     virtual const SEARCH_RESULT *SearchMetaData(uint32_t xorMask, uint32_t andMask, size_t smallestSize, size_t largestSize, DateTime *beginInternalDate, DateTime *endInternalDate);
     virtual const std::string GenerateUrl(const std::string MailboxName) const;
     virtual MailStoreMbox *clone(void);
+    virtual MailStore::MAIL_STORE_RESULT MailboxLock(void);
+    virtual MailStore::MAIL_STORE_RESULT MailboxUnlock(void);
 
 private:
     typedef struct {
