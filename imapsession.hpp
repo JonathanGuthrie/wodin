@@ -105,7 +105,7 @@ private:
     uint32_t m_parsePointer; 			// This points past the end of what's been put into the parse buffer
 
     // This is associated with handling appends
-    uint32_t m_appendingUid;
+    size_t m_appendingUid;
     Namespace *m_store;
     char m_responseCode[MAX_RESPONSE_STRING_LENGTH+1];
     char m_responseText[MAX_RESPONSE_STRING_LENGTH+1];

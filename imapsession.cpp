@@ -1887,7 +1887,6 @@ IMAP_RESULTS ImapSession::StatusHandler(uint8_t *data, size_t dataLen, size_t &p
     return result;
 }
 
-
 uint32_t ImapSession::ReadEmailFlags(uint8_t *data, size_t dataLen, size_t &parsingAt, bool &okay) {
     okay = true;
     uint32_t result = 0;
@@ -5122,7 +5121,7 @@ IMAP_RESULTS ImapSession::CopyHandlerExecute(bool usingUid) {
 
 	    MailMessage::MAIL_MESSAGE_RESULT messageReadResult = m_store->GetMessageData(&message, *i);
 	    if (MailMessage::SUCCESS == messageReadResult) {
-		uint32_t newUid;
+		size_t newUid;
 		DateTime when = m_store->MessageInternalDate(*i);
 		uint32_t flags = message->GetMessageFlags();
 
