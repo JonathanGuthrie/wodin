@@ -60,6 +60,12 @@ typedef enum
 typedef struct {
     bool levels[ImapLogoff+1];
     bool sendUpdatedStatus;
+    // The flag is a bit of an odd duck.  It's here because I need to pass what essentially amounts to random bools to the
+    // handler.  It means different things for different methods.
+    // It distinguishes subscribe (flag = true) from unsubscribe (flag = false)
+    // It distinguishes list (flag = true) from lsub (flag = false)
+    // It distinguishes examine (flag = true) from select (flag = false)
+    // It distinguishes uid (flag = true) from copy, close, search, fetch, and store (flag = false)
     bool flag;
     IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, size_t dataLen, size_t &parsingAt, bool flag);
 } symbol;

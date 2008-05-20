@@ -111,10 +111,11 @@ done)  Configurable home directory location
   done)  Fix RenameHandler
   done)  Fix StatusHandler
   done) rework the search logic because a search is no longer a pass/fail thing
-  h)  rework the fetch logic because message operations can fail
-  i)  check to make sure commands that are retried actually get retried
-  j)  Add retry logic to the mail store class
+  done)  rework the fetch logic because message operations can fail
+  i)  Add retry logic to the mail store class
+  j)  check to make sure commands that are retried actually get retried
   k)  Actually implement the locking in the mbox mail store class
+  l)  Regression on mail box operations
 
 done)  Figure out how to not have SocketBindErrorException
 

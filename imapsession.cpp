@@ -215,12 +215,13 @@ void ImapSession::BuildSymbolTables()
     symbolToInsert.levels[2] = true;
     symbolToInsert.levels[3] = false;
     symbolToInsert.sendUpdatedStatus = true;
+    symbolToInsert.handler = &ImapSession::UidHandler;
+    m_symbols.insert(IMAPSYMBOLS::value_type("UID", symbolToInsert));
+    symbolToInsert.flag = false;
     symbolToInsert.handler = &ImapSession::CheckHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("CHECK", symbolToInsert));
     symbolToInsert.handler = &ImapSession::ExpungeHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("EXPUNGE", symbolToInsert));
-    symbolToInsert.handler = &ImapSession::UidHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type("UID", symbolToInsert));
     symbolToInsert.sendUpdatedStatus = false;
     symbolToInsert.handler = &ImapSession::CopyHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("COPY", symbolToInsert));
@@ -3979,43 +3980,50 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 	}
     }
 
-    for (int i = 0; (IMAP_BAD != finalResult) && (i < srVector.size()); ++i) {
-	int blankLen = 0;
-	MailMessage *message;
+    if (MailStore::SUCCESS == m_store->MailboxLock()) {
+	for (int i = 0; (IMAP_BAD != finalResult) && (i < srVector.size()); ++i) {
+	    int blankLen = 0;
+	    MailMessage *message;
 
-	MailMessage::MAIL_MESSAGE_RESULT messageReadResult = m_store->GetMessageData(&message, srVector[i]);
-	unsigned long uid = srVector[i];
-	if (MailMessage::SUCCESS == messageReadResult) {
-	    IMAP_RESULTS result = IMAP_OK;
+	    MailMessage::MAIL_MESSAGE_RESULT messageReadResult = m_store->GetMessageData(&message, srVector[i]);
+	    unsigned long uid = srVector[i];
+	    if (MailMessage::SUCCESS == messageReadResult) {
+		IMAP_RESULTS result = IMAP_OK;
 
-	    bool seenFlag = false;
-	    size_t specificationBase;
+		bool seenFlag = false;
+		size_t specificationBase;
 // v-- This part syntax-checks the fetch request
-	    specificationBase = executePointer + strlen((char *)&m_parseBuffer[executePointer]) + 1;
-	    if (0 == strcmp("(", (char *)&m_parseBuffer[specificationBase])) {
-		specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-	    }
-	    while ((IMAP_OK == result) && (specificationBase < m_parsePointer)) {
-		FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
-		if (fetchSymbolTable.end() == which) {
-		    // This may be an extended BODY name, so I have to check for that.
-		    char *temp;
-		    temp = strchr((char *)&m_parseBuffer[specificationBase], '[');
-		    if (NULL != temp) {
-			*temp = '\0';
-			FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
-			specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-			*temp = '[';
-			if (fetchSymbolTable.end() != which) {
-			    switch(which->second) {
-			    case FETCH_BODY:
-			    case FETCH_BODY_PEEK:
-				break;
+		specificationBase = executePointer + strlen((char *)&m_parseBuffer[executePointer]) + 1;
+		if (0 == strcmp("(", (char *)&m_parseBuffer[specificationBase])) {
+		    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+		}
+		while ((IMAP_OK == result) && (specificationBase < m_parsePointer)) {
+		    FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
+		    if (fetchSymbolTable.end() == which) {
+			// This may be an extended BODY name, so I have to check for that.
+			char *temp;
+			temp = strchr((char *)&m_parseBuffer[specificationBase], '[');
+			if (NULL != temp) {
+			    *temp = '\0';
+			    FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
+			    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+			    *temp = '[';
+			    if (fetchSymbolTable.end() != which) {
+				switch(which->second) {
+				case FETCH_BODY:
+				case FETCH_BODY_PEEK:
+				    break;
 
-			    default:
+				default:
+				    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+				    result = IMAP_BAD;
+				    break;
+				}
+			    }
+			    else
+			    {
 				strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 				result = IMAP_BAD;
-				break;
 			    }
 			}
 			else
@@ -4023,293 +4031,158 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 			    result = IMAP_BAD;
 			}
-		    }
-		    else
-		    {
-			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_BAD;
-		    }
-		    MESSAGE_BODY body = message->GetMessageBody();
-		    while ((IMAP_OK == result) && isdigit(m_parseBuffer[specificationBase])) {
-			char *end;
-			unsigned long section = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
-			// This part here is because the message types have two headers, one for the
-			// subpart the message is in, one for the message that's contained in the subpart
-			// if I'm looking at a subpart of that subpart, then I have to skip the subparts
-			// header and look at the message's header, which is handled by the next four
-			// lines of code.
-			if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
-			    body = (*body.subparts)[0];
-			}
-			if (NULL != body.subparts) {
-			    if ((0 < section) && (section <= (body.subparts->size()))) {
-				body = (*body.subparts)[section-1];
-				specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
-				if ('.' == *end) {
-				    ++specificationBase;
-				}
+			MESSAGE_BODY body = message->GetMessageBody();
+			while ((IMAP_OK == result) && isdigit(m_parseBuffer[specificationBase])) {
+			    char *end;
+			    unsigned long section = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
+			    // This part here is because the message types have two headers, one for the
+			    // subpart the message is in, one for the message that's contained in the subpart
+			    // if I'm looking at a subpart of that subpart, then I have to skip the subparts
+			    // header and look at the message's header, which is handled by the next four
+			    // lines of code.
+			    if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
+				body = (*body.subparts)[0];
 			    }
-			    else {
-				strncpy(m_responseText, "Invalid Subpart", MAX_RESPONSE_STRING_LENGTH);
-				result = IMAP_BAD;
-			    }
-			}
-			else {
-			    if ((1 == section) && (']' == *end)) {
-				specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
-			    }
-			    else {
-				strncpy(m_responseText, "Invalid Subpart", MAX_RESPONSE_STRING_LENGTH);
-				result = IMAP_BAD;
-			    }
-			}
-		    }
-		    // When I get here, and if everything's okay, then I'm looking for a possibly nonzero length of characters
-		    // representing the section-msgtext
-		    FETCH_BODY_PARTS whichPart;
-		    if ((IMAP_OK == result) && (m_parsePointer > specificationBase)) {
-			// If I'm out of string and the next string begins with ']', then I'm returning the whole body of 
-			// whatever subpart I'm at
-			if (']' == m_parseBuffer[specificationBase]) {
-			    whichPart = FETCH_BODY_BODY;
-			}
-			else {
-			    insensitiveString part((char *)&m_parseBuffer[specificationBase]);
-			    // I'm looking for HEADER[.FIELDS[.NOT]], TEXT, or MIME
-			    if (part.substr(0, 6) == "header") {
-				if (']' == part[6]) {
-				    specificationBase += 6;
-				    whichPart = FETCH_BODY_HEADER;
+			    if (NULL != body.subparts) {
+				if ((0 < section) && (section <= (body.subparts->size()))) {
+				    body = (*body.subparts)[section-1];
+				    specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
+				    if ('.' == *end) {
+					++specificationBase;
+				    }
 				}
 				else {
-				    if (part.substr(6, 7) == ".FIELDS") {
-					if (13 == part.size()) {
-					    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-					    whichPart = FETCH_BODY_FIELDS;
-					}
-					else {
-					    if (part.substr(13) == ".NOT") {
-						specificationBase +=  strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-						whichPart = FETCH_BODY_NOT_FIELDS;
+				    strncpy(m_responseText, "Invalid Subpart", MAX_RESPONSE_STRING_LENGTH);
+				    result = IMAP_BAD;
+				}
+			    }
+			    else {
+				if ((1 == section) && (']' == *end)) {
+				    specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
+				}
+				else {
+				    strncpy(m_responseText, "Invalid Subpart", MAX_RESPONSE_STRING_LENGTH);
+				    result = IMAP_BAD;
+				}
+			    }
+			}
+			// When I get here, and if everything's okay, then I'm looking for a possibly nonzero length of characters
+			// representing the section-msgtext
+			FETCH_BODY_PARTS whichPart;
+			if ((IMAP_OK == result) && (m_parsePointer > specificationBase)) {
+			    // If I'm out of string and the next string begins with ']', then I'm returning the whole body of
+			    // whatever subpart I'm at
+			    if (']' == m_parseBuffer[specificationBase]) {
+				whichPart = FETCH_BODY_BODY;
+			    }
+			    else {
+				insensitiveString part((char *)&m_parseBuffer[specificationBase]);
+				// I'm looking for HEADER[.FIELDS[.NOT]], TEXT, or MIME
+				if (part.substr(0, 6) == "header") {
+				    if (']' == part[6]) {
+					specificationBase += 6;
+					whichPart = FETCH_BODY_HEADER;
+				    }
+				    else {
+					if (part.substr(6, 7) == ".FIELDS") {
+					    if (13 == part.size()) {
+						specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+						whichPart = FETCH_BODY_FIELDS;
 					    }
 					    else {
-						strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-						result = IMAP_BAD;
+						if (part.substr(13) == ".NOT") {
+						    specificationBase +=  strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+						    whichPart = FETCH_BODY_NOT_FIELDS;
+						}
+						else {
+						    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+						    result = IMAP_BAD;
+						}
 					    }
 					}
+					else {
+					    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+					    result = IMAP_BAD;
+					}
 				    }
-				    else {
-					strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-					result = IMAP_BAD;
-				    }
-				}
-			    }
-			    else {
-				if (part.substr(0, 5) == "TEXT]") {
-				    specificationBase += 4;
-				    whichPart = FETCH_BODY_TEXT;
 				}
 				else {
-				    if (part.substr(0, 5) == "MIME]") {
+				    if (part.substr(0, 5) == "TEXT]") {
 					specificationBase += 4;
-					whichPart = FETCH_BODY_MIME;
+					whichPart = FETCH_BODY_TEXT;
 				    }
 				    else {
-					strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-					result = IMAP_BAD;
+					if (part.substr(0, 5) == "MIME]") {
+					    specificationBase += 4;
+					    whichPart = FETCH_BODY_MIME;
+					}
+					else {
+					    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+					    result = IMAP_BAD;
+					}
 				    }
 				}
 			    }
 			}
-		    }
-		    // Now look for the list of headers to return
-		    std::vector<std::string> fieldList;
-		    if ((IMAP_OK == result) && (m_parsePointer > specificationBase) && 
- 			((FETCH_BODY_FIELDS == whichPart) || (FETCH_BODY_NOT_FIELDS == whichPart))) {
-			if (0 == strcmp((char *)&m_parseBuffer[specificationBase], "(")) {
-			    specificationBase +=  strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-			    while((IMAP_BUFFER_LEN > specificationBase) &&
-				  (0 != strcmp((char *)&m_parseBuffer[specificationBase], ")"))) {
-				specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-			    }
-			    if (0 == strcmp((char *)&m_parseBuffer[specificationBase], ")")) {
-				specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+			// Now look for the list of headers to return
+			std::vector<std::string> fieldList;
+			if ((IMAP_OK == result) && (m_parsePointer > specificationBase) &&
+			    ((FETCH_BODY_FIELDS == whichPart) || (FETCH_BODY_NOT_FIELDS == whichPart))) {
+			    if (0 == strcmp((char *)&m_parseBuffer[specificationBase], "(")) {
+				specificationBase +=  strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+				while((IMAP_BUFFER_LEN > specificationBase) &&
+				      (0 != strcmp((char *)&m_parseBuffer[specificationBase], ")"))) {
+				    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+				}
+				if (0 == strcmp((char *)&m_parseBuffer[specificationBase], ")")) {
+				    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+				}
+				else {
+				    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+				    result = IMAP_BAD;
+				}
 			    }
 			    else {
 				strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 				result = IMAP_BAD;
 			    }
+			}
+
+			// Okay, look for the end square bracket
+			if ((IMAP_OK == result) && (']' == m_parseBuffer[specificationBase])) {
+			    specificationBase++;
 			}
 			else {
 			    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 			    result = IMAP_BAD;
 			}
-		    }
 
-		    // Okay, look for the end square bracket
-		    if ((IMAP_OK == result) && (']' == m_parseBuffer[specificationBase])) {
-			specificationBase++;
-		    }
-		    else {
-			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_BAD;
-		    }
-
-		    // Okay, get the limits, if any.
-		    size_t firstByte = 0, maxLength = ~0;
-		    if ((IMAP_OK == result) && (m_parsePointer > specificationBase)) {
-			if ('<' == m_parseBuffer[specificationBase])
-			{
-			    ++specificationBase;
-			    char *end;
-			    firstByte = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
-			    if ('.' == *end) {
-				maxLength = strtoul(end+1, &end, 10);
-			    }
-			    if ('>' != *end) {
-				strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-				result = IMAP_BAD;
+			// Okay, get the limits, if any.
+			size_t firstByte = 0, maxLength = ~0;
+			if ((IMAP_OK == result) && (m_parsePointer > specificationBase)) {
+			    if ('<' == m_parseBuffer[specificationBase])
+			    {
+				++specificationBase;
+				char *end;
+				firstByte = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
+				if ('.' == *end) {
+				    maxLength = strtoul(end+1, &end, 10);
+				}
+				if ('>' != *end) {
+				    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+				    result = IMAP_BAD;
+				}
 			    }
 			}
-		    }
 
-		    if (IMAP_OK == result) {
-			switch(whichPart) {
-			case FETCH_BODY_BODY:
-			case FETCH_BODY_MIME:
-			case FETCH_BODY_HEADER:
-			case FETCH_BODY_FIELDS:
-			case FETCH_BODY_NOT_FIELDS:
-			case FETCH_BODY_TEXT:
-			    break;
-
-			default:
-			    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-			    result = IMAP_BAD;
-			    break;
-			}
-
-		    }
-		}
-		specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-		// SYZYGY -- Valgrind sometimes flags this as uninitialized
-		// SYZYGY -- I suppose it's running off the end of m_parseBuffer
-		if (0 == strcmp(")", (char *)&m_parseBuffer[specificationBase])) {
-		    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-		}
-	    }
-// ^-- This part syntax-checks the fetch request
-// v-- This part executes the fetch request
-	    if (IMAP_OK == result) {
-		specificationBase = executePointer + strlen((char *)&m_parseBuffer[executePointer]) + 1;
-		if (0 == strcmp("(", (char *)&m_parseBuffer[specificationBase])) {
-		    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-		}
-		std::ostringstream fetchResult;
-		fetchResult << "* " << message->GetMsn() << " FETCH (";
-		m_s->Send((uint8_t *)fetchResult.str().c_str(), fetchResult.str().size());
-	    }
-	    while ((IMAP_OK == result) && (specificationBase < m_parsePointer)) {
-		SendBlank();
-		FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
-		if (fetchSymbolTable.end() != which) {
-		    blankLen = 1;
-		    switch(which->second) {
-		    case FETCH_ALL:
-			FetchResponseFlags(message->GetMessageFlags());
-			SendBlank();
-			FetchResponseInternalDate(message);
-			SendBlank();
-			FetchResponseRfc822Size(message);
-			SendBlank();
-			FetchResponseEnvelope(message);
-			break;
-
-		    case FETCH_FAST:
-			FetchResponseFlags(message->GetMessageFlags());
-			SendBlank();
-			FetchResponseInternalDate(message);
-			SendBlank();
-			FetchResponseRfc822Size(message);
-			break;
-
-		    case FETCH_FULL:
-			FetchResponseFlags(message->GetMessageFlags());
-			SendBlank();
-			FetchResponseInternalDate(message);
-			SendBlank();
-			FetchResponseRfc822Size(message);
-			SendBlank();
-			FetchResponseEnvelope(message);
-			SendBlank();
-			FetchResponseBody(message);
-			break;
-
-		    case FETCH_BODY_PEEK:
-		    case FETCH_BODY:
-			FetchResponseBody(message);
-			break;
-
-		    case FETCH_BODYSTRUCTURE:
-			FetchResponseBodyStructure(message);
-			break;
-
-		    case FETCH_ENVELOPE:
-			FetchResponseEnvelope(message);
-			break;
-
-		    case FETCH_FLAGS:
-			FetchResponseFlags(message->GetMessageFlags());
-			break;
-
-		    case FETCH_INTERNALDATE:
-			FetchResponseInternalDate(message);
-			break;
-
-		    case FETCH_RFC822:
-			FetchResponseRfc822(uid, message);
-			seenFlag = true;
-			break;
-						
-		    case FETCH_RFC822_HEADER:
-			FetchResponseRfc822Header(uid, message);
-			break;
-
-		    case FETCH_RFC822_SIZE:
-			FetchResponseRfc822Size(message);
-			break;
-
-		    case FETCH_RFC822_TEXT:
-			FetchResponseRfc822Text(uid, message);
-			seenFlag = true;
-			break;
-
-		    case FETCH_UID:
-			FetchResponseUid(uid);
-			break;
-
-		    default:
-			strncpy(m_responseText, "Internal Logic Error", MAX_RESPONSE_STRING_LENGTH);
-//    					result = IMAP_NO;
-			break;
-		    }
-		}
-		else {
-		    // This may be an extended BODY name, so I have to check for that.
-		    char *temp;
-		    temp = strchr((char *)&m_parseBuffer[specificationBase], '[');
-		    if (NULL != temp) {
-			*temp = '\0';
-			FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
-			specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-			*temp = '[';
-			if (fetchSymbolTable.end() != which) {
-			    switch(which->second) {
-			    case FETCH_BODY:
-				seenFlag = true;
-				// NOTE NO BREAK!
-			    case FETCH_BODY_PEEK:
-				m_s->Send((uint8_t *) "BODY[", 5);
+			if (IMAP_OK == result) {
+			    switch(whichPart) {
+			    case FETCH_BODY_BODY:
+			    case FETCH_BODY_MIME:
+			    case FETCH_BODY_HEADER:
+			    case FETCH_BODY_FIELDS:
+			    case FETCH_BODY_NOT_FIELDS:
+			    case FETCH_BODY_TEXT:
 				break;
 
 			    default:
@@ -4317,215 +4190,361 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				result = IMAP_BAD;
 				break;
 			    }
+
+			}
+		    }
+		    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+		    // SYZYGY -- Valgrind sometimes flags this as uninitialized
+		    // SYZYGY -- I suppose it's running off the end of m_parseBuffer
+		    if (0 == strcmp(")", (char *)&m_parseBuffer[specificationBase])) {
+			specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+		    }
+		}
+// ^-- This part syntax-checks the fetch request
+// v-- This part executes the fetch request
+		if (IMAP_OK == result) {
+		    specificationBase = executePointer + strlen((char *)&m_parseBuffer[executePointer]) + 1;
+		    if (0 == strcmp("(", (char *)&m_parseBuffer[specificationBase])) {
+			specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+		    }
+		    std::ostringstream fetchResult;
+		    fetchResult << "* " << message->GetMsn() << " FETCH (";
+		    m_s->Send((uint8_t *)fetchResult.str().c_str(), fetchResult.str().size());
+		}
+		while ((IMAP_OK == result) && (specificationBase < m_parsePointer)) {
+		    SendBlank();
+		    FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
+		    if (fetchSymbolTable.end() != which) {
+			blankLen = 1;
+			switch(which->second) {
+			case FETCH_ALL:
+			    FetchResponseFlags(message->GetMessageFlags());
+			    SendBlank();
+			    FetchResponseInternalDate(message);
+			    SendBlank();
+			    FetchResponseRfc822Size(message);
+			    SendBlank();
+			    FetchResponseEnvelope(message);
+			    break;
+
+			case FETCH_FAST:
+			    FetchResponseFlags(message->GetMessageFlags());
+			    SendBlank();
+			    FetchResponseInternalDate(message);
+			    SendBlank();
+			    FetchResponseRfc822Size(message);
+			    break;
+
+			case FETCH_FULL:
+			    FetchResponseFlags(message->GetMessageFlags());
+			    SendBlank();
+			    FetchResponseInternalDate(message);
+			    SendBlank();
+			    FetchResponseRfc822Size(message);
+			    SendBlank();
+			    FetchResponseEnvelope(message);
+			    SendBlank();
+			    FetchResponseBody(message);
+			    break;
+
+			case FETCH_BODY_PEEK:
+			case FETCH_BODY:
+			    FetchResponseBody(message);
+			    break;
+
+			case FETCH_BODYSTRUCTURE:
+			    FetchResponseBodyStructure(message);
+			    break;
+
+			case FETCH_ENVELOPE:
+			    FetchResponseEnvelope(message);
+			    break;
+
+			case FETCH_FLAGS:
+			    FetchResponseFlags(message->GetMessageFlags());
+			    break;
+
+			case FETCH_INTERNALDATE:
+			    FetchResponseInternalDate(message);
+			    break;
+
+			case FETCH_RFC822:
+			    FetchResponseRfc822(uid, message);
+			    seenFlag = true;
+			    break;
+						
+			case FETCH_RFC822_HEADER:
+			    FetchResponseRfc822Header(uid, message);
+			    break;
+
+			case FETCH_RFC822_SIZE:
+			    FetchResponseRfc822Size(message);
+			    break;
+
+			case FETCH_RFC822_TEXT:
+			    FetchResponseRfc822Text(uid, message);
+			    seenFlag = true;
+			    break;
+
+			case FETCH_UID:
+			    FetchResponseUid(uid);
+			    break;
+
+			default:
+			    strncpy(m_responseText, "Internal Logic Error", MAX_RESPONSE_STRING_LENGTH);
+//    					result = IMAP_NO;
+			    break;
+			}
+		    }
+		    else {
+			// This may be an extended BODY name, so I have to check for that.
+			char *temp;
+			temp = strchr((char *)&m_parseBuffer[specificationBase], '[');
+			if (NULL != temp) {
+			    *temp = '\0';
+			    FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
+			    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+			    *temp = '[';
+			    if (fetchSymbolTable.end() != which) {
+				switch(which->second) {
+				case FETCH_BODY:
+				    seenFlag = true;
+				    // NOTE NO BREAK!
+				case FETCH_BODY_PEEK:
+				    m_s->Send((uint8_t *) "BODY[", 5);
+				    break;
+
+				default:
+				    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+				    result = IMAP_BAD;
+				    break;
+				}
+			    }
+			    else {
+				strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+				result = IMAP_BAD;
+			    }
 			}
 			else {
 			    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 			    result = IMAP_BAD;
 			}
-		    }
-		    else {
-			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_BAD;
-		    }
-		    MESSAGE_BODY body = message->GetMessageBody();
-		    // I need a part number flag because, for a single part message, body[1] is
-		    // different from body[], but later on, when I determine what part to fetch,
-		    // I won't know whether I've got body[1] or body[], and partNumberFlag
-		    // records the difference
-		    bool partNumberFlag = false;
-		    while ((IMAP_OK == result) && isdigit(m_parseBuffer[specificationBase])) {
-			partNumberFlag = true;
-			char *end;
-			unsigned long section = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
-			// This part here is because the message types have two headers, one for the
-			// subpart the message is in, one for the message that's contained in the subpart
-			// if I'm looking at a subpart of that subpart, then I have to skip the subparts
-			// header and look at the message's header, which is handled by the next four
-			// lines of code.
-			if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
-			    body = (*body.subparts)[0];
-			}
-			if (NULL != body.subparts) {
-			    if ((0 < section) && (section <= (body.subparts->size()))) {
+			MESSAGE_BODY body = message->GetMessageBody();
+			// I need a part number flag because, for a single part message, body[1] is
+			// different from body[], but later on, when I determine what part to fetch,
+			// I won't know whether I've got body[1] or body[], and partNumberFlag
+			// records the difference
+			bool partNumberFlag = false;
+			while ((IMAP_OK == result) && isdigit(m_parseBuffer[specificationBase])) {
+			    partNumberFlag = true;
+			    char *end;
+			    unsigned long section = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
+			    // This part here is because the message types have two headers, one for the
+			    // subpart the message is in, one for the message that's contained in the subpart
+			    // if I'm looking at a subpart of that subpart, then I have to skip the subparts
+			    // header and look at the message's header, which is handled by the next four
+			    // lines of code.
+			    if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
+				body = (*body.subparts)[0];
+			    }
+			    if (NULL != body.subparts) {
+				if ((0 < section) && (section <= (body.subparts->size()))) {
+				    std::ostringstream sectionString;
+				    sectionString << section;
+				    m_s->Send((uint8_t *)sectionString.str().c_str(), sectionString.str().size());
+				    body = (*body.subparts)[section-1];
+				    specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
+				    if ('.' == *end) {
+					m_s->Send((uint8_t *)".", 1);
+					++specificationBase;
+				    }
+				}
+				else {
+				    strncpy(m_responseText, "Invalid Subpart", MAX_RESPONSE_STRING_LENGTH);
+				    result = IMAP_NO;
+				}
+			    }
+			    else {
 				std::ostringstream sectionString;
 				sectionString << section;
 				m_s->Send((uint8_t *)sectionString.str().c_str(), sectionString.str().size());
-				body = (*body.subparts)[section-1];
 				specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
-				if ('.' == *end) {
-				    m_s->Send((uint8_t *)".", 1);
-				    ++specificationBase;
-				}
-			    }
-			    else {
-				strncpy(m_responseText, "Invalid Subpart", MAX_RESPONSE_STRING_LENGTH);
-				result = IMAP_NO;
 			    }
 			}
-			else {
-			    std::ostringstream sectionString;
-			    sectionString << section;
-			    m_s->Send((uint8_t *)sectionString.str().c_str(), sectionString.str().size());
-			    specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
-			}
-		    }
-		    // When I get here, and if everything's okay, then I'm looking for a possibly nonzero length of characters
-		    // representing the section-msgtext
-		    FETCH_BODY_PARTS whichPart;
-		    if ((IMAP_OK == result) && (m_parsePointer > specificationBase)) {
-			// If I'm out of string and the next string begins with ']', then I'm returning the whole body of 
-			// whatever subpart I'm at
-			if (']' == m_parseBuffer[specificationBase]) {
-			    // Unless it's a single part message -- in which case I return the text
-			    if (!partNumberFlag || (NULL != body.subparts)) {
-				whichPart = FETCH_BODY_BODY;
-			    }
-			    else {
-				whichPart = FETCH_BODY_TEXT;
-			    }
-			}
-			else {
-			    insensitiveString part((char *)&m_parseBuffer[specificationBase]);
-			    // I'm looking for HEADER[.FIELDS[.NOT]], TEXT, or MIME
-			    if (part.substr(0, 6) == "header") {
-				if (']' == part[6]) {
-				    specificationBase += 6;
-				    m_s->Send((uint8_t *) "HEADER", 6);
-				    whichPart = FETCH_BODY_HEADER;
+			// When I get here, and if everything's okay, then I'm looking for a possibly nonzero length of characters
+			// representing the section-msgtext
+			FETCH_BODY_PARTS whichPart;
+			if ((IMAP_OK == result) && (m_parsePointer > specificationBase)) {
+			    // If I'm out of string and the next string begins with ']', then I'm returning the whole body of
+			    // whatever subpart I'm at
+			    if (']' == m_parseBuffer[specificationBase]) {
+				// Unless it's a single part message -- in which case I return the text
+				if (!partNumberFlag || (NULL != body.subparts)) {
+				    whichPart = FETCH_BODY_BODY;
 				}
 				else {
-				    if (part.substr(6,7) == ".FIELDS") {
-					if (13 == part.size()) {
-					    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-					    m_s->Send((uint8_t *) "HEADER.FIELDS", 13);
-					    whichPart = FETCH_BODY_FIELDS;
-					}
-					else {
-					    if (part.substr(13) == ".NOT") {
-						specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-						m_s->Send((uint8_t *) "HEADER.FIELDS.NOT", 17);
-						whichPart = FETCH_BODY_NOT_FIELDS;
-					    }
-					    else {
-						strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-						result = IMAP_BAD;
-					    }
-					}
-				    }
-				    else {
-					strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-					result = IMAP_BAD;
-				    }
-				}
-			    }
-			    else {
-				if (part.substr(0, 5) == "TEXT]") {
-				    specificationBase += 4;
-				    m_s->Send((uint8_t *) "TEXT", 4);
 				    whichPart = FETCH_BODY_TEXT;
 				}
-				else {
-				    if (part.substr(0, 5) == "MIME]") {
-					specificationBase += 4;
-					m_s->Send((uint8_t *) "MIME", 4);
-					whichPart = FETCH_BODY_MIME;
+			    }
+			    else {
+				insensitiveString part((char *)&m_parseBuffer[specificationBase]);
+				// I'm looking for HEADER[.FIELDS[.NOT]], TEXT, or MIME
+				if (part.substr(0, 6) == "header") {
+				    if (']' == part[6]) {
+					specificationBase += 6;
+					m_s->Send((uint8_t *) "HEADER", 6);
+					whichPart = FETCH_BODY_HEADER;
 				    }
 				    else {
-					strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-					result = IMAP_BAD;
+					if (part.substr(6,7) == ".FIELDS") {
+					    if (13 == part.size()) {
+						specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+						m_s->Send((uint8_t *) "HEADER.FIELDS", 13);
+						whichPart = FETCH_BODY_FIELDS;
+					    }
+					    else {
+						if (part.substr(13) == ".NOT") {
+						    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+						    m_s->Send((uint8_t *) "HEADER.FIELDS.NOT", 17);
+						    whichPart = FETCH_BODY_NOT_FIELDS;
+						}
+						else {
+						    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+						    result = IMAP_BAD;
+						}
+					    }
+					}
+					else {
+					    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+					    result = IMAP_BAD;
+					}
+				    }
+				}
+				else {
+				    if (part.substr(0, 5) == "TEXT]") {
+					specificationBase += 4;
+					m_s->Send((uint8_t *) "TEXT", 4);
+					whichPart = FETCH_BODY_TEXT;
+				    }
+				    else {
+					if (part.substr(0, 5) == "MIME]") {
+					    specificationBase += 4;
+					    m_s->Send((uint8_t *) "MIME", 4);
+					    whichPart = FETCH_BODY_MIME;
+					}
+					else {
+					    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+					    result = IMAP_BAD;
+					}
 				    }
 				}
 			    }
 			}
-		    }
-		    // Now look for the list of headers to return
-		    std::vector<insensitiveString> fieldList;
-		    if ((IMAP_OK == result) && (m_parsePointer > specificationBase) &&
-			((FETCH_BODY_FIELDS == whichPart) || (FETCH_BODY_NOT_FIELDS == whichPart))) {
-			if (0 == strcmp((char *)&m_parseBuffer[specificationBase], "(")) {
-			    m_s->Send((uint8_t *) " (", 2);
-			    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-			    int blankLen = 0;
-			    while((IMAP_BUFFER_LEN > specificationBase) &&
-				  (0 != strcmp((char *)&m_parseBuffer[specificationBase], ")"))) {
-				int len = (int) strlen((char *)&m_parseBuffer[specificationBase]);
-				SendBlank();
-				m_s->Send((uint8_t *)&m_parseBuffer[specificationBase], len);
-				blankLen = 1;
-				fieldList.push_back((char*)&m_parseBuffer[specificationBase]);
-				specificationBase += len + 1;
-			    }
-			    if (0 == strcmp((char *)&m_parseBuffer[specificationBase], ")")) {
-				m_s->Send((uint8_t *) ")", 1);
+			// Now look for the list of headers to return
+			std::vector<insensitiveString> fieldList;
+			if ((IMAP_OK == result) && (m_parsePointer > specificationBase) &&
+			    ((FETCH_BODY_FIELDS == whichPart) || (FETCH_BODY_NOT_FIELDS == whichPart))) {
+			    if (0 == strcmp((char *)&m_parseBuffer[specificationBase], "(")) {
+				m_s->Send((uint8_t *) " (", 2);
 				specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+				int blankLen = 0;
+				while((IMAP_BUFFER_LEN > specificationBase) &&
+				      (0 != strcmp((char *)&m_parseBuffer[specificationBase], ")"))) {
+				    int len = (int) strlen((char *)&m_parseBuffer[specificationBase]);
+				    SendBlank();
+				    m_s->Send((uint8_t *)&m_parseBuffer[specificationBase], len);
+				    blankLen = 1;
+				    fieldList.push_back((char*)&m_parseBuffer[specificationBase]);
+				    specificationBase += len + 1;
+				}
+				if (0 == strcmp((char *)&m_parseBuffer[specificationBase], ")")) {
+				    m_s->Send((uint8_t *) ")", 1);
+				    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+				}
+				else {
+				    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+				    result = IMAP_BAD;
+				}
 			    }
 			    else {
 				strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 				result = IMAP_BAD;
 			    }
+			}
+
+			// Okay, look for the end square bracket
+			if ((IMAP_OK == result) && (']' == m_parseBuffer[specificationBase])) {
+			    m_s->Send((uint8_t *) "]", 1);
+			    specificationBase++;
 			}
 			else {
 			    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
 			    result = IMAP_BAD;
 			}
-		    }
 
-		    // Okay, look for the end square bracket
-		    if ((IMAP_OK == result) && (']' == m_parseBuffer[specificationBase])) {
-			m_s->Send((uint8_t *) "]", 1);
-			specificationBase++;
-		    }
-		    else {
-			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-			result = IMAP_BAD;
-		    }
-
-		    // Okay, get the limits, if any.
-		    size_t firstByte = 0, maxLength = ~0;
-		    if ((IMAP_OK == result) && (m_parsePointer > specificationBase)) {
-			if ('<' == m_parseBuffer[specificationBase]) {
-			    ++specificationBase;
-			    char *end;
-			    firstByte = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
-			    std::ostringstream limit;
-                            limit << "<" << firstByte << ">"; 
-			    m_s->Send((uint8_t *) limit.str().c_str(), limit.str().size());
-			    if ('.' == *end) {
-				maxLength = strtoul(end+1, &end, 10);
-			    }
-			    if ('>' != *end) {
-				strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-				result = IMAP_BAD;
+			// Okay, get the limits, if any.
+			size_t firstByte = 0, maxLength = ~0;
+			if ((IMAP_OK == result) && (m_parsePointer > specificationBase)) {
+			    if ('<' == m_parseBuffer[specificationBase]) {
+				++specificationBase;
+				char *end;
+				firstByte = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
+				std::ostringstream limit;
+				limit << "<" << firstByte << ">";
+				m_s->Send((uint8_t *) limit.str().c_str(), limit.str().size());
+				if ('.' == *end) {
+				    maxLength = strtoul(end+1, &end, 10);
+				}
+				if ('>' != *end) {
+				    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+				    result = IMAP_BAD;
+				}
 			    }
 			}
-		    }
 
-		    if (IMAP_OK == result) {
-			size_t length;
+			if (IMAP_OK == result) {
+			    size_t length;
 
-			switch(whichPart) {
-			case FETCH_BODY_BODY:
-			    // This returns all the data header and text, but it's limited by first_byte and max_length
-			    if ((body.bodyMediaType == MIME_TYPE_MESSAGE) || (partNumberFlag && (body.bodyMediaType == MIME_TYPE_MULTIPART))) {
-				// message parts are special, I have to skip over the mime header before I begin
-				firstByte += body.headerOctets;
-			    }
-			    if (firstByte < body.bodyOctets) {
-				length = MIN(body.bodyOctets - firstByte, maxLength);
-				m_s->Send((uint8_t *) " ", 1);
-				SendMessageChunk(uid, firstByte + body.bodyStartOffset, length); 
-			    }
-			    else {
-				m_s->Send((uint8_t *) " {0}\r\n", 6);
-			    }
-			    break;
-
-			case FETCH_BODY_HEADER:
-			    if (!partNumberFlag || ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size()))) {
-				if (partNumberFlag) {
-				    // It's a subpart
-				    body = (*body.subparts)[0];
+			    switch(whichPart) {
+			    case FETCH_BODY_BODY:
+				// This returns all the data header and text, but it's limited by first_byte and max_length
+				if ((body.bodyMediaType == MIME_TYPE_MESSAGE) || (partNumberFlag && (body.bodyMediaType == MIME_TYPE_MULTIPART))) {
+				    // message parts are special, I have to skip over the mime header before I begin
+				    firstByte += body.headerOctets;
 				}
+				if (firstByte < body.bodyOctets) {
+				    length = MIN(body.bodyOctets - firstByte, maxLength);
+				    m_s->Send((uint8_t *) " ", 1);
+				    SendMessageChunk(uid, firstByte + body.bodyStartOffset, length);
+				}
+				else {
+				    m_s->Send((uint8_t *) " {0}\r\n", 6);
+				}
+				break;
+
+			    case FETCH_BODY_HEADER:
+				if (!partNumberFlag || ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size()))) {
+				    if (partNumberFlag) {
+					// It's a subpart
+					body = (*body.subparts)[0];
+				    }
+				    if (firstByte < body.headerOctets)
+				    {
+					length = MIN(body.headerOctets - firstByte, maxLength);
+					m_s->Send((uint8_t *) " ", 1);
+					SendMessageChunk(uid, firstByte + body.bodyStartOffset, length);
+				    }
+				    else {
+					m_s->Send((uint8_t *) " {0}\r\n", 6);
+				    }
+				}
+				else {
+				    // If it's not a message subpart, it doesn't have a header.
+				    m_s->Send((uint8_t *) " \"\"", 3);
+				}
+				break;
+
+			    case FETCH_BODY_MIME:
 				if (firstByte < body.headerOctets)
 				{
 				    length = MIN(body.headerOctets - firstByte, maxLength);
@@ -4535,163 +4554,150 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				else {
 				    m_s->Send((uint8_t *) " {0}\r\n", 6);
 				}
-			    }
-			    else {
-				// If it's not a message subpart, it doesn't have a header.
-				m_s->Send((uint8_t *) " \"\"", 3);
-			    }
-			    break;
+				break;
 
-			case FETCH_BODY_MIME:
-			    if (firstByte < body.headerOctets)
-			    {
-				length = MIN(body.headerOctets - firstByte, maxLength);
-				m_s->Send((uint8_t *) " ", 1);
-				SendMessageChunk(uid, firstByte + body.bodyStartOffset, length);
-			    }
-			    else {
-				m_s->Send((uint8_t *) " {0}\r\n", 6);
-			    }
-			    break;
-
-			case FETCH_BODY_FIELDS:
-			    if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
-				body = (*body.subparts)[0];
-			    }
-			    {
-				std::string interesting;
-
-				// For each element in fieldList, look up the corresponding entries in body.fieldList
-				// and display
-				for(int i=0; i<fieldList.size(); ++i) {
-				    for (HEADER_FIELDS::const_iterator iter = body.fieldList.lower_bound(fieldList[i]);
-					 body.fieldList.upper_bound(fieldList[i]) != iter; ++iter) {
-					interesting += iter->first.c_str();
-					interesting += ": ";
-					interesting += iter->second.c_str();
-					interesting += "\r\n";
-				    }
+			    case FETCH_BODY_FIELDS:
+				if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
+				    body = (*body.subparts)[0];
 				}
-				interesting += "\r\n";
-				if (firstByte < interesting.size())
 				{
-				    length = MIN(interesting.size() - firstByte, maxLength);
+				    std::string interesting;
 
-				    std::ostringstream headerFields;
+				    // For each element in fieldList, look up the corresponding entries in body.fieldList
+				    // and display
+				    for(int i=0; i<fieldList.size(); ++i) {
+					for (HEADER_FIELDS::const_iterator iter = body.fieldList.lower_bound(fieldList[i]);
+					     body.fieldList.upper_bound(fieldList[i]) != iter; ++iter) {
+					    interesting += iter->first.c_str();
+					    interesting += ": ";
+					    interesting += iter->second.c_str();
+					    interesting += "\r\n";
+					}
+				    }
+				    interesting += "\r\n";
+				    if (firstByte < interesting.size())
+				    {
+					length = MIN(interesting.size() - firstByte, maxLength);
 
-				    headerFields << " {" << length << "}\r\n";
-				    headerFields << interesting.substr(firstByte, length);
-				    m_s->Send((uint8_t *)headerFields.str().c_str(), headerFields.str().size());
-				}
-				else {
-				    m_s->Send((uint8_t *) " {0}\r\n", 6);
-				}
-			    }
-			    break;
+					std::ostringstream headerFields;
 
-			case FETCH_BODY_NOT_FIELDS:
-			    if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
-				body = (*body.subparts)[0];
-			    }
-			    {
-				insensitiveString interesting;
-
-				for (HEADER_FIELDS::const_iterator i = body.fieldList.begin(); body.fieldList.end() != i; ++i) {
-				    if (fieldList.end() == std::find(fieldList.begin(), fieldList.end(), i->first)) {
-					interesting += i->first;
-					interesting += ": ";
-					interesting += i->second;
-					interesting += "\r\n";
+					headerFields << " {" << length << "}\r\n";
+					headerFields << interesting.substr(firstByte, length);
+					m_s->Send((uint8_t *)headerFields.str().c_str(), headerFields.str().size());
+				    }
+				    else {
+					m_s->Send((uint8_t *) " {0}\r\n", 6);
 				    }
 				}
-				interesting += "\r\n";
-				if (firstByte < interesting.size()) {
-				    length = MIN(interesting.size() - firstByte, maxLength);
+				break;
 
-				    std::ostringstream headerFields;
-				    headerFields << " {" << length << "}\r\n";
-				    headerFields << interesting.substr(firstByte, length).c_str();
-				    m_s->Send((uint8_t *)headerFields.str().c_str(), headerFields.str().size());
+			    case FETCH_BODY_NOT_FIELDS:
+				if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
+				    body = (*body.subparts)[0];
+				}
+				{
+				    insensitiveString interesting;
+
+				    for (HEADER_FIELDS::const_iterator i = body.fieldList.begin(); body.fieldList.end() != i; ++i) {
+					if (fieldList.end() == std::find(fieldList.begin(), fieldList.end(), i->first)) {
+					    interesting += i->first;
+					    interesting += ": ";
+					    interesting += i->second;
+					    interesting += "\r\n";
+					}
+				    }
+				    interesting += "\r\n";
+				    if (firstByte < interesting.size()) {
+					length = MIN(interesting.size() - firstByte, maxLength);
+
+					std::ostringstream headerFields;
+					headerFields << " {" << length << "}\r\n";
+					headerFields << interesting.substr(firstByte, length).c_str();
+					m_s->Send((uint8_t *)headerFields.str().c_str(), headerFields.str().size());
+				    }
+				    else {
+					m_s->Send((uint8_t *) " {0}\r\n", 6);
+				    }
+				}
+				break;
+
+			    case FETCH_BODY_TEXT:
+				if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
+				    body = (*body.subparts)[0];
+				}
+				if (0 < body.headerOctets) {
+				    std::string result;
+				    size_t length;
+				    if (body.bodyOctets > body.headerOctets) {
+					length = body.bodyOctets - body.headerOctets;
+				    }
+				    else {
+					length = 0;
+				    }
+				    if (firstByte < length) {
+					length = MIN(length - firstByte, maxLength);
+					m_s->Send((uint8_t *) " ", 1);
+					SendMessageChunk(uid, firstByte + body.bodyStartOffset + body.headerOctets, length);
+				    }
+				    else {
+					m_s->Send((uint8_t *) " {0}\r\n", 6);
+				    }
 				}
 				else {
 				    m_s->Send((uint8_t *) " {0}\r\n", 6);
 				}
-			    }
-			    break;
+				break;
 
-			case FETCH_BODY_TEXT:
-			    if ((body.bodyMediaType == MIME_TYPE_MESSAGE) && (1 == body.subparts->size())) {
-				body = (*body.subparts)[0];
+			    default:
+				strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+				result = IMAP_BAD;
+				break;
 			    }
-			    if (0 < body.headerOctets) {
-				std::string result;
-				size_t length;
-				if (body.bodyOctets > body.headerOctets) {
-				    length = body.bodyOctets - body.headerOctets;
-				}
-				else {
-				    length = 0;
-				}
-				if (firstByte < length) {
-				    length = MIN(length - firstByte, maxLength);
-				    m_s->Send((uint8_t *) " ", 1);
-				    SendMessageChunk(uid, firstByte + body.bodyStartOffset + body.headerOctets, length);
-				}
-				else {
-				    m_s->Send((uint8_t *) " {0}\r\n", 6);
-				}
-			    }
-			    else {
-				m_s->Send((uint8_t *) " {0}\r\n", 6);
-			    }
-			    break;
-
-			default:
-			    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-			    result = IMAP_BAD;
-			    break; 
 			}
 		    }
-		}
-		blankLen = 1;
-		specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-		if (0 == strcmp(")", (char *)&m_parseBuffer[specificationBase])) {
+		    blankLen = 1;
 		    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-		}
-	    }
-	    // Here, I update the SEEN flag, if that is necessary, and send the flags if that flag has
-	    // changed state
-	    if (IMAP_OK == result) {
-		if (seenFlag && (0 == (MailStore::IMAP_MESSAGE_SEEN & message->GetMessageFlags()))) {
-		    uint32_t updatedFlags;
-		    if (MailStore::SUCCESS == m_store->MessageUpdateFlags(srVector[i], ~0, MailStore::IMAP_MESSAGE_SEEN, updatedFlags)) {
-			SendBlank();
-			FetchResponseFlags(updatedFlags);
-			blankLen = 1;
+		    if (0 == strcmp(")", (char *)&m_parseBuffer[specificationBase])) {
+			specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
 		    }
 		}
-		if (usingUid) {
-		    SendBlank();
-		    FetchResponseUid(uid);
-		    blankLen = 1;
+		// Here, I update the SEEN flag, if that is necessary, and send the flags if that flag has
+		// changed state
+		if (IMAP_OK == result) {
+		    if (seenFlag && (0 == (MailStore::IMAP_MESSAGE_SEEN & message->GetMessageFlags()))) {
+			uint32_t updatedFlags;
+			if (MailStore::SUCCESS == m_store->MessageUpdateFlags(srVector[i], ~0, MailStore::IMAP_MESSAGE_SEEN, updatedFlags)) {
+			    SendBlank();
+			    FetchResponseFlags(updatedFlags);
+			    blankLen = 1;
+			}
+		    }
+		    if (usingUid) {
+			SendBlank();
+			FetchResponseUid(uid);
+			blankLen = 1;
+		    }
+		    m_s->Send((uint8_t *) ")\r\n", 3);
+		    blankLen = 0;
 		}
-		m_s->Send((uint8_t *) ")\r\n", 3);
-		blankLen = 0;
+		else {
+		    finalResult = result;
+		}
 	    }
 	    else {
-		 finalResult = result;
+		finalResult = IMAP_NO;
+		if (MailMessage::MESSAGE_DOESNT_EXIST != messageReadResult) {
+		    strncpy(m_responseText, "Internal Mailstore Error", MAX_RESPONSE_STRING_LENGTH);
+		}
+		else {
+		    strncpy(m_responseText, "Message Doesn't Exist", MAX_RESPONSE_STRING_LENGTH);
+		}
 	    }
-	}
-	else {
-	    finalResult = IMAP_NO;
-	    if (MailMessage::MESSAGE_DOESNT_EXIST != messageReadResult) {
-		strncpy(m_responseText, "Internal Mailstore Error", MAX_RESPONSE_STRING_LENGTH);
-	    }
-	    else {
-		strncpy(m_responseText, "Message Doesn't Exist", MAX_RESPONSE_STRING_LENGTH);
-	    }
-	}
 // ^-- This part executes the fetch request
+	}
+    }
+    else {
+	finalResult = IMAP_TRY_AGAIN;
     }
     return finalResult;
 }
@@ -4704,7 +4710,9 @@ IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, size_t dataLen, size_t &pa
     m_usesUid = usingUid;
     // The first thing up is a sequence set.  This is a sequence of digits, commas, and colons, followed by
     // a space
-    if (0 == m_parseStage) {
+    switch (m_parseStage) {
+    case 0:
+    {
 	size_t len = strspn(((char *)data)+parsingAt, "0123456789,:*");
 	if ((0 < len) && (dataLen >= (parsingAt + len + 2)) && (' ' == data[parsingAt+len]) && 
 	    (IMAP_BUFFER_LEN > (m_parsePointer+len+1)))  {
@@ -4753,7 +4761,8 @@ IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, size_t dataLen, size_t &pa
 		}
 		if ((IMAP_OK == result) && (1 == m_parseStage)) {
 		    if (dataLen == parsingAt) {
-			result = FetchHandlerExecute(usingUid);
+			m_parseStage = 2;
+			result = FetchHandlerExecute(m_usesUid);
 		    }
 		    else {
 			strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
@@ -4796,7 +4805,7 @@ IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, size_t dataLen, size_t &pa
 		    }
 		}
 		if (IMAP_OK == result) {
-		    result = FetchHandlerExecute(usingUid);
+		    result = FetchHandlerExecute(m_usesUid);
 		}
 	    }
 	}
@@ -4805,7 +4814,9 @@ IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, size_t dataLen, size_t &pa
 	    result = IMAP_BAD;
 	}
     }
-    else {
+    break;
+
+    case 1:
 	if (dataLen >= m_literalLength) {
 	    AddToParseBuffer(data, m_literalLength);
 	    size_t i = m_literalLength;
@@ -4856,6 +4867,7 @@ IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, size_t dataLen, size_t &pa
 		    }
 		}
 		if (IMAP_OK == result) {
+		    m_parseStage = 2;
 		    result = FetchHandlerExecute(m_usesUid);
 		}
 	    }
@@ -4915,7 +4927,13 @@ IMAP_RESULTS ImapSession::FetchHandler(uint8_t *data, size_t dataLen, size_t &pa
 	    AddToParseBuffer(data, dataLen, false);
 	    m_literalLength -= dataLen;
 	}
+	break;
+
+    default:
+	result = FetchHandlerExecute(m_usesUid);
+	break;
     }
+
     return result;
 }
 
