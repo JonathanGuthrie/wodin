@@ -6,8 +6,8 @@
 #include "deltaqueueidletimer.hpp"
 #include "deltaqueueretry.hpp"
 
-DeltaQueue::DeltaQueue() : queueHead(NULL) {
-    pthread_mutex_init(&queueMutex, NULL);
+DeltaQueue::DeltaQueue() : m_queueHead(NULL) {
+    pthread_mutex_init(&m_queueMutex, NULL);
 }
 
 
@@ -33,23 +33,23 @@ DeltaQueue::DeltaQueue() : queueHead(NULL) {
 void DeltaQueue::Tick() {
     DeltaQueueAction *temp = NULL;
 
-    pthread_mutex_lock(&queueMutex);
+    pthread_mutex_lock(&m_queueMutex);
     // decrement head
-    if (NULL != queueHead) {
-	--queueHead->m_delta;
-	if (0 == queueHead->m_delta) {
+    if (NULL != m_queueHead) {
+	--m_queueHead->m_delta;
+	if (0 == m_queueHead->m_delta) {
 	    DeltaQueueAction *endMarker;
 
-	    temp = queueHead;
-	    while ((NULL != queueHead) && (0 == queueHead->m_delta))
+	    temp = m_queueHead;
+	    while ((NULL != m_queueHead) && (0 == m_queueHead->m_delta))
 	    {
-		endMarker = queueHead;
-		queueHead = queueHead->next;
+		endMarker = m_queueHead;
+		m_queueHead = m_queueHead->next;
 	    }
 	    endMarker->next = NULL;
 	}
     }
-    pthread_mutex_unlock(&queueMutex);
+    pthread_mutex_unlock(&m_queueMutex);
     while (NULL != temp) {
 	DeltaQueueAction *next = temp->next;
 
@@ -96,23 +96,23 @@ void DeltaQueue::AddRetry(SessionDriver *driver, time_t timeout) {
 
 void DeltaQueue::InsertNewAction(DeltaQueueAction *action)
 {
-    pthread_mutex_lock(&queueMutex);
-    if ((NULL == queueHead) || (queueHead->m_delta > action->m_delta))
+    pthread_mutex_lock(&m_queueMutex);
+    if ((NULL == m_queueHead) || (m_queueHead->m_delta > action->m_delta))
     {
-	if (NULL != queueHead)
+	if (NULL != m_queueHead)
 	{
-	    queueHead->m_delta -= action->m_delta;
+	    m_queueHead->m_delta -= action->m_delta;
 	}
-	action->next = queueHead;
-	queueHead = action;
+	action->next = m_queueHead;
+	m_queueHead = action;
     }
     else
     {
 	// If I get here, I know that the first item is not going to be the new action
-	DeltaQueueAction *item = queueHead;
+	DeltaQueueAction *item = m_queueHead;
 
-	action->m_delta -= queueHead->m_delta;
-	for (item=queueHead; (item->next!=NULL) && (item->next->m_delta < action->m_delta); item=item->next)
+	action->m_delta -= m_queueHead->m_delta;
+	for (item=m_queueHead; (item->next!=NULL) && (item->next->m_delta < action->m_delta); item=item->next)
 	{
 	    action->m_delta -= item->next->m_delta;
 	}
@@ -124,7 +124,7 @@ void DeltaQueue::InsertNewAction(DeltaQueueAction *action)
 	action->next = item->next;
 	item->next = action;
     }
-    pthread_mutex_unlock(&queueMutex);
+    pthread_mutex_unlock(&m_queueMutex);
 }
 
 
@@ -133,8 +133,8 @@ void DeltaQueue::PurgeSession(const SessionDriver *driver) {
     DeltaQueueAction *prev = NULL;
     DeltaQueueAction *purgeList = NULL;
 
-    pthread_mutex_lock(&queueMutex);
-    for(temp = queueHead; NULL != temp; temp=next) {
+    pthread_mutex_lock(&m_queueMutex);
+    for(temp = m_queueHead; NULL != temp; temp=next) {
 	next = temp->next;
 	if (driver == temp->m_driver) {
 	    if (NULL != next) {
@@ -144,7 +144,7 @@ void DeltaQueue::PurgeSession(const SessionDriver *driver) {
 		prev->next = temp->next;
 	    }
 	    else {
-		queueHead = temp->next;
+		m_queueHead = temp->next;
 	    }
 	    temp->next = purgeList;
 	    purgeList = temp;
@@ -153,7 +153,7 @@ void DeltaQueue::PurgeSession(const SessionDriver *driver) {
 	    prev = temp;
 	}
     }
-    pthread_mutex_unlock(&queueMutex);
+    pthread_mutex_unlock(&m_queueMutex);
     while (NULL != purgeList) {
 	DeltaQueueAction *next = purgeList->next;
 

@@ -20,8 +20,8 @@ public:
     void PurgeSession(const SessionDriver *driver);
 
 private:
-    pthread_mutex_t queueMutex;
-    DeltaQueueAction *queueHead;
+    pthread_mutex_t m_queueMutex;
+    DeltaQueueAction *m_queueHead;
 };
 
 #endif // _DELTAQUEUE_HPP_INCLUDED_
