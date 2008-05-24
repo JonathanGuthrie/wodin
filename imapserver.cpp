@@ -63,6 +63,26 @@ void SessionDriver::DoAsynchronousWork(void) {
 }
 
 
+void SessionDriver::DoRetry(void) {
+    uint8_t t[1];
+
+    pthread_mutex_lock(&workMutex);
+    int result = session->HandleOneLine(t, 0);
+    pthread_mutex_unlock(&workMutex);
+    if (0 > result)
+    {
+	server->KillSession(this);
+    }
+    else
+    {
+	if (0 == result)
+	{
+	    server->WantsToReceive(sock->SockNum());
+	}
+    }
+}
+
+
 void SessionDriver::DestroySession(void) {
     delete sock;
     sock = NULL;
@@ -284,4 +304,9 @@ void ImapServer::SetIdleTimer(SessionDriver *driver, unsigned seconds)
 
 void ImapServer::ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds) {
     timerQueue.AddAsynchronousAction(driver, seconds);
+}
+
+
+void ImapServer::ScheduleRetry(SessionDriver *driver, unsigned seconds) {
+    timerQueue.AddRetry(driver, seconds);
 }

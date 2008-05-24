@@ -112,7 +112,7 @@ done)  Configurable home directory location
   done)  Fix StatusHandler
   done) rework the search logic because a search is no longer a pass/fail thing
   done)  rework the fetch logic because message operations can fail
-  i)  Add retry logic to the mail store class
+  done)  Add retry logic to the IMAP session class
   j)  check to make sure commands that are retried actually get retried
   k)  Actually implement the locking in the mbox mail store class
   l)  Regression on mail box operations

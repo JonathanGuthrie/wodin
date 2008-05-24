@@ -75,7 +75,7 @@ typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
 class ImapSession
 {
 public:
-    ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause = 5);
+    ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause = 5, unsigned maxRetries = 12, unsigned retrySeconds = 5);
     ~ImapSession();
     static void BuildSymbolTables(void);
     int ReceiveData(uint8_t* pData, size_t dwDataLen );
@@ -85,6 +85,9 @@ public:
     Socket *GetSocket(void) const { return m_s; }
     ImapState GetState(void) const { return m_state; }
     const ImapUser *GetUser(void) const { return m_userData; }
+    // ReceiveData processes data as it comes it.  It's primary job is to chop the incoming data into
+    // lines and to pass each line to HandleOneLine, which is the core command processor for the system
+    int HandleOneLine(uint8_t *pData, size_t dwDataLen);
 
 private:
     // These are configuration items
@@ -126,9 +129,6 @@ private:
 
     static IMAPSYMBOLS m_symbols;
 
-    // ReceiveData processes data as it comes it.  It's primary job is to chop the incoming data into
-    // lines and to pass each line to HandleOneLine, which is the core command processor for the system
-    int HandleOneLine(uint8_t *pData, size_t dwDataLen);
     // This creates a properly formatted capability string based on the current state and configuration
     // of the IMAP server 
     std::string BuildCapabilityString(void);
@@ -218,6 +218,9 @@ private:
     time_t m_lastCommandTime;
     NUMBER_SET m_purgedMessages;
     bool m_sendUpdatedStatus;
+    unsigned m_retries;
+    unsigned m_maxRetries;
+    unsigned m_retryDelay;
 };
 
 #endif //_IMAPSESSION_HPP_INCLUDED_

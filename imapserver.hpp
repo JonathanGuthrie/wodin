@@ -22,6 +22,7 @@ public:
     ~SessionDriver();
     void DoWork(void);
     void DoAsynchronousWork(void);
+    void DoRetry(void);
     void NewSession(Socket *s);
     const ImapSession *GetSession(void) const { return session; }
     void DestroySession(void);
@@ -67,6 +68,7 @@ public:
     time_t GetAsynchronousEventTime(void) const { return asynchronousEventTime; /* seconds */ }
     void SetIdleTimer(SessionDriver *driver, unsigned seconds);
     void ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds);
+    void ScheduleRetry(SessionDriver *driver, unsigned seconds);
     void KillSession(SessionDriver *driver);
     const std::string &GetFQDN(void) const { return m_fqdn; }
     bool UseConfiguredUid(void) const { return m_useConfiguredUid; }

@@ -4,6 +4,7 @@
 #include "deltaqueuedelayedmessage.hpp"
 #include "deltaqueueasynchronousaction.hpp"
 #include "deltaqueueidletimer.hpp"
+#include "deltaqueueretry.hpp"
 
 DeltaQueue::DeltaQueue() : queueHead(NULL) {
     pthread_mutex_init(&queueMutex, NULL);
@@ -81,6 +82,14 @@ void DeltaQueue::AddAsynchronousAction(SessionDriver *driver, time_t timeout) {
     DeltaQueueAsynchronousAction *action;
 
     action = new DeltaQueueAsynchronousAction(timeout, driver);
+    InsertNewAction((DeltaQueueAction *)action);
+}
+
+
+void DeltaQueue::AddRetry(SessionDriver *driver, time_t timeout) {
+    DeltaQueueRetry *action;
+
+    action = new DeltaQueueRetry(timeout, driver);
     InsertNewAction((DeltaQueueAction *)action);
 }
 

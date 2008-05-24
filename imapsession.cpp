@@ -305,7 +305,8 @@ void ImapSession::BuildSymbolTables()
     fetchSymbolTable.insert(FETCH_NAME_T::value_type("UID",           FETCH_UID));
 }
 
-ImapSession::ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause) : m_s(sock), m_server(server), m_driver(driver), m_failedLoginPause(failedLoginPause) {
+ImapSession::ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause, unsigned maxRetries, unsigned retrySeconds)
+    : m_s(sock), m_server(server), m_driver(driver), m_failedLoginPause(failedLoginPause), m_maxRetries(maxRetries), m_retryDelay(retrySeconds) {
     m_state = ImapNotAuthenticated;
     m_userData = NULL;
     m_LoginDisabled = false;
@@ -321,6 +322,7 @@ ImapSession::ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver
     m_s->Send((uint8_t *) response.c_str(), response.length());
     m_lastCommandTime = time(NULL);
     m_purgedMessages.clear();
+    m_retries = 0;
 }
 
 ImapSession::~ImapSession() {
@@ -783,14 +785,33 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	if ((IMAP_NOTDONE != status) && (IMAP_IN_LITERAL != status) && (IMAP_TRY_AGAIN != status)) {
 	    m_currentHandler = NULL;
 	}
-	if (IMAP_NO_WITH_PAUSE == status) {
+	switch (status) {
+	case IMAP_NO_WITH_PAUSE:
+	    m_retries = 0;
 	    result = 1;
 	    GetServer()->DelaySend(m_driver, m_failedLoginPause, response);
-	}
-	else {
+	    break;
+
+	case IMAP_TRY_AGAIN:
+	    if (m_retries < m_maxRetries) {
+		m_retries++;
+		result = 1;
+		GetServer()->ScheduleRetry(m_driver, m_retryDelay);
+	    }
+	    else {
+		strncpy(m_responseText, "Locking Error:  Too Many Retries", MAX_RESPONSE_STRING_LENGTH);
+		response = FormatTaggedResponse(IMAP_NO, false);
+		m_s->Send((uint8_t *)response.data(), response.length());
+		m_retries = 0;
+	    }
+	    break;
+
+	default:
+	    m_retries = 0;
 	    if (IMAP_IN_LITERAL != status) {
 		m_s->Send((uint8_t *)response.data(), response.length());
 	    }
+	    break;
 	}
     }
     else {
