@@ -14,20 +14,20 @@
 
 SessionDriver::SessionDriver(ImapServer *s, int pipe)
 {
-    this->pipe = pipe;
-    server = s;
-    sock = NULL;
-    session = NULL;
-    pthread_mutex_init(&workMutex, NULL);
+    this->m_pipe = pipe;
+    m_server = s;
+    m_sock = NULL;
+    m_session = NULL;
+    pthread_mutex_init(&m_workMutex, NULL);
 }
 
 SessionDriver::~SessionDriver()
 {
-    if (NULL != sock) {
-	delete sock;
+    if (NULL != m_sock) {
+	delete m_sock;
     }
-    if (NULL != session) {
-	delete session;
+    if (NULL != m_session) {
+	delete m_session;
     }
 }
 
@@ -35,21 +35,21 @@ void SessionDriver::DoWork(void)
 {
     uint8_t recvBuffer[1000];
     // When it gets here, it knows that the receive on Sock will not block
-    ssize_t numOctets = sock->Receive(recvBuffer, 1000);
+    ssize_t numOctets = m_sock->Receive(recvBuffer, 1000);
     if (0 < numOctets)
     {
-	pthread_mutex_lock(&workMutex);
-	int result = session->ReceiveData(recvBuffer, numOctets);
-	pthread_mutex_unlock(&workMutex);
+	pthread_mutex_lock(&m_workMutex);
+	int result = m_session->ReceiveData(recvBuffer, numOctets);
+	pthread_mutex_unlock(&m_workMutex);
 	if (0 > result)
 	{
-	    server->KillSession(this);
+	    m_server->KillSession(this);
 	}
 	else
 	{
 	    if (0 == result)
 	    {
-		server->WantsToReceive(sock->SockNum());
+		m_server->WantsToReceive(m_sock->SockNum());
 	    }
 	}
     }
@@ -57,44 +57,44 @@ void SessionDriver::DoWork(void)
 
 
 void SessionDriver::DoAsynchronousWork(void) {
-    pthread_mutex_lock(&workMutex);
-    session->AsynchronousEvent();
-    pthread_mutex_unlock(&workMutex);
+    pthread_mutex_lock(&m_workMutex);
+    m_session->AsynchronousEvent();
+    pthread_mutex_unlock(&m_workMutex);
 }
 
 
 void SessionDriver::DoRetry(void) {
     uint8_t t[1];
 
-    pthread_mutex_lock(&workMutex);
-    int result = session->HandleOneLine(t, 0);
-    pthread_mutex_unlock(&workMutex);
+    pthread_mutex_lock(&m_workMutex);
+    int result = m_session->HandleOneLine(t, 0);
+    pthread_mutex_unlock(&m_workMutex);
     if (0 > result)
     {
-	server->KillSession(this);
+	m_server->KillSession(this);
     }
     else
     {
 	if (0 == result)
 	{
-	    server->WantsToReceive(sock->SockNum());
+	    m_server->WantsToReceive(m_sock->SockNum());
 	}
     }
 }
 
 
 void SessionDriver::DestroySession(void) {
-    delete sock;
-    sock = NULL;
-    delete session;
-    session = NULL;
+    delete m_sock;
+    m_sock = NULL;
+    delete m_session;
+    m_session = NULL;
 }
 
 
 void SessionDriver::NewSession(Socket *s)
 {
-    sock = s;
-    session = new ImapSession(s, server, this, server->GetBadLoginPause());
+    m_sock = s;
+    m_session = new ImapSession(s, m_server, this, m_server->GetBadLoginPause());
 }
 
 
@@ -104,23 +104,23 @@ ImapServer::ImapServer(uint32_t bind_address, short bind_port, std::string fqdn,
     m_configuredUid = 0;
     m_useConfiguredGid = false;
     m_configuredGid = 0;
-    loginTimeout = login_timeout;
-    idleTimeout = idle_timeout;
-    asynchronousEventTime = asynchronous_event_time;
+    m_loginTimeout = login_timeout;
+    m_idleTimeout = idle_timeout;
+    m_asynchronousEventTime = asynchronous_event_time;
     m_badLoginPause = bad_login_pause;
-    if (0 > pipe(pipeFd)) {
+    if (0 > pipe(m_pipeFd)) {
 	throw ServerErrorException(errno);
     }
-    isRunning = true;
-    listener = new Socket(bind_address, bind_port);
+    m_isRunning = true;
+    m_listener = new Socket(bind_address, bind_port);
     ImapSession::BuildSymbolTables();
     for (int i=0; i<FD_SETSIZE; ++i)
     {
-	sessions[i] = new SessionDriver(this, pipeFd[1]);
+	m_sessions[i] = new SessionDriver(this, m_pipeFd[1]);
     }
-    FD_ZERO(&masterFdList);
-    FD_SET(pipeFd[0], &masterFdList);
-    pthread_mutex_init(&masterFdMutex, NULL);
+    FD_ZERO(&m_masterFdList);
+    FD_SET(m_pipeFd[0], &m_masterFdList);
+    pthread_mutex_init(&m_masterFdMutex, NULL);
 }
 
 
@@ -131,13 +131,13 @@ ImapServer::~ImapServer()
 
 void ImapServer::Run()
 {
-    if (0 == pthread_create(&listenerThread, NULL, ListenerThreadFunction, this)) 
+    if (0 == pthread_create(&m_listenerThread, NULL, ListenerThreadFunction, this))
     {
-	if (0 == pthread_create(&receiverThread, NULL, ReceiverThreadFunction, this)) 
+	if (0 == pthread_create(&m_receiverThread, NULL, ReceiverThreadFunction, this))
 	{
-	    if (0 == pthread_create(&timerQueueThread, NULL, TimerQueueFunction, this))
+	    if (0 == pthread_create(&m_timerQueueThread, NULL, TimerQueueFunction, this))
 	    {
-		pool = new ImapWorkerPool(1);
+		m_pool = new ImapWorkerPool(1);
 	    }
 	}
     }
@@ -146,39 +146,39 @@ void ImapServer::Run()
 
 void ImapServer::Shutdown()
 {
-    isRunning = false;
-    pthread_cancel(listenerThread);
-    pthread_join(listenerThread, NULL);
-    delete listener;
-    listener = NULL;
-    ::write(pipeFd[1], "q", 1);
-    pthread_join(receiverThread, NULL);
-    pthread_join(timerQueueThread, NULL);
+    m_isRunning = false;
+    pthread_cancel(m_listenerThread);
+    pthread_join(m_listenerThread, NULL);
+    delete m_listener;
+    m_listener = NULL;
+    ::write(m_pipeFd[1], "q", 1);
+    pthread_join(m_receiverThread, NULL);
+    pthread_join(m_timerQueueThread, NULL);
 
     std::string bye = "* BYE Server Shutting Down\r\n";
     for (int i=0; i<FD_SETSIZE; ++i)
     {
 	Socket *s;
-	if (NULL != (s = sessions[i]->GetSocket())) {
+	if (NULL != (s = m_sessions[i]->GetSocket())) {
 	    s->Send((uint8_t*)bye.data(), bye.size());
 	}
-	delete sessions[i];
+	delete m_sessions[i];
     }
-    delete pool;
+    delete m_pool;
 }
 
 
 void *ImapServer::ListenerThreadFunction(void *d)
 {
     ImapServer *t = (ImapServer *)d;
-    while(t->isRunning)
+    while(t->m_isRunning)
     {
-	Socket *worker = t->listener->Accept();
+	Socket *worker = t->m_listener->Accept();
 	if (FD_SETSIZE > worker->SockNum())
 	{
-	    t->sessions[worker->SockNum()]->NewSession(worker);
-	    t->SetIdleTimer(t->sessions[worker->SockNum()], t->loginTimeout);
-	    t->ScheduleAsynchronousAction(t->sessions[worker->SockNum()], t->asynchronousEventTime);
+	    t->m_sessions[worker->SockNum()]->NewSession(worker);
+	    t->SetIdleTimer(t->m_sessions[worker->SockNum()], t->m_loginTimeout);
+	    t->ScheduleAsynchronousAction(t->m_sessions[worker->SockNum()], t->m_asynchronousEventTime);
 	    t->WantsToReceive(worker->SockNum());
 	}
 	else
@@ -193,14 +193,14 @@ void *ImapServer::ListenerThreadFunction(void *d)
 void *ImapServer::ReceiverThreadFunction(void *d)
 {
     ImapServer *t = (ImapServer *)d;
-    while(t->isRunning)
+    while(t->m_isRunning)
     {
 	int maxFd;
 	fd_set localFdList;
-	pthread_mutex_lock(&t->masterFdMutex);
-	localFdList = t->masterFdList;
-	pthread_mutex_unlock(&t->masterFdMutex);
-	for (int i=t->pipeFd[0]; i<FD_SETSIZE; ++i)
+	pthread_mutex_lock(&t->m_masterFdMutex);
+	localFdList = t->m_masterFdList;
+	pthread_mutex_unlock(&t->m_masterFdMutex);
+	for (int i=t->m_pipeFd[0]; i<FD_SETSIZE; ++i)
 	{
 	    if (FD_ISSET(i, &localFdList))
 	    {
@@ -213,17 +213,17 @@ void *ImapServer::ReceiverThreadFunction(void *d)
 	    {
 		if (FD_ISSET(i, &localFdList))
 		{
-		    if (i != t->pipeFd[0])
+		    if (i != t->m_pipeFd[0])
 		    {
-			t->pool->SendMessage(t->sessions[i]);
-			pthread_mutex_lock(&t->masterFdMutex);
-			FD_CLR(i, &t->masterFdList);
-			pthread_mutex_unlock(&t->masterFdMutex);
+			t->m_pool->SendMessage(t->m_sessions[i]);
+			pthread_mutex_lock(&t->m_masterFdMutex);
+			FD_CLR(i, &t->m_masterFdList);
+			pthread_mutex_unlock(&t->m_masterFdMutex);
 		    }	
 		    else
 		    {
 			char c;
-			::read(t->pipeFd[0], &c, 1);
+			::read(t->m_pipeFd[0], &c, 1);
 		    }
 		}
 	    }
@@ -236,11 +236,11 @@ void *ImapServer::ReceiverThreadFunction(void *d)
 void *ImapServer::TimerQueueFunction(void *d)
 {
     ImapServer *t = (ImapServer *)d;
-    while(t->isRunning)
+    while(t->m_isRunning)
     {
 	sleep(1);
 	// puts("tick");
-	t->timerQueue.Tick();
+	t->m_timerQueue.Tick();
     }
     return NULL;
 }
@@ -248,21 +248,21 @@ void *ImapServer::TimerQueueFunction(void *d)
 
 void ImapServer::WantsToReceive(int which)
 {
-    pthread_mutex_lock(&masterFdMutex);
-    FD_SET(which, &masterFdList);
-    pthread_mutex_unlock(&masterFdMutex);
-    ::write(pipeFd[1], "r", 1);
+    pthread_mutex_lock(&m_masterFdMutex);
+    FD_SET(which, &m_masterFdList);
+    pthread_mutex_unlock(&m_masterFdMutex);
+    ::write(m_pipeFd[1], "r", 1);
 }
 
 
 void ImapServer::KillSession(SessionDriver *driver)
 {
-    timerQueue.PurgeSession(driver);
-    pthread_mutex_lock(&masterFdMutex);
-    FD_CLR(driver->GetSocket()->SockNum(), &masterFdList);
-    pthread_mutex_unlock(&masterFdMutex);
+    m_timerQueue.PurgeSession(driver);
+    pthread_mutex_lock(&m_masterFdMutex);
+    FD_CLR(driver->GetSocket()->SockNum(), &m_masterFdList);
+    pthread_mutex_unlock(&m_masterFdMutex);
     driver->DestroySession();
-    ::write(pipeFd[1], "r", 1);
+    ::write(m_pipeFd[1], "r", 1);
 }
 
 
@@ -292,21 +292,21 @@ Namespace *ImapServer::GetMailStore(ImapSession *session)
 
 void ImapServer::DelaySend(SessionDriver *driver, unsigned seconds, const std::string &message)
 {
-    timerQueue.AddSend(driver, seconds, message);
+    m_timerQueue.AddSend(driver, seconds, message);
 }
 
 
 void ImapServer::SetIdleTimer(SessionDriver *driver, unsigned seconds)
 {
-    timerQueue.AddTimeout(driver, seconds);
+    m_timerQueue.AddTimeout(driver, seconds);
 }
 
 
 void ImapServer::ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds) {
-    timerQueue.AddAsynchronousAction(driver, seconds);
+    m_timerQueue.AddAsynchronousAction(driver, seconds);
 }
 
 
 void ImapServer::ScheduleRetry(SessionDriver *driver, unsigned seconds) {
-    timerQueue.AddRetry(driver, seconds);
+    m_timerQueue.AddRetry(driver, seconds);
 }

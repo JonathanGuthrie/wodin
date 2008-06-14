@@ -24,17 +24,17 @@ public:
     void DoAsynchronousWork(void);
     void DoRetry(void);
     void NewSession(Socket *s);
-    const ImapSession *GetSession(void) const { return session; }
+    const ImapSession *GetSession(void) const { return m_session; }
     void DestroySession(void);
-    Socket *GetSocket(void) const { return sock; }
-    ImapServer *GetServer(void) const { return server; }
+    Socket *GetSocket(void) const { return m_sock; }
+    ImapServer *GetServer(void) const { return m_server; }
 
 private:
-    ImapSession *session;
-    ImapServer *server;
-    Socket *sock;
-    int pipe;
-    pthread_mutex_t workMutex;
+    ImapSession *m_session;
+    ImapServer *m_server;
+    Socket *m_sock;
+    int m_pipe;
+    pthread_mutex_t m_workMutex;
 };
 
 
@@ -63,9 +63,9 @@ public:
     // after the specified number of seconds and then set that session
     // up to receive again
     void DelaySend(SessionDriver *driver, unsigned seconds, const std::string &message);
-    time_t GetIdleTimeout(void) const { return idleTimeout; /* seconds */ }
-    time_t GetLoginTimeout(void) const { return loginTimeout; /* seconds */ }
-    time_t GetAsynchronousEventTime(void) const { return asynchronousEventTime; /* seconds */ }
+    time_t GetIdleTimeout(void) const { return m_idleTimeout; /* seconds */ }
+    time_t GetLoginTimeout(void) const { return m_loginTimeout; /* seconds */ }
+    time_t GetAsynchronousEventTime(void) const { return m_asynchronousEventTime; /* seconds */ }
     void SetIdleTimer(SessionDriver *driver, unsigned seconds);
     void ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds);
     void ScheduleRetry(SessionDriver *driver, unsigned seconds);
@@ -79,23 +79,23 @@ public:
     unsigned GetBadLoginPause(void) const { return m_badLoginPause; }
 
 private:
-    bool isRunning;
-    Socket *listener;
+    bool m_isRunning;
+    Socket *m_listener;
     // static void *SelectThreadFunction(void *);
     static void *ListenerThreadFunction(void *);
     static void *ReceiverThreadFunction(void *);
     static void *TimerQueueFunction(void *);
     
-    ImapWorkerPool *pool;
-    pthread_t listenerThread, receiverThread, timerQueueThread;
-    SessionDriver *sessions[FD_SETSIZE];
-    fd_set masterFdList;
-    pthread_mutex_t masterFdMutex;
-    int pipeFd[2];
-    DeltaQueue timerQueue;
-    unsigned idleTimeout;
-    unsigned loginTimeout;
-    unsigned asynchronousEventTime;
+    ImapWorkerPool *m_pool;
+    pthread_t m_listenerThread, m_receiverThread, m_timerQueueThread;
+    SessionDriver *m_sessions[FD_SETSIZE];
+    fd_set m_masterFdList;
+    pthread_mutex_t m_masterFdMutex;
+    int m_pipeFd[2];
+    DeltaQueue m_timerQueue;
+    unsigned m_idleTimeout;
+    unsigned m_loginTimeout;
+    unsigned m_asynchronousEventTime;
     bool m_useConfiguredUid;
     uid_t m_configuredUid;
     bool m_useConfiguredGid;
