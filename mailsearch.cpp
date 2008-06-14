@@ -1,5 +1,7 @@
 #include "mailsearch.hpp"
 
+#include <algorithm>
+
 MailSearch::MailSearch() {
     m_uidVector.clear();
     m_hasUidVector = false;

@@ -3,6 +3,8 @@
 
 #include "namespace.hpp"
 
+#include <algorithm>
+
 
 pthread_mutex_t Namespace::m_mailboxMapMutex;
 Namespace::MailboxMap Namespace::m_mailboxMap;

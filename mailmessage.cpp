@@ -3,6 +3,8 @@
 #include "mailmessage.hpp"
 #include "mailstore.hpp"
 
+#include <string.h>
+
 typedef enum
 {
     DATE_FIELD,

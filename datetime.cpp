@@ -1,6 +1,9 @@
 #include <iomanip>
 #include <sstream>
 
+#include <string.h>
+#include <stdlib.h>
+
 #include "datetime.hpp"
 
 DateTime::DateTime(STRING_FORMAT format) {

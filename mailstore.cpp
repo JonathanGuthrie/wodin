@@ -1,5 +1,9 @@
 #include "mailstore.hpp"
 
+#include <algorithm>
+
+#include <string.h>
+
 MailStore::MailStore(ImapSession *session) : m_session(session) {
     m_errnoFromLibrary = 0;
 }

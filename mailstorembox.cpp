@@ -2,12 +2,14 @@
 #include <iomanip>
 #include <vector>
 #include <sstream>
+#include <algorithm>
 
 #include <dirent.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <string.h>
 
 #include "mailstorembox.hpp"
 #include "imapserver.hpp"

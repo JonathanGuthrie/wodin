@@ -3,6 +3,7 @@
 #include <pwd.h>
 #include <shadow.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "imapserver.hpp"
 #include "imapunixuser.hpp"

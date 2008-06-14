@@ -18,9 +18,12 @@
 // SYZYGY -- refactor the handling of options and do the /good/bad/continued stuff
 
 #include <sstream>
+#include <algorithm>
 
 #include <time.h>
 #include <sys/fsuid.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "imapsession.hpp"
 #include "imapserver.hpp"

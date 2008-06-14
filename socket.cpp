@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
+#include <string.h>
 
 Socket::Socket(int socket, struct sockaddr_in address)
 {
