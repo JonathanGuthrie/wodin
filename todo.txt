@@ -169,12 +169,16 @@ done)  Build the logic to handle multiple simultaneous access properly
 
 )  Move the body search and text search (largely) into the MailStore class.
 
+)  Configuration infrastructure
+
 )  Pluggable modules for mail stores
 
-)  Configuration infrastructure
+)  Make the mbox mailstore locking process configurable
 
 )  IPv6 support
 
 )  profiling runs, memory leaks, etc.
+
+)  investigate boost for the thread pooling
 
 )  other things, as they occur to me

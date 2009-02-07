@@ -990,6 +990,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::ExpungeThisUid(unsigned long uid) {
 	    break;
 	}
     }
+    return result;
 }
 
 
@@ -1115,6 +1116,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::MessageUpdateFlags(unsigned long uid
 
 
 std::string MailStoreMbox::GetMailboxUserPath() const {
+    // SYZYGY -- what is this for?
 }
 
 
