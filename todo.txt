@@ -153,11 +153,11 @@ done)  Build the logic to handle multiple simultaneous access properly
 
 )  Use epoll for the thread pooling instead of select
 
+)  Create a MailStoreMboxo mail store for compatability with Postfix
+
 )  Create a mailstore for maildir under unix
 
 )  Create a mailstore for an as-yet undesigned database-backend, maybe with a user class.
-
-)  Create a MailStoreMboxo mail store for compatability with Postfix
 
 )  Add support for the IDLE command.  Including the code that causes it to send out
   updates if the asynchronous update notices an update while idle.
@@ -165,7 +165,7 @@ done)  Build the logic to handle multiple simultaneous access properly
 )  Keep some sort of track about the number of connections a user has.  Maybe
   collect some state about each user in the IMAP server
 
-)  LMTP support for local deliveries
+)  LMTP support for local deliveries (into the defined mailstore)
 
 )  Move the body search and text search (largely) into the MailStore class.
 
@@ -180,5 +180,7 @@ done)  Build the logic to handle multiple simultaneous access properly
 )  profiling runs, memory leaks, etc.
 
 )  investigate boost for the thread pooling
+
+)  HTTP for configurability
 
 )  other things, as they occur to me
