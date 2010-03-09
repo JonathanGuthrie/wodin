@@ -1,7 +1,7 @@
 #if !defined(_DELTAQUEUEACTION_HPP_INCLUDED_)
 #define _DELTAQUEUEACTION_HPP_INCLUDED_
 
-class SessionDriver;
+#include "sessiondriver.hpp"
 
 class DeltaQueueAction
 {
