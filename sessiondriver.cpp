@@ -1,12 +1,14 @@
 #include "sessiondriver.hpp"
 #include "imapserver.hpp"
+#include "sessionfactory.hpp"
 
-SessionDriver::SessionDriver(ImapServer *s, int pipe)
+SessionDriver::SessionDriver(ImapServer *s, int pipe, SessionFactory *factory)
 {
     this->m_pipe = pipe;
     m_server = s;
     m_sock = NULL;
     m_session = NULL;
+    m_factory = factory;
     pthread_mutex_init(&m_workMutex, NULL);
 }
 
@@ -83,5 +85,5 @@ void SessionDriver::DestroySession(void) {
 void SessionDriver::NewSession(Socket *s)
 {
     m_sock = s;
-    m_session = new ImapSession(s, m_server, this, m_server->GetBadLoginPause());
+    m_session = m_factory->NewSession(s, m_server, this);
 }

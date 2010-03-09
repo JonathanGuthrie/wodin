@@ -7,6 +7,8 @@
 #include "imapsession.hpp"
 
 class ImapServer;
+class ImapSession;
+class SessionFactory;
 
 // The SessionDriver class sits between the server, which does the listening
 // for more data, and the ImapSession, which does all the processing of the
@@ -16,23 +18,24 @@ class ImapServer;
 class SessionDriver
 {
 public:
-    SessionDriver(ImapServer *s, int pipe);
-    ~SessionDriver();
-    void DoWork(void);
-    void DoAsynchronousWork(void);
-    void DoRetry(void);
-    void NewSession(Socket *s);
-    const ImapSession *GetSession(void) const { return m_session; }
-    void DestroySession(void);
-    Socket *GetSocket(void) const { return m_sock; }
-    ImapServer *GetServer(void) const { return m_server; }
+  SessionDriver(ImapServer *s, int pipe, SessionFactory *factory);
+  ~SessionDriver();
+  void DoWork(void);
+  void DoAsynchronousWork(void);
+  void DoRetry(void);
+  void NewSession(Socket *s);
+  const ImapSession *GetSession(void) const { return m_session; }
+  void DestroySession(void);
+  Socket *GetSocket(void) const { return m_sock; }
+  ImapServer *GetServer(void) const { return m_server; }
 
 private:
-    ImapSession *m_session;
-    ImapServer *m_server;
-    Socket *m_sock;
-    int m_pipe;
-    pthread_mutex_t m_workMutex;
+  SessionFactory *m_factory;
+  ImapSession *m_session;
+  ImapServer *m_server;
+  Socket *m_sock;
+  int m_pipe;
+  pthread_mutex_t m_workMutex;
 };
 
 #endif //_SESSIONDRIVER_HPP_INCLUDED_

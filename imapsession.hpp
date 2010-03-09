@@ -75,7 +75,7 @@ typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
 class ImapSession
 {
 public:
-    ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause = 5, unsigned maxRetries = 12, unsigned retrySeconds = 5);
+    ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause, unsigned maxRetries, unsigned retrySeconds);
     ~ImapSession();
     static void BuildSymbolTables(void);
     int ReceiveData(uint8_t* pData, size_t dwDataLen );
