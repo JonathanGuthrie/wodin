@@ -60,40 +60,6 @@ void DeltaQueue::Tick() {
 }
 
 
-void DeltaQueue::AddSend(SessionDriver *driver, unsigned seconds, const std::string &message)
-{
-    DeltaQueueDelayedMessage *action;
-
-    action = new DeltaQueueDelayedMessage(seconds, driver, message);
-    InsertNewAction((DeltaQueueAction *)action);
-}
-
-
-void DeltaQueue::AddTimeout(SessionDriver *driver, time_t timeout)
-{
-    DeltaQueueIdleTimer *action;
-
-    action = new DeltaQueueIdleTimer(timeout, driver);
-    InsertNewAction((DeltaQueueAction *)action);
-}
-
-
-void DeltaQueue::AddAsynchronousAction(SessionDriver *driver, time_t timeout) {
-    DeltaQueueAsynchronousAction *action;
-
-    action = new DeltaQueueAsynchronousAction(timeout, driver);
-    InsertNewAction((DeltaQueueAction *)action);
-}
-
-
-void DeltaQueue::AddRetry(SessionDriver *driver, time_t timeout) {
-    DeltaQueueRetry *action;
-
-    action = new DeltaQueueRetry(timeout, driver);
-    InsertNewAction((DeltaQueueAction *)action);
-}
-
-
 void DeltaQueue::InsertNewAction(DeltaQueueAction *action)
 {
     pthread_mutex_lock(&m_queueMutex);

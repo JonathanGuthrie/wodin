@@ -3,7 +3,7 @@
 #include "deltaqueueidletimer.hpp"
 #include "deltaqueueaction.hpp"
 #include "imapmaster.hpp"
-#include "imapserver.hpp"
+#include "internetserver.hpp"
 #include "imapsession.hpp"
 
 DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) {}

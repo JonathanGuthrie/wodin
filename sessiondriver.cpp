@@ -1,9 +1,9 @@
 #include "sessiondriver.hpp"
-#include "imapserver.hpp"
+#include "internetserver.hpp"
 #include "servermaster.hpp"
 #include "imapmaster.hpp"
 
-SessionDriver::SessionDriver(ImapServer *s, int pipe, ServerMaster *master)
+SessionDriver::SessionDriver(InternetServer *s, int pipe, ServerMaster *master)
 {
     this->m_pipe = pipe;
     m_server = s;

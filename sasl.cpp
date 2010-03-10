@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #include "imapmaster.hpp"
-#include "imapserver.hpp"
+#include "internetserver.hpp"
 #include "sasl.hpp"
 #include "base64.hpp"
 // #include "md5.hpp" // SYZYGY -- only needed for CRAM-MD5 or DIGEST-MD5, which are commented out right now

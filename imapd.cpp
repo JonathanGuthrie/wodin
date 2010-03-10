@@ -2,7 +2,7 @@
 
 #include <stdlib.h>
 
-#include "imapserver.hpp"
+#include "internetserver.hpp"
 #include "imapmaster.hpp"
 
 #define PORT 143
@@ -14,7 +14,7 @@ int main() {
 
     Namespace::runtime_init();
 
-    ImapServer *server = new ImapServer(bind_address, port, &master);
+    InternetServer *server = new InternetServer(bind_address, port, &master);
     
     server->Run();
     std::cout << "Hit q and return to exit" << std::endl;

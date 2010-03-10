@@ -3,7 +3,6 @@
 
 #include "servermaster.hpp"
 #include "imapsessionfactory.hpp"
-#include "deltaqueue.hpp"
 
 class SessionDriver;
 
@@ -13,8 +12,6 @@ public:
 	     unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900, unsigned bad_login_pause = 5);
   virtual ~ImapMaster(void);
   virtual ImapSessionFactory *GetSessionFactory(void);
-  virtual void Tick(void);
-  virtual void PurgeTimer(SessionDriver *driver);
 
   ImapUser *GetUserInfo(const char *userid);
   Namespace *GetMailStore(ImapSession *session);
@@ -48,7 +45,6 @@ private:
   std::string m_fqdn;
   unsigned m_badLoginPause;
   ImapSessionFactory *m_factory;
-  DeltaQueue m_timerQueue;
 };
 
 #endif //_IMAPMASTER_HPP_INCLUDED_

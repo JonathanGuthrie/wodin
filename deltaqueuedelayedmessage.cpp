@@ -1,6 +1,6 @@
 #include "deltaqueuedelayedmessage.hpp"
 
-#include "imapserver.hpp"
+#include "internetserver.hpp"
 #include "imapsession.hpp"
 
 DeltaQueueDelayedMessage::DeltaQueueDelayedMessage(int delta, SessionDriver *driver, const std::string message) : DeltaQueueAction(delta, driver), message(message) {}

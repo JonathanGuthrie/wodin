@@ -1,7 +1,7 @@
 #include <time.h>
 
 #include "deltaqueueretry.hpp"
-#include "imapserver.hpp"
+#include "internetserver.hpp"
 #include "imapsession.hpp"
 
 DeltaQueueRetry::DeltaQueueRetry(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) { }

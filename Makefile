@@ -11,7 +11,7 @@ LDFLAGS=-lpthread -lcrypt
 SOURCES=imapd.cpp \
 	imapsession.cpp \
 	socket.cpp \
-	imapserver.cpp \
+	internetserver.cpp \
 	imapunixuser.cpp \
 	imapuser.cpp \
 	sasl.cpp \
@@ -36,7 +36,7 @@ SOURCES=imapd.cpp \
 	servermaster.cpp \
 	imapmaster.cpp
 
-imapd: imapd.o imapserver.o imapsession.o socket.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o mailstore.o \
+imapd: imapd.o internetserver.o imapsession.o socket.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o mailstore.o \
 	deltaqueue.o deltaqueueaction.o deltaqueueidletimer.o deltaqueueasynchronousaction.o deltaqueuedelayedmessage.o namespace.o \
 	mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o sessiondriver.o \
 	sessionfactory.o imapsessionfactory.o servermaster.o imapmaster.o
@@ -49,7 +49,7 @@ imapsession.o:  Makefile
 
 socket.o:  Makefile
 
-imapserver.o:  Makefile
+internetserver.o:  Makefile
 
 imapunixuser.o:  Makefile
 

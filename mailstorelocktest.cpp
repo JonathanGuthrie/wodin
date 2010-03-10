@@ -1,6 +1,6 @@
 
 #include "mailstorelocktest.hpp"
-#include "imapserver.hpp"
+#include "internetserver.hpp"
 #include "imapsession.hpp"
 
 MailStoreLockTest::MailStoreLockTest(ImapSession *session) : MailStore(session) {

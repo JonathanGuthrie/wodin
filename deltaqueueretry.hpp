@@ -8,7 +8,7 @@ class SessionDriver;
 
 // When the timer expires, execute the check for mailbox changes method in the selected
 // mail store.
-class DeltaQueueRetry : DeltaQueueAction
+class DeltaQueueRetry : public DeltaQueueAction
 {
 public:
     DeltaQueueRetry(int delta, SessionDriver *driver);

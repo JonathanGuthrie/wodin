@@ -2,18 +2,15 @@
 #include <time.h>
 #include <errno.h>
 
-#include "deltaqueue.hpp"
-
-#include "imapserver.hpp"
-#include "imapsession.hpp"
-
+#include "internetserver.hpp"
 #include "sessiondriver.hpp"
 #include "servermaster.hpp"
 
-ImapServer::ImapServer(uint32_t bind_address, short bind_port, ServerMaster *master) throw(ServerErrorException) {
+InternetServer::InternetServer(uint32_t bind_address, short bind_port, ServerMaster *master, int num_workers) throw(ServerErrorException) {
   if (0 > pipe(m_pipeFd)) {
     throw ServerErrorException(errno);
   }
+  m_workerCount = num_workers;
   m_master = master;
   m_isRunning = true;
   m_listener = new Socket(bind_address, bind_port);
@@ -26,22 +23,22 @@ ImapServer::ImapServer(uint32_t bind_address, short bind_port, ServerMaster *mas
 }
 
 
-ImapServer::~ImapServer() {
+InternetServer::~InternetServer() {
 }
 
 
-void ImapServer::Run() {
+void InternetServer::Run() {
   if (0 == pthread_create(&m_listenerThread, NULL, ListenerThreadFunction, this)) {
     if (0 == pthread_create(&m_receiverThread, NULL, ReceiverThreadFunction, this)) {
-	  if (0 == pthread_create(&m_timerQueueThread, NULL, TimerQueueFunction, this)) {
-	      m_pool = new ImapWorkerPool(1);
-	    }
-	}
+      if (0 == pthread_create(&m_timerQueueThread, NULL, TimerQueueFunction, this)) {
+	m_pool = new WorkerPool(m_workerCount);
+      }
     }
+  }
 }
 
 
-void ImapServer::Shutdown() {
+void InternetServer::Shutdown() {
   m_isRunning = false;
   pthread_cancel(m_listenerThread);
   pthread_join(m_listenerThread, NULL);
@@ -63,8 +60,8 @@ void ImapServer::Shutdown() {
 }
 
 
-void *ImapServer::ListenerThreadFunction(void *d) {
-  ImapServer *t = (ImapServer *)d;
+void *InternetServer::ListenerThreadFunction(void *d) {
+  InternetServer *t = (InternetServer *)d;
   while(t->m_isRunning) {
       Socket *worker = t->m_listener->Accept();
       if (FD_SETSIZE > worker->SockNum()) {
@@ -78,8 +75,8 @@ void *ImapServer::ListenerThreadFunction(void *d) {
 }
 
 
-void *ImapServer::ReceiverThreadFunction(void *d) {
-  ImapServer *t = (ImapServer *)d;
+void *InternetServer::ReceiverThreadFunction(void *d) {
+  InternetServer *t = (InternetServer *)d;
   while(t->m_isRunning) {
       int maxFd;
       fd_set localFdList;
@@ -112,18 +109,18 @@ void *ImapServer::ReceiverThreadFunction(void *d) {
 }
 
 
-void *ImapServer::TimerQueueFunction(void *d) {
-  ImapServer *t = (ImapServer *)d;
+void *InternetServer::TimerQueueFunction(void *d) {
+  InternetServer *t = (InternetServer *)d;
   while(t->m_isRunning) {
     sleep(1);
     // puts("tick");
-    t->m_master->Tick();
+    t->m_timerQueue.Tick();
   }
   return NULL;
 }
 
 
-void ImapServer::WantsToReceive(int which) {
+void InternetServer::WantsToReceive(int which) {
   pthread_mutex_lock(&m_masterFdMutex);
   FD_SET(which, &m_masterFdList);
   pthread_mutex_unlock(&m_masterFdMutex);
@@ -131,11 +128,16 @@ void ImapServer::WantsToReceive(int which) {
 }
 
 
-void ImapServer::KillSession(SessionDriver *driver) {
-  m_master->PurgeTimer(driver);
+void InternetServer::KillSession(SessionDriver *driver) {
+  m_timerQueue.PurgeSession(driver);
   pthread_mutex_lock(&m_masterFdMutex);
   FD_CLR(driver->GetSocket()->SockNum(), &m_masterFdList);
   pthread_mutex_unlock(&m_masterFdMutex);
   driver->DestroySession();
   ::write(m_pipeFd[1], "r", 1);
+}
+
+
+void InternetServer::AddTimerAction(DeltaQueueAction *action) {
+  m_timerQueue.InsertNewAction(action);
 }
