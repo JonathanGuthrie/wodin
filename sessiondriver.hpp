@@ -8,7 +8,7 @@
 
 class ImapServer;
 class ImapSession;
-class SessionFactory;
+class ServerMaster;
 
 // The SessionDriver class sits between the server, which does the listening
 // for more data, and the ImapSession, which does all the processing of the
@@ -18,7 +18,7 @@ class SessionFactory;
 class SessionDriver
 {
 public:
-  SessionDriver(ImapServer *s, int pipe, SessionFactory *factory);
+  SessionDriver(ImapServer *s, int pipe, ServerMaster *master);
   ~SessionDriver();
   void DoWork(void);
   void DoAsynchronousWork(void);
@@ -28,9 +28,10 @@ public:
   void DestroySession(void);
   Socket *GetSocket(void) const { return m_sock; }
   ImapServer *GetServer(void) const { return m_server; }
+  ServerMaster *GetMaster(void) const { return m_master; }
 
 private:
-  SessionFactory *m_factory;
+  ServerMaster *m_master;
   ImapSession *m_session;
   ImapServer *m_server;
   Socket *m_sock;

@@ -16,7 +16,7 @@
 #include "mailsearch.hpp"
 #include "mailmessage.hpp"
 
-class ImapServer;
+class ImapMaster;
 class SessionDriver;
 class MailSearch;
 class MailMessage;
@@ -75,12 +75,12 @@ typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
 class ImapSession
 {
 public:
-    ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause, unsigned maxRetries, unsigned retrySeconds);
+    ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver, unsigned failedLoginPause, unsigned maxRetries, unsigned retrySeconds);
     ~ImapSession();
     static void BuildSymbolTables(void);
     int ReceiveData(uint8_t* pData, size_t dwDataLen );
     void AsynchronousEvent(void);
-    ImapServer *GetServer(void) const { return m_server; }
+    ImapMaster *GetMaster(void) const { return m_master; }
     time_t GetLastCommandTime() const { return m_lastCommandTime; }
     Socket *GetSocket(void) const { return m_s; }
     ImapState GetState(void) const { return m_state; }
@@ -213,7 +213,7 @@ private:
     void FetchResponseUid(unsigned long uid);
     void SendMessageChunk(unsigned long uid, size_t offset, size_t length);
     ImapUser *m_userData;
-    ImapServer *m_server;
+    ImapMaster *m_master;
     Sasl *m_auth;
     time_t m_lastCommandTime;
     NUMBER_SET m_purgedMessages;

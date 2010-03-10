@@ -3,11 +3,13 @@
 
 #include "imapsession.hpp"
 
+class ImapServer;
+
 class SessionFactory {
 public:
   SessionFactory(void);
   virtual ~SessionFactory(void);
-  virtual ImapSession *NewSession(Socket *s, ImapServer *server, SessionDriver *driver) = 0;
+  virtual ImapSession *NewSession(Socket *s, ImapMaster *master, SessionDriver *driver) = 0;
 };
 
 #endif //_SESSIONFACTORY_HPP_INCLUDED_

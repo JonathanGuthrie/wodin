@@ -2,7 +2,7 @@
 
 #include "deltaqueueasynchronousaction.hpp"
 #include "deltaqueueaction.hpp"
-#include "imapserver.hpp"
+#include "imapmaster.hpp"
 #include "imapsession.hpp"
 
 DeltaQueueAsynchronousAction::DeltaQueueAsynchronousAction(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) { }
@@ -10,8 +10,9 @@ DeltaQueueAsynchronousAction::DeltaQueueAsynchronousAction(int delta, SessionDri
 
 void DeltaQueueAsynchronousAction::HandleTimeout(bool isPurge)
 {
+    ImapMaster *imap_master = dynamic_cast<ImapMaster *>(m_driver->GetMaster());
     if (!isPurge) {
 	m_driver->DoAsynchronousWork();
-	m_driver->GetServer()->ScheduleAsynchronousAction(m_driver, m_driver->GetServer()->GetAsynchronousEventTime());
+	imap_master->ScheduleAsynchronousAction(m_driver, imap_master->GetAsynchronousEventTime());
     }
 }

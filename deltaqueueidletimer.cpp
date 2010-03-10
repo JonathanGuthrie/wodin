@@ -2,6 +2,7 @@
 
 #include "deltaqueueidletimer.hpp"
 #include "deltaqueueaction.hpp"
+#include "imapmaster.hpp"
 #include "imapserver.hpp"
 #include "imapsession.hpp"
 
@@ -11,10 +12,11 @@ DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, SessionDriver *driver) : Del
 void DeltaQueueIdleTimer::HandleTimeout(bool isPurge)
 {
     if (!isPurge) {
+        ImapMaster *imap_master = dynamic_cast<ImapMaster *>(m_driver->GetMaster());
 	time_t now = time(NULL);
 	unsigned timeout = (ImapNotAuthenticated == m_driver->GetSession()->GetState()) ?
-	    m_driver->GetServer()->GetLoginTimeout() :
-	    m_driver->GetServer()->GetIdleTimeout();
+	    imap_master->GetLoginTimeout() :
+	    imap_master->GetIdleTimeout();
 
 	if ((now - timeout) > m_driver->GetSession()->GetLastCommandTime())
 	{
@@ -24,7 +26,7 @@ void DeltaQueueIdleTimer::HandleTimeout(bool isPurge)
 	}
 	else
 	{
-	    m_driver->GetServer()->SetIdleTimer(m_driver, (time_t) m_driver->GetSession()->GetLastCommandTime() + timeout + 1 - now);
+	    imap_master->SetIdleTimer(m_driver, (time_t) m_driver->GetSession()->GetLastCommandTime() + timeout + 1 - now);
 	}
     }
 }

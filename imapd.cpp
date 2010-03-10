@@ -3,18 +3,18 @@
 #include <stdlib.h>
 
 #include "imapserver.hpp"
-#include "imapsessionfactory.hpp"
+#include "imapmaster.hpp"
 
 #define PORT 143
 
 int main() {
     uint32_t bind_address = INADDR_ANY;
     short port = PORT;
-    ImapSessionFactory factory;
+    ImapMaster master("husky.brokersys.com");
 
     Namespace::runtime_init();
 
-    ImapServer *server = new ImapServer(bind_address, port, &factory, "husky.brokersys.com");
+    ImapServer *server = new ImapServer(bind_address, port, &master);
     
     server->Run();
     std::cout << "Hit q and return to exit" << std::endl;

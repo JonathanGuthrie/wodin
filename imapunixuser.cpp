@@ -5,10 +5,10 @@
 #include <ctype.h>
 #include <string.h>
 
-#include "imapserver.hpp"
+#include "imapmaster.hpp"
 #include "imapunixuser.hpp"
 
-ImapUnixUser::ImapUnixUser(const char *user, const ImapServer *server) : ImapUser(user, server)
+ImapUnixUser::ImapUnixUser(const char *user, const ImapMaster *master) : ImapUser(user, master)
 {
     home = NULL;
     struct passwd *pass;
@@ -17,14 +17,14 @@ ImapUnixUser::ImapUnixUser(const char *user, const ImapServer *server) : ImapUse
     {
 	if (0 == strcmp(pass->pw_name, user))
 	{
-	    if (server->UseConfiguredUid()) {
-		m_uid = server->GetConfiguredUid();
+	    if (master->UseConfiguredUid()) {
+		m_uid = master->GetConfiguredUid();
 	    }
 	    else {
 		m_uid = pass->pw_uid;
 	    }
-	    if (server->UseConfiguredGid()) {
-		m_gid = server->GetConfiguredGid();
+	    if (master->UseConfiguredGid()) {
+		m_gid = master->GetConfiguredGid();
 	    }
 	    else {
 		m_gid = pass->pw_gid;

@@ -4,7 +4,7 @@
 #include <string>
 #include <unistd.h>
 
-class ImapServer;
+class ImapMaster;
 
 // SYZYGY -- I need to know whether HavePlaintextPassword will return true or not
 // SYZYGY -- even under circumstances when I can't create a user because I haven't
@@ -18,7 +18,7 @@ class ImapServer;
 // SYZYGY -- I don't know which I like better.
 class ImapUser {
 public:
-    ImapUser(const char *user, const ImapServer *server);
+    ImapUser(const char *user, const ImapMaster *server);
     virtual ~ImapUser();
     virtual bool HavePlaintextPassword() = 0;
     virtual bool CheckCredentials(const char *password) = 0;

@@ -32,12 +32,14 @@ SOURCES=imapd.cpp \
 	mailstorelocktest.cpp \
 	sessiondriver.cpp \
 	sessionfactory.cpp \
-	imapsessionfactory.cpp
+	imapsessionfactory.cpp \
+	servermaster.cpp \
+	imapmaster.cpp
 
 imapd: imapd.o imapserver.o imapsession.o socket.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o mailstore.o \
 	deltaqueue.o deltaqueueaction.o deltaqueueidletimer.o deltaqueueasynchronousaction.o deltaqueuedelayedmessage.o namespace.o \
 	mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o sessiondriver.o \
-	sessionfactory.o imapsessionfactory.o
+	sessionfactory.o imapsessionfactory.o servermaster.o imapmaster.o
 
 include $(SOURCES:.cpp=.d)
 
@@ -86,6 +88,10 @@ sessiondriver.o: Makefile
 sessionfactory.o: Makefile
 
 imapsessionfactory.o: Makefile
+
+servermaster.o: Makefile
+
+imapmaster.o: Makefile
 
 clean:
 	rm -f *.o *.d imapd

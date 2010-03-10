@@ -26,7 +26,7 @@
 #include <stdlib.h>
 
 #include "imapsession.hpp"
-#include "imapserver.hpp"
+#include "imapmaster.hpp"
 #include "sasl.hpp"
 
 #ifndef MIN
@@ -308,8 +308,8 @@ void ImapSession::BuildSymbolTables()
     fetchSymbolTable.insert(FETCH_NAME_T::value_type("UID",           FETCH_UID));
 }
 
-ImapSession::ImapSession(Socket *sock, ImapServer *server, SessionDriver *driver, unsigned failedLoginPause, unsigned maxRetries, unsigned retrySeconds)
-    : m_s(sock), m_server(server), m_driver(driver), m_failedLoginPause(failedLoginPause), m_maxRetries(maxRetries), m_retryDelay(retrySeconds) {
+ImapSession::ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver, unsigned failedLoginPause, unsigned maxRetries, unsigned retrySeconds)
+    : m_s(sock), m_master(master), m_driver(driver), m_failedLoginPause(failedLoginPause), m_maxRetries(maxRetries), m_retryDelay(retrySeconds) {
     m_state = ImapNotAuthenticated;
     m_userData = NULL;
     m_LoginDisabled = false;
@@ -792,14 +792,14 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	case IMAP_NO_WITH_PAUSE:
 	    m_retries = 0;
 	    result = 1;
-	    GetServer()->DelaySend(m_driver, m_failedLoginPause, response);
+	    m_master->DelaySend(m_driver, m_failedLoginPause, response);
 	    break;
 
 	case IMAP_TRY_AGAIN:
 	    if (m_retries < m_maxRetries) {
 		m_retries++;
 		result = 1;
-		GetServer()->ScheduleRetry(m_driver, m_retryDelay);
+		m_master->ScheduleRetry(m_driver, m_retryDelay);
 	    }
 	    else {
 		strncpy(m_responseText, "Locking Error:  Too Many Retries", MAX_RESPONSE_STRING_LENGTH);
@@ -933,9 +933,9 @@ IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, siz
     IMAP_RESULTS result; 
     switch (m_parseStage) {
     case 0:
-	m_userData = m_server->GetUserInfo((char *)&m_parseBuffer[m_arguments]);
+	m_userData = m_master->GetUserInfo((char *)&m_parseBuffer[m_arguments]);
 	atom(data, dataLen, parsingAt);
-	m_auth = SaslChooser(this, (char *)&m_parseBuffer[m_arguments]);
+	m_auth = SaslChooser(m_master, (char *)&m_parseBuffer[m_arguments]);
 	if (NULL != m_auth) {
 	    m_auth->SendChallenge(m_responseCode);
 	    m_responseText[0] = '\0';
@@ -955,10 +955,10 @@ IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, siz
 	case Sasl::ok:
 	    result = IMAP_OK;
 	    // user->GetUserFileSystem();
-	    m_userData = m_server->GetUserInfo(m_auth->getUser().c_str());
+	    m_userData = m_master->GetUserInfo(m_auth->getUser().c_str());
 
 	    if (NULL == m_store) {
-		m_store = m_server->GetMailStore(this);
+		m_store = m_master->GetMailStore(this);
 	    }
 	    m_store->CreateMailbox("INBOX");
 
@@ -991,7 +991,7 @@ IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, siz
 IMAP_RESULTS ImapSession::LoginHandlerExecute() {
     IMAP_RESULTS result;
 
-    m_userData = m_server->GetUserInfo((char *)&m_parseBuffer[m_arguments]);
+    m_userData = m_master->GetUserInfo((char *)&m_parseBuffer[m_arguments]);
     bool v = m_userData->CheckCredentials((char *)&m_parseBuffer[m_arguments+(strlen((char *)&m_parseBuffer[m_arguments])+1)]);
     if (v)
     {
@@ -999,7 +999,7 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute() {
 	// SYZYGY LOG
 	// Log("Client %u logged-in user %s %lu\n", m_dwClientNumber, m_pUser->m_szUsername.c_str(), m_pUser->m_nUserID);
 	if (NULL == m_store) {
-	    m_store = m_server->GetMailStore(this);
+	    m_store = m_master->GetMailStore(this);
 	}
 	m_store->CreateMailbox("INBOX");
 	// store->FixMailstore(); // I only un-comment this, if I have reason to believe that mailboxes are broken

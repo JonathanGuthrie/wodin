@@ -1,14 +1,15 @@
 #include "sessiondriver.hpp"
 #include "imapserver.hpp"
-#include "sessionfactory.hpp"
+#include "servermaster.hpp"
+#include "imapmaster.hpp"
 
-SessionDriver::SessionDriver(ImapServer *s, int pipe, SessionFactory *factory)
+SessionDriver::SessionDriver(ImapServer *s, int pipe, ServerMaster *master)
 {
     this->m_pipe = pipe;
     m_server = s;
     m_sock = NULL;
     m_session = NULL;
-    m_factory = factory;
+    m_master = master;
     pthread_mutex_init(&m_workMutex, NULL);
 }
 
@@ -84,6 +85,11 @@ void SessionDriver::DestroySession(void) {
 
 void SessionDriver::NewSession(Socket *s)
 {
-    m_sock = s;
-    m_session = m_factory->NewSession(s, m_server, this);
+  m_sock = s;
+  ImapMaster *imap_master = dynamic_cast<ImapMaster *>(m_master);
+
+  m_session = m_master->GetSessionFactory()->NewSession(s, imap_master, this);
+  imap_master->SetIdleTimer(this, imap_master->GetLoginTimeout());
+  imap_master->ScheduleAsynchronousAction(this, imap_master->GetAsynchronousEventTime());
+  m_server->WantsToReceive(m_sock->SockNum());
 }
