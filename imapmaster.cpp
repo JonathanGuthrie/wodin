@@ -33,8 +33,8 @@ ImapSessionFactory *ImapMaster::GetSessionFactory(void) {
   return m_factory;
 }
 
-SessionDriver *ImapMaster::NewDriver(InternetServer *server, int pipeFd, ServerMaster *master) {
-  return new ImapDriver(server, pipeFd, master);
+SessionDriver *ImapMaster::NewDriver(InternetServer *server, int pipeFd) {
+  return new ImapDriver(server, pipeFd, this);
 }
 
 ImapUser *ImapMaster::GetUserInfo(const char *userid) {

@@ -14,7 +14,7 @@ public:
 	     unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900, unsigned bad_login_pause = 5);
   virtual ~ImapMaster(void);
   virtual ImapSessionFactory *GetSessionFactory(void);
-  virtual SessionDriver *NewDriver(InternetServer *server, int pipeFd, ServerMaster *master);
+  virtual SessionDriver *NewDriver(InternetServer *server, int pipeFd);
 
   ImapUser *GetUserInfo(const char *userid);
   Namespace *GetMailStore(ImapSession *session);
