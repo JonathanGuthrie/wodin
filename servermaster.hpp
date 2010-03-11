@@ -1,4 +1,3 @@
-
 #if !defined(_SERVERMASTER_HPP_INCLUDED_)
 #define _SERVERMASTER_HPP_INCLUDED_
 
