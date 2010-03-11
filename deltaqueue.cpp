@@ -1,10 +1,7 @@
 #include <stdlib.h>
 
 #include "deltaqueue.hpp"
-#include "deltaqueuedelayedmessage.hpp"
-#include "deltaqueueasynchronousaction.hpp"
-#include "deltaqueueidletimer.hpp"
-#include "deltaqueueretry.hpp"
+#include "deltaqueueaction.hpp"
 
 DeltaQueue::DeltaQueue() : m_queueHead(NULL) {
     pthread_mutex_init(&m_queueMutex, NULL);
