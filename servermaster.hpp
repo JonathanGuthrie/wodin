@@ -6,7 +6,6 @@
 
 class SessionDriver;
 class InternetServer;
-class ServerMaster;
 
 class ServerMaster {
 public:
