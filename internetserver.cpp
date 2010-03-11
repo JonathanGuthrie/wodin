@@ -3,7 +3,6 @@
 #include <errno.h>
 
 #include "internetserver.hpp"
-#include "sessiondriver.hpp"
 #include "servermaster.hpp"
 
 InternetServer::InternetServer(uint32_t bind_address, short bind_port, ServerMaster *master, int num_workers) throw(ServerErrorException) {
@@ -15,7 +14,8 @@ InternetServer::InternetServer(uint32_t bind_address, short bind_port, ServerMas
   m_isRunning = true;
   m_listener = new Socket(bind_address, bind_port);
   for (int i=0; i<FD_SETSIZE; ++i) {
-    m_sessions[i] = new SessionDriver(this, m_pipeFd[1], master);
+    m_sessions[i] = master->NewDriver(this, m_pipeFd[1], master);
+    // new SessionDriver(this, m_pipeFd[1], master);
   }
   FD_ZERO(&m_masterFdList);
   FD_SET(m_pipeFd[0], &m_masterFdList);

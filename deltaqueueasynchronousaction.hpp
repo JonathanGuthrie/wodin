@@ -4,17 +4,13 @@
 #include "deltaqueueaction.hpp"
 #include "mailstore.hpp"
 
-class SessionDriver;
-
 // When the timer expires, execute the check for mailbox changes method in the selected
 // mail store.
 class DeltaQueueAsynchronousAction : public DeltaQueueAction
 {
 public:
-    DeltaQueueAsynchronousAction(int delta, SessionDriver *driver);
-    virtual void HandleTimeout(bool isPurge);
-
-private:
+  DeltaQueueAsynchronousAction(int delta, SessionDriver *driver);
+  virtual void HandleTimeout(bool isPurge);
 };
 
 

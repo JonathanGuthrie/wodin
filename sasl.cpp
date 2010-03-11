@@ -7,6 +7,8 @@
 #include "internetserver.hpp"
 #include "sasl.hpp"
 #include "base64.hpp"
+#include "imapuser.hpp"
+
 // #include "md5.hpp" // SYZYGY -- only needed for CRAM-MD5 or DIGEST-MD5, which are commented out right now
 
 std::string qstring(std::string &source) {

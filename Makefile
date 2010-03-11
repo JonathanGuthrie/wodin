@@ -9,6 +9,7 @@ LDFLAGS=-lpthread -lcrypt
 	rm -f $@.$$$$
 
 SOURCES=imapd.cpp \
+	internetsession.cpp \
 	imapsession.cpp \
 	socket.cpp \
 	internetserver.cpp \
@@ -31,19 +32,22 @@ SOURCES=imapd.cpp \
 	mailmessage.cpp \
 	mailstorelocktest.cpp \
 	sessiondriver.cpp \
+	imapdriver.cpp \
 	sessionfactory.cpp \
 	imapsessionfactory.cpp \
 	servermaster.cpp \
 	imapmaster.cpp
 
-imapd: imapd.o internetserver.o imapsession.o socket.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o mailstore.o \
-	deltaqueue.o deltaqueueaction.o deltaqueueidletimer.o deltaqueueasynchronousaction.o deltaqueuedelayedmessage.o namespace.o \
-	mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o sessiondriver.o \
-	sessionfactory.o imapsessionfactory.o servermaster.o imapmaster.o
+imapd: imapd.o internetserver.o internetsession.o imapsession.o socket.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o \
+        mailstore.o deltaqueue.o deltaqueueaction.o deltaqueueidletimer.o deltaqueueasynchronousaction.o deltaqueuedelayedmessage.o \
+        namespace.o mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o sessiondriver.o \
+        imapdriver.o sessionfactory.o imapsessionfactory.o servermaster.o imapmaster.o
 
 include $(SOURCES:.cpp=.d)
 
 imapd.o:  Makefile
+
+internetsession.o: Makefile
 
 imapsession.o:  Makefile
 
@@ -84,6 +88,8 @@ mailsearch.o: Makefile
 mailstorelocktest.o:  Makefile
 
 sessiondriver.o: Makefile
+
+imapdriver.o: Makefile
 
 sessionfactory.o: Makefile
 

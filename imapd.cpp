@@ -4,6 +4,7 @@
 
 #include "internetserver.hpp"
 #include "imapmaster.hpp"
+#include "namespace.hpp"
 
 #define PORT 143
 
@@ -14,7 +15,7 @@ int main() {
 
     Namespace::runtime_init();
 
-    InternetServer *server = new InternetServer(bind_address, port, &master);
+    InternetServer *server = new InternetServer(bind_address, port, &master, 1);
     
     server->Run();
     std::cout << "Hit q and return to exit" << std::endl;

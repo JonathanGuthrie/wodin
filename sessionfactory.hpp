@@ -1,15 +1,17 @@
 #if !defined(_SESSIONFACTORY_HPP_INCLUDED_)
 #define _SESSIONFACTORY_HPP_INCLUDED_
 
-#include "imapsession.hpp"
+#include "internetsession.hpp"
 
-class ImapServer;
+class ServerMaster;
+class SessionDriver;
+
 
 class SessionFactory {
 public:
   SessionFactory(void);
   virtual ~SessionFactory(void);
-  virtual ImapSession *NewSession(Socket *s, ImapMaster *master, SessionDriver *driver) = 0;
+  virtual InternetSession *NewSession(Socket *s, ServerMaster *master, SessionDriver *driver) = 0;
 };
 
 #endif //_SESSIONFACTORY_HPP_INCLUDED_

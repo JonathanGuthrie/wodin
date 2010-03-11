@@ -9,6 +9,7 @@
 #include "deltaqueueidletimer.hpp"
 #include "deltaqueueasynchronousaction.hpp"
 #include "deltaqueueretry.hpp"
+#include "imapdriver.hpp"
 
 ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time, unsigned bad_login_pause) {
   m_useConfiguredUid = false;
@@ -30,6 +31,10 @@ ImapMaster::~ImapMaster(void) {
 
 ImapSessionFactory *ImapMaster::GetSessionFactory(void) {
   return m_factory;
+}
+
+SessionDriver *ImapMaster::NewDriver(InternetServer *server, int pipeFd, ServerMaster *master) {
+  return new ImapDriver(server, pipeFd, master);
 }
 
 ImapUser *ImapMaster::GetUserInfo(const char *userid) {

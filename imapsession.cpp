@@ -309,23 +309,26 @@ void ImapSession::BuildSymbolTables()
 }
 
 ImapSession::ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver, unsigned failedLoginPause, unsigned maxRetries, unsigned retrySeconds)
-    : m_s(sock), m_master(master), m_driver(driver), m_failedLoginPause(failedLoginPause), m_maxRetries(maxRetries), m_retryDelay(retrySeconds) {
-    m_state = ImapNotAuthenticated;
-    m_userData = NULL;
-    m_LoginDisabled = false;
-    m_lineBuffer = NULL;	// going with a static allocation for now
-    m_lineBuffPtr = 0;
-    m_lineBuffLen = 0;
-    m_parseBuffer = NULL;
-    m_parseBuffLen = 0;
-    m_store = NULL;
-    m_literalLength = 0;
-    std::string response("* OK [");
-    response += BuildCapabilityString() + "] IMAP4rev1 server ready\r\n";
-    m_s->Send((uint8_t *) response.c_str(), response.length());
-    m_lastCommandTime = time(NULL);
-    m_purgedMessages.clear();
-    m_retries = 0;
+  : InternetSession(sock, master, driver), m_failedLoginPause(failedLoginPause), m_maxRetries(maxRetries), m_retryDelay(retrySeconds) {
+  m_s = sock;
+  m_master = master;
+  m_driver = driver;
+  m_state = ImapNotAuthenticated;
+  m_userData = NULL;
+  m_LoginDisabled = false;
+  m_lineBuffer = NULL;	// going with a static allocation for now
+  m_lineBuffPtr = 0;
+  m_lineBuffLen = 0;
+  m_parseBuffer = NULL;
+  m_parseBuffLen = 0;
+  m_store = NULL;
+  m_literalLength = 0;
+  std::string response("* OK [");
+  response += BuildCapabilityString() + "] IMAP4rev1 server ready\r\n";
+  m_s->Send((uint8_t *) response.c_str(), response.length());
+  m_lastCommandTime = time(NULL);
+  m_purgedMessages.clear();
+  m_retries = 0;
 }
 
 ImapSession::~ImapSession() {
