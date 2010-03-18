@@ -18,7 +18,7 @@ class ServerMaster;
 class SessionDriver
 {
 public:
-  SessionDriver(InternetServer *s, int pipe, ServerMaster *master);
+  SessionDriver(InternetServer *s, ServerMaster *master);
   virtual ~SessionDriver();
   virtual void DoWork(void) = 0;
   virtual void NewSession(Socket *s) = 0;
@@ -31,7 +31,6 @@ public:
 protected:
   InternetServer *m_server;
   Socket *m_sock;
-  int m_pipe;
   InternetSession *m_session;
   ServerMaster *m_master;
 

@@ -18,7 +18,7 @@ class ServerMaster;
 class ImapDriver : public SessionDriver
 {
 public:
-  ImapDriver(InternetServer *s, int pipe, ServerMaster *master);
+  ImapDriver(InternetServer *s, ServerMaster *master);
   virtual ~ImapDriver();
   virtual void DoWork(void);
   virtual void NewSession(Socket *s);

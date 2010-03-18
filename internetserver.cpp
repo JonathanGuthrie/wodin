@@ -14,7 +14,7 @@ InternetServer::InternetServer(uint32_t bind_address, short bind_port, ServerMas
   m_isRunning = true;
   m_listener = new Socket(bind_address, bind_port);
   for (int i=0; i<FD_SETSIZE; ++i) {
-    m_sessions[i] = master->NewDriver(this, m_pipeFd[1]);
+    m_sessions[i] = master->NewDriver(this);
     // new SessionDriver(this, m_pipeFd[1], master);
   }
   FD_ZERO(&m_masterFdList);

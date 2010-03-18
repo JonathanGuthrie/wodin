@@ -3,10 +3,9 @@
 #include "imapmaster.hpp"
 #include "imapsession.hpp"
 
-ImapDriver::ImapDriver(InternetServer *s, int pipe, ServerMaster *master) : SessionDriver(s, pipe, master) {
+ImapDriver::ImapDriver(InternetServer *s, ServerMaster *master) : SessionDriver(s, master) {
   m_master = master;
   m_server = s;
-  m_pipe = pipe;
   m_sock = NULL;
   m_session = NULL;
   pthread_mutex_init(&m_workMutex, NULL);
