@@ -1,7 +1,8 @@
 #if !defined(_DELTAQUEUERETRY_HPP_INCLUDED_)
 #define _DELTAQUEUERETRY_HPP_INCLUDED_
 
-#include "deltaqueueaction.hpp"
+#include <libcppserver/deltaqueueaction.hpp>
+
 #include "mailstore.hpp"
 
 class SessionDriver;

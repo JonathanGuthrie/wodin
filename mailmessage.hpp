@@ -5,7 +5,8 @@
 #include <map>
 #include <vector>
 
-#include "insensitive.hpp"
+#include <libcppserver/insensitive.hpp>
+
 #include "datetime.hpp"
 
 class MailStore;

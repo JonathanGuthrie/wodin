@@ -1,7 +1,7 @@
 #if !defined(_DELTAQUEUEIDLETIMER_HPP_INCLUDED_)
 #define _DELTAQUEUEIDLETIMER_HPP_INCLUDED_
 
-#include "deltaqueueaction.hpp"
+#include <libcppserver/deltaqueueaction.hpp>
 
 class SessionDriver;
 

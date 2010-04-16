@@ -1,4 +1,4 @@
-#include "internetserver.hpp"
+#include <libcppserver/internetserver.hpp>
 
 #include "imapunixuser.hpp"
 #include "mailstorembox.hpp"

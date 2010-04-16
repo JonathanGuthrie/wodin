@@ -3,8 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <libcppserver/internetserver.hpp>
+
 #include "imapmaster.hpp"
-#include "internetserver.hpp"
 #include "sasl.hpp"
 #include "base64.hpp"
 #include "imapuser.hpp"

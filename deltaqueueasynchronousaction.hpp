@@ -1,7 +1,8 @@
 #if !defined(_DELTAQUEUEASYNCHRONOUSACTION_HPP_INCLUDED_)
 #define _DELTAQUEUEASYNCHRONOUSACTION_HPP_INCLUDED_
 
-#include "deltaqueueaction.hpp"
+#include <libcppserver/deltaqueueaction.hpp>
+
 #include "mailstore.hpp"
 
 // When the timer expires, execute the check for mailbox changes method in the selected

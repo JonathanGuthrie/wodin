@@ -2,7 +2,8 @@
 
 #include <stdlib.h>
 
-#include "internetserver.hpp"
+#include <libcppserver/internetserver.hpp>
+
 #include "imapmaster.hpp"
 #include "namespace.hpp"
 

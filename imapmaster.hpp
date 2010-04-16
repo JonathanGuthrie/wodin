@@ -1,7 +1,8 @@
 #if !defined(_IMAPMASTER_HPP_INCLUDED_)
 #define _IMAPMASTER_HPP_INCLUDED_
 
-#include "servermaster.hpp"
+#include <libcppserver/servermaster.hpp>
+
 #include "imapsessionfactory.hpp"
 
 class SessionDriver;

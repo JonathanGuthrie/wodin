@@ -1,7 +1,8 @@
 #if !defined(_IMAPSESSIONFACTORY_HPP_INCLUDED_)
 #define _IMAPSESSIONFACTORY_HPP_INCLUDED_
 
-#include "sessionfactory.hpp"
+#include <libcppserver/sessionfactory.hpp>
+
 #include "imapsession.hpp"
 
 class ImapSessionFactory : public SessionFactory {

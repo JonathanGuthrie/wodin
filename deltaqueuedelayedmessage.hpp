@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "deltaqueueaction.hpp"
+#include <libcppserver/deltaqueueaction.hpp>
 
 class SessionDriver;
 

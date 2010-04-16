@@ -151,8 +151,6 @@ done)  Add support for a delay after a failed login (need a timer manager)
 
 done)  Build the logic to handle multiple simultaneous access properly
 
-)  Use epoll for the thread pooling instead of select
-
 )  Create a MailStoreMboxo mail store for compatability with Postfix
 
 )  Create a mailstore for maildir under unix

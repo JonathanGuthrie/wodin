@@ -1,7 +1,8 @@
 #include <time.h>
 
+#include <libcppserver/deltaqueueaction.hpp>
+
 #include "deltaqueueasynchronousaction.hpp"
-#include "deltaqueueaction.hpp"
 #include "imapmaster.hpp"
 #include "imapsession.hpp"
 #include "imapdriver.hpp"

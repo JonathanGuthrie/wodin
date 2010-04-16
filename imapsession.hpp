@@ -8,14 +8,15 @@
 
 #include <stdint.h>
 
-#include "socket.hpp"
+#include <libcppserver/socket.hpp>
+#include <libcppserver/insensitive.hpp>
+#include <libcppserver/internetsession.hpp>
+
 #include "imapuser.hpp"
 #include "namespace.hpp"
 #include "sasl.hpp"
-#include "insensitive.hpp"
 #include "mailsearch.hpp"
 #include "mailmessage.hpp"
-#include "internetsession.hpp"
 
 class ImapMaster;
 class SessionDriver;

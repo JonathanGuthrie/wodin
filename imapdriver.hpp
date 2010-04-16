@@ -3,8 +3,8 @@
 
 #include <pthread.h>
 
-#include "socket.hpp"
-#include "sessiondriver.hpp"
+#include <libcppserver/socket.hpp>
+#include <libcppserver/sessiondriver.hpp>
 
 class InternetServer;
 class ImapSession;

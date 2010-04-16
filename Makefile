@@ -1,6 +1,6 @@
 CC=g++
 CXXFLAGS=-g
-LDFLAGS=-lpthread -lcrypt
+LDFLAGS=-lpthread -lcrypt -lcppserver
 
 %.d: %.cpp
 	@set -e; rm -f $@; \
@@ -9,51 +9,39 @@ LDFLAGS=-lpthread -lcrypt
 	rm -f $@.$$$$
 
 SOURCES=imapd.cpp \
-	internetsession.cpp \
 	imapsession.cpp \
-	socket.cpp \
-	internetserver.cpp \
 	imapunixuser.cpp \
 	imapuser.cpp \
 	sasl.cpp \
 	base64.cpp \
 	mailstore.cpp \
 	mailstorembox.cpp \
-	deltaqueue.cpp \
 	deltaqueueidletimer.cpp \
 	deltaqueueasynchronousaction.cpp \
 	deltaqueuedelayedmessage.cpp \
 	deltaqueueretry.cpp \
-	deltaqueueaction.cpp \
 	namespace.cpp \
 	mailstoreinvalid.cpp \
 	datetime.cpp \
 	mailsearch.cpp \
 	mailmessage.cpp \
 	mailstorelocktest.cpp \
-	sessiondriver.cpp \
 	imapdriver.cpp \
-	sessionfactory.cpp \
 	imapsessionfactory.cpp \
-	servermaster.cpp \
 	imapmaster.cpp
 
-imapd: imapd.o internetserver.o internetsession.o imapsession.o socket.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o \
-        mailstore.o deltaqueue.o deltaqueueaction.o deltaqueueidletimer.o deltaqueueasynchronousaction.o deltaqueuedelayedmessage.o \
-        namespace.o mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o sessiondriver.o \
-        imapdriver.o sessionfactory.o imapsessionfactory.o servermaster.o imapmaster.o
+imapd: imapd.o imapsession.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o \
+        mailstore.o deltaqueueidletimer.o deltaqueueasynchronousaction.o deltaqueuedelayedmessage.o \
+        namespace.o mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o \
+        imapdriver.o imapsessionfactory.o imapmaster.o
 
 include $(SOURCES:.cpp=.d)
 
 imapd.o:  Makefile
 
-internetsession.o: Makefile
-
 imapsession.o:  Makefile
 
 socket.o:  Makefile
-
-internetserver.o:  Makefile
 
 imapunixuser.o:  Makefile
 
@@ -67,11 +55,7 @@ mailstorembox.o:  Makefile
 
 mailstore.o:  Makefile
 
-deltaqueue.o:  Makefile
-
 deltaqueueidletimer.o:  Makefile
-
-deltaqueueaction.o:  Makefile
 
 deltaqueuecheckmailbox.o:  Makefile
 
@@ -87,15 +71,9 @@ mailsearch.o: Makefile
 
 mailstorelocktest.o:  Makefile
 
-sessiondriver.o: Makefile
-
 imapdriver.o: Makefile
 
-sessionfactory.o: Makefile
-
 imapsessionfactory.o: Makefile
-
-servermaster.o: Makefile
 
 imapmaster.o: Makefile
 

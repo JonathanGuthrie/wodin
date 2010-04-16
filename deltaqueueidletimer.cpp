@@ -1,9 +1,10 @@
 #include <time.h>
 
+#include <libcppserver/internetserver.hpp>
+#include <libcppserver/deltaqueueaction.hpp>
+
 #include "deltaqueueidletimer.hpp"
-#include "deltaqueueaction.hpp"
 #include "imapmaster.hpp"
-#include "internetserver.hpp"
 #include "imapsession.hpp"
 
 DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) {}
