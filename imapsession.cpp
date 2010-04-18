@@ -308,8 +308,8 @@ void ImapSession::BuildSymbolTables()
     fetchSymbolTable.insert(FETCH_NAME_T::value_type("UID",           FETCH_UID));
 }
 
-ImapSession::ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver, unsigned failedLoginPause, unsigned maxRetries, unsigned retrySeconds)
-  : InternetSession(sock, master, driver), m_failedLoginPause(failedLoginPause), m_maxRetries(maxRetries), m_retryDelay(retrySeconds) {
+ImapSession::ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver)
+  : InternetSession(sock, master, driver) {
   m_s = sock;
   m_master = master;
   m_driver = driver;
@@ -329,6 +329,10 @@ ImapSession::ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver
   m_lastCommandTime = time(NULL);
   m_purgedMessages.clear();
   m_retries = 0;
+
+  m_failedLoginPause = m_master->GetBadLoginPause();
+  m_maxRetries = m_master->GetMaxRetries();
+  m_retryDelay = m_master->GetRetryDelaySeconds();
 }
 
 ImapSession::~ImapSession() {

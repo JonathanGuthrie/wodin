@@ -3,7 +3,7 @@
 
 #include <libcppserver/servermaster.hpp>
 
-#include "imapsessionfactory.hpp"
+#include "imapsession.hpp"
 
 class SessionDriver;
 class ImapUser;
@@ -12,9 +12,8 @@ class Namespace;
 class ImapMaster : public ServerMaster {
 public:
   ImapMaster(std::string fqdn, unsigned login_timeout = 60,
-	     unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900, unsigned bad_login_pause = 5);
+	     unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900, unsigned bad_login_pause = 5, unsigned max_retries = 12, unsigned retry_seconds = 5);
   virtual ~ImapMaster(void);
-  virtual ImapSessionFactory *GetSessionFactory(void);
   virtual SessionDriver *NewDriver(InternetServer *server);
 
   ImapUser *GetUserInfo(const char *userid);
@@ -37,6 +36,8 @@ public:
   uid_t GetConfiguredGid(void) const { return m_configuredGid; }
   void SetFQDN(const std::string &fqdn) { m_fqdn = fqdn; }
   unsigned GetBadLoginPause(void) const { return m_badLoginPause; }
+  unsigned GetMaxRetries(void) const { return m_maxRetries; }
+  unsigned GetRetryDelaySeconds(void) const { return m_retryDelaySeconds; }
 
 private:
   unsigned m_idleTimeout;
@@ -48,7 +49,8 @@ private:
   gid_t m_configuredGid;
   std::string m_fqdn;
   unsigned m_badLoginPause;
-  ImapSessionFactory *m_factory;
+  unsigned m_maxRetries;
+  unsigned m_retryDelaySeconds;
 };
 
 #endif //_IMAPMASTER_HPP_INCLUDED_

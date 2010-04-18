@@ -80,7 +80,7 @@ void ImapDriver::NewSession(Socket *s) {
   m_sock = s;
   ImapMaster *imap_master = dynamic_cast<ImapMaster *>(m_master);
 
-  m_session = m_master->GetSessionFactory()->NewSession(s, m_master, this);
+  m_session = new ImapSession(s, imap_master, this);
   imap_master->SetIdleTimer(this, imap_master->GetLoginTimeout());
   imap_master->ScheduleAsynchronousAction(this, imap_master->GetAsynchronousEventTime());
   m_server->WantsToReceive(m_sock->SockNum());

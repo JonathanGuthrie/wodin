@@ -27,13 +27,12 @@ SOURCES=imapd.cpp \
 	mailmessage.cpp \
 	mailstorelocktest.cpp \
 	imapdriver.cpp \
-	imapsessionfactory.cpp \
 	imapmaster.cpp
 
 imapd: imapd.o imapsession.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o \
         mailstore.o deltaqueueidletimer.o deltaqueueasynchronousaction.o deltaqueuedelayedmessage.o \
         namespace.o mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o \
-        imapdriver.o imapsessionfactory.o imapmaster.o
+        imapdriver.o imapmaster.o
 
 include $(SOURCES:.cpp=.d)
 

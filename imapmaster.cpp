@@ -11,7 +11,7 @@
 #include "deltaqueueretry.hpp"
 #include "imapdriver.hpp"
 
-ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time, unsigned bad_login_pause) {
+ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time, unsigned bad_login_pause, unsigned max_retries, unsigned retry_seconds) {
   m_useConfiguredUid = false;
   m_configuredUid = 0;
   m_useConfiguredGid = false;
@@ -20,17 +20,14 @@ ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_t
   m_idleTimeout = idle_timeout;
   m_asynchronousEventTime = asynchronous_event_time;
   m_badLoginPause = bad_login_pause;
-  m_factory = new ImapSessionFactory(bad_login_pause);
+  m_maxRetries = max_retries;
+  m_retryDelaySeconds = retry_seconds;
 
   ImapSession::BuildSymbolTables();
 
 }
 
 ImapMaster::~ImapMaster(void) {
-}
-
-ImapSessionFactory *ImapMaster::GetSessionFactory(void) {
-  return m_factory;
 }
 
 SessionDriver *ImapMaster::NewDriver(InternetServer *server) {
