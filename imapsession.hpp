@@ -80,7 +80,7 @@ public:
   ImapSession(ImapMaster *master, SessionDriver *driver, InternetServer *server);
   virtual ~ImapSession();
   static void BuildSymbolTables(void);
-  void ReceiveData(uint8_t* pData, size_t dwDataLen );
+  virtual void ReceiveData(uint8_t* pData, size_t dwDataLen );
 
   void AsynchronousEvent(void);
   ImapMaster *GetMaster(void) const { return m_master; }
