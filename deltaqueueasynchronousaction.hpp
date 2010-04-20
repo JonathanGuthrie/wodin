@@ -10,7 +10,7 @@
 class DeltaQueueAsynchronousAction : public DeltaQueueAction
 {
 public:
-  DeltaQueueAsynchronousAction(int delta, SessionDriver *driver);
+  DeltaQueueAsynchronousAction(int delta, InternetSession *session);
   virtual void HandleTimeout(bool isPurge);
 };
 

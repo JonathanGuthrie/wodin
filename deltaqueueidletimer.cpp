@@ -7,13 +7,13 @@
 #include "imapmaster.hpp"
 #include "imapsession.hpp"
 
-DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) {}
+DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, InternetSession *session) : DeltaQueueAction(delta, session) {}
 
 
 void DeltaQueueIdleTimer::HandleTimeout(bool isPurge) {
     if (!isPurge) {
-        ImapMaster *imap_master = dynamic_cast<ImapMaster *>(m_driver->GetMaster());
-	const ImapSession *imap_session = dynamic_cast<const ImapSession *>(m_driver->GetSession());
+	const ImapSession *imap_session = dynamic_cast<const ImapSession *>(m_session);
+        ImapMaster *imap_master = dynamic_cast<ImapMaster *>(imap_session->GetMaster());
 	time_t now = time(NULL);
 	unsigned timeout = (ImapNotAuthenticated == imap_session->GetState()) ?
 	    imap_master->GetLoginTimeout() :
@@ -21,12 +21,11 @@ void DeltaQueueIdleTimer::HandleTimeout(bool isPurge) {
 
 	if ((now - timeout) > imap_session->GetLastCommandTime()) {
 	    std::string bye = "* BYE Idle timeout disconnect\r\n";
-	    m_driver->GetSocket()->Send((uint8_t *)bye.data(), bye.size());
-	    m_driver->GetServer()->KillSession(m_driver);
+	    imap_session->GetDriver()->WantsToSend(bye);
+	    imap_session->GetServer()->KillSession(imap_session->GetDriver());
 	}
-	else
-	{
-	    imap_master->SetIdleTimer(m_driver, (time_t) imap_session->GetLastCommandTime() + timeout + 1 - now);
+	else {
+	    imap_session->GetServer()->AddTimerAction(new DeltaQueueIdleTimer((time_t) imap_session->GetLastCommandTime() + timeout + 1 - now, m_session));
 	}
     }
 }

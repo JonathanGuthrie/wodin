@@ -5,11 +5,6 @@
 #include "mailstoreinvalid.hpp"
 #include "namespace.hpp"
 #include "imapmaster.hpp"
-#include "deltaqueuedelayedmessage.hpp"
-#include "deltaqueueidletimer.hpp"
-#include "deltaqueueasynchronousaction.hpp"
-#include "deltaqueueretry.hpp"
-#include "imapdriver.hpp"
 
 ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time, unsigned bad_login_pause, unsigned max_retries, unsigned retry_seconds) {
   m_useConfiguredUid = false;
@@ -28,10 +23,6 @@ ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_t
 }
 
 ImapMaster::~ImapMaster(void) {
-}
-
-SessionDriver *ImapMaster::NewDriver(InternetServer *server) {
-  return new ImapDriver(server, this);
 }
 
 ImapUser *ImapMaster::GetUserInfo(const char *userid) {
@@ -55,19 +46,8 @@ Namespace *ImapMaster::GetMailStore(ImapSession *session) {
   return result;
 }
 
-void ImapMaster::DelaySend(SessionDriver *driver, unsigned seconds, const std::string &message) {
-  // m_timerQueue.AddSend(driver, seconds, message);
-  driver->GetServer()->AddTimerAction(new DeltaQueueDelayedMessage(seconds, driver, message));
+
+ImapSession *ImapMaster::NewSession(SessionDriver *driver, InternetServer *server) {
+  return new ImapSession(this, driver, server);
 }
 
-void ImapMaster::SetIdleTimer(SessionDriver *driver, unsigned seconds) {
-  driver->GetServer()->AddTimerAction(new DeltaQueueIdleTimer(seconds, driver));
-}
-
-void ImapMaster::ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds) {
-  driver->GetServer()->AddTimerAction(new DeltaQueueAsynchronousAction(seconds, driver));
-}
-
-void ImapMaster::ScheduleRetry(SessionDriver *driver, unsigned seconds) {
-  driver->GetServer()->AddTimerAction(new DeltaQueueRetry(seconds, driver));
-}

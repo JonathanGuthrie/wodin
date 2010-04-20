@@ -4,14 +4,13 @@
 
 #include "deltaqueueretry.hpp"
 #include "imapsession.hpp"
-#include "imapdriver.hpp"
 
-DeltaQueueRetry::DeltaQueueRetry(int delta, SessionDriver *driver) : DeltaQueueAction(delta, driver) { }
+DeltaQueueRetry::DeltaQueueRetry(int delta, InternetSession *session) : DeltaQueueAction(delta, session) { }
 
 
 void DeltaQueueRetry::HandleTimeout(bool isPurge) {
   if (!isPurge) {
-    ImapDriver *imap_driver = dynamic_cast<ImapDriver *>(m_driver);
-    imap_driver->DoRetry();
+    ImapSession *imap_session = dynamic_cast<ImapSession *>(m_session);
+    imap_session->DoRetry();
   }
 }

@@ -25,6 +25,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "deltaqueuedelayedmessage.hpp"
+#include "deltaqueueidletimer.hpp"
+#include "deltaqueueasynchronousaction.hpp"
+#include "deltaqueueretry.hpp"
 #include "imapsession.hpp"
 #include "imapmaster.hpp"
 #include "sasl.hpp"
@@ -308,11 +312,11 @@ void ImapSession::BuildSymbolTables()
     fetchSymbolTable.insert(FETCH_NAME_T::value_type("UID",           FETCH_UID));
 }
 
-ImapSession::ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver)
-  : InternetSession(sock, master, driver) {
-  m_s = sock;
+ImapSession::ImapSession(ImapMaster *master, SessionDriver *driver, InternetServer *server)
+  : InternetSession(master, driver) {
   m_master = master;
   m_driver = driver;
+  m_server = server;
   m_state = ImapNotAuthenticated;
   m_userData = NULL;
   m_LoginDisabled = false;
@@ -325,7 +329,7 @@ ImapSession::ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver
   m_literalLength = 0;
   std::string response("* OK [");
   response += BuildCapabilityString() + "] IMAP4rev1 server ready\r\n";
-  m_s->Send((uint8_t *) response.c_str(), response.length());
+  m_driver->WantsToSend(response);
   m_lastCommandTime = time(NULL);
   m_purgedMessages.clear();
   m_retries = 0;
@@ -333,6 +337,10 @@ ImapSession::ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver
   m_failedLoginPause = m_master->GetBadLoginPause();
   m_maxRetries = m_master->GetMaxRetries();
   m_retryDelay = m_master->GetRetryDelaySeconds();
+
+  m_server->AddTimerAction(new DeltaQueueIdleTimer(m_master->GetLoginTimeout(), this));
+  m_server->AddTimerAction(new DeltaQueueAsynchronousAction(m_master->GetAsynchronousEventTime(), this));
+  m_driver->WantsToReceive();
 }
 
 ImapSession::~ImapSession() {
@@ -348,8 +356,9 @@ ImapSession::~ImapSession() {
 	delete m_userData;
     }
     m_userData = NULL;
-    std::string bye = "* BYE SimDesk IMAP4rev1 server shutting down\r\n";
-    m_s->Send((uint8_t *)bye.data(), bye.size());
+    if (ImapLogoff != m_state) {
+      m_driver->WantsToSend("* BYE SimDesk IMAP4rev1 server shutting down\r\n");
+    }
 }
 
 
@@ -482,22 +491,23 @@ void ImapSession::AddToParseBuffer(const uint8_t *data, size_t length, bool nulT
 /* AsynchronousEvent									*/
 /*--------------------------------------------------------------------------------------*/
 void ImapSession::AsynchronousEvent(void) {
+    m_driver->Lock();
     if (ImapSelected == m_state) {
 	NUMBER_SET purgedMessages;
 	if (MailStore::SUCCESS == m_store->MailboxUpdateStats(&purgedMessages)) {
 	    m_purgedMessages.insert(purgedMessages.begin(), purgedMessages.end());
 	}
     }
+    m_driver->Unlock();
 }
 
 /*--------------------------------------------------------------------------------------*/
 /* ReceiveData										*/
 /*--------------------------------------------------------------------------------------*/
-int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
+void ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
     m_lastCommandTime = time(NULL);
 
     uint32_t newDataBase = 0;
-    int result = 0;
     // Okay, I need to organize the data into lines.  Each line is however much data ended by a
     // CRLF.  In order to support this, I need a buffer to put data into.
 
@@ -534,7 +544,7 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
 	    }
 	    m_lineBuffer[m_lineBuffPtr++] = data[newDataBase];
 	    if (crFlag && ('\n' == data[newDataBase])) {
-		result = HandleOneLine(m_lineBuffer, m_lineBuffPtr);
+	        HandleOneLine(m_lineBuffer, m_lineBuffPtr);
 		m_lineBuffPtr = 0;
 		delete[] m_lineBuffer;
 		m_lineBuffer = NULL;
@@ -560,7 +570,7 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
 	    if (bytesToFeed >= (dataLen - currentCommandStart)) {
 		bytesToFeed = dataLen - currentCommandStart;
 		notDone = false;
-		result = HandleOneLine(&data[currentCommandStart], bytesToFeed);
+		HandleOneLine(&data[currentCommandStart], bytesToFeed);
 		currentCommandStart += bytesToFeed;
 		newDataBase = currentCommandStart;
 	    }
@@ -578,7 +588,7 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
 		    if (crFlag && ('\n' == data[newDataBase])) {
 			// The "+1"s here are due to the fact that I want to include the current character in the 
 			// line to be handled
-			result = HandleOneLine(&data[currentCommandStart], newDataBase - currentCommandStart + 1);
+			HandleOneLine(&data[currentCommandStart], newDataBase - currentCommandStart + 1);
 			currentCommandStart = newDataBase + 1;
 			crFlag = false;
 			break;
@@ -593,7 +603,7 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
 		if (crFlag && ('\n' == data[newDataBase])) {
 		    // The "+1"s here are due to the fact that I want to include the current character in the 
 		    // line to be handled
-		    result = HandleOneLine(&data[currentCommandStart], newDataBase - currentCommandStart + 1);
+		    HandleOneLine(&data[currentCommandStart], newDataBase - currentCommandStart + 1);
 		    currentCommandStart = newDataBase + 1;
 		    crFlag = false;
 		    break;
@@ -613,7 +623,6 @@ int ImapSession::ReceiveData(uint8_t *data, size_t dataLen) {
 	m_lineBuffer = new uint8_t[m_lineBuffLen];
 	memcpy(m_lineBuffer, &data[currentCommandStart], m_lineBuffPtr);
     }
-    return result;
 }
 
 std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpdatedStatus) {
@@ -627,7 +636,7 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpda
 	    message_number = m_store->MailboxUidToMsn(*i);
 	    ss << "* " << message_number << " EXPUNGE\r\n";
 	    m_store->ExpungeThisUid(*i);
-	    m_s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	    m_driver->WantsToSend(ss.str());
 	}
 	m_purgedMessages.clear();
 
@@ -659,7 +668,7 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpda
 		m_currentUidValidity = m_store->GetUidValidityNumber();
 		ss << "* OK [UIDVALIDITY " << m_currentUidValidity << "]\r\n";
 	    }
-	    m_s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+	    m_driver->WantsToSend(ss.str());
 	}
     }
 
@@ -728,11 +737,19 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpda
     return response;
 }
 
+// This method is called to retry a locking attempt
+void ImapSession::DoRetry(void) {
+  uint8_t t[1];
+
+  m_driver->Lock();
+  HandleOneLine(t, 0);
+  m_driver->Unlock();
+}
+
 // This function assumes that it is passed a single entire line each time.
 // It returns true if it's expecting more data, and false otherwise
-int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
+void ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
     std::string response;
-    int result = 0;
     size_t i;
     bool commandFound = false;
 
@@ -798,29 +815,29 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	switch (status) {
 	case IMAP_NO_WITH_PAUSE:
 	    m_retries = 0;
-	    result = 1;
-	    m_master->DelaySend(m_driver, m_failedLoginPause, response);
+	    m_server->AddTimerAction(new DeltaQueueDelayedMessage(m_failedLoginPause, this, response));
 	    break;
 
 	case IMAP_TRY_AGAIN:
 	    if (m_retries < m_maxRetries) {
 		m_retries++;
-		result = 1;
-		m_master->ScheduleRetry(m_driver, m_retryDelay);
+		m_server->AddTimerAction(new DeltaQueueRetry(m_retryDelay, this));
 	    }
 	    else {
 		strncpy(m_responseText, "Locking Error:  Too Many Retries", MAX_RESPONSE_STRING_LENGTH);
 		response = FormatTaggedResponse(IMAP_NO, false);
-		m_s->Send((uint8_t *)response.data(), response.length());
+		m_driver->WantsToSend(response);
 		m_retries = 0;
+		m_driver->WantsToReceive();
 	    }
 	    break;
 
 	default:
 	    m_retries = 0;
 	    if (IMAP_IN_LITERAL != status) {
-		m_s->Send((uint8_t *)response.data(), response.length());
+		m_driver->WantsToSend(response);
 	    }
+	    m_driver->WantsToReceive();
 	    break;
 	}
     }
@@ -829,17 +846,18 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	    strncpy(m_responseText, "Unrecognized Command", MAX_RESPONSE_STRING_LENGTH);
 	    m_responseCode[0] = '\0';
 	    response = FormatTaggedResponse(IMAP_BAD, true);
-	    m_s->Send((uint8_t *)response.data(), response.length());
+	    m_driver->WantsToSend(response);
 	}
 	else {
 	    response = (char *)m_parseBuffer;
 	    response += " BAD No Command\r\n";
-	    m_s->Send((uint8_t *)response.data(), response.length());
+	    m_driver->WantsToSend(response);
 	}
+	m_driver->WantsToReceive();
     }
     if (ImapLogoff <= m_state) {
 	// If I'm logged off, I'm obviously not expecting any more data
-	result = -1;
+        m_server->KillSession(m_driver);
     }
     if (NULL == m_currentHandler) {
 	m_literalLength = 0;
@@ -849,8 +867,6 @@ int ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
 	    m_parseBuffLen = 0;
 	}
     }
-
-    return result;
 }
 
 
@@ -892,7 +908,7 @@ IMAP_RESULTS ImapSession::CapabilityHandler(uint8_t *pData, size_t dataLen, size
 {
     std::string response("* ");
     response += BuildCapabilityString() + "\r\n";
-    m_s->Send((uint8_t *)response.c_str(), response.size());
+    m_driver->WantsToSend(response);
     return IMAP_OK;
 }
 
@@ -927,8 +943,7 @@ IMAP_RESULTS ImapSession::LogoutHandler(uint8_t *pData, size_t dataLen, size_t &
 	}
     }
     m_state = ImapLogoff;
-    std::string bye = "* BYE IMAP4rev1 server closing\r\n";
-    m_s->Send((uint8_t *)bye.data(), bye.size());
+    m_driver->WantsToSend("* BYE IMAP4rev1 server closing\r\n");
     return IMAP_OK;
 }
 
@@ -1119,7 +1134,7 @@ IMAP_RESULTS ImapSession::NamespaceHandler(uint8_t *data, size_t dataLen, size_t
     // SYZYGY parsingAt should be the index of a '\0'
     std::string str = "* NAMESPACE " + m_store->ListNamespaces();
     str += "\n";
-    m_s->Send((uint8_t *) str.c_str(), str.size());
+    m_driver->WantsToSend(str);
     return IMAP_OK;
 }
 
@@ -1158,7 +1173,7 @@ void ImapSession::SendSelectData(const std::string &mailbox, bool isReadWrite) {
     ss << "* OK [UIDNEXT " << m_currentNextUid << "]\r\n";
     // an untagged okay uidvalidity response
     ss << "* OK [UIDVALIDITY " << m_currentUidValidity << "]\r\n"; 
-    m_s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+    m_driver->WantsToSend(ss.str());
 }
 
 
@@ -1635,8 +1650,7 @@ IMAP_RESULTS ImapSession::ListHandlerExecute(bool listAll) {
     if ((0 == reference.size()) && (0 == mailbox.size())) {
 	if (listAll) {
 	    // It's a request to return the base and the hierarchy delimiter
-	    std::string response("* LIST () \"/\" \"\"\r\n");
-	    m_s->Send((uint8_t *)response.c_str(), response.size());
+	    m_driver->WantsToSend("* LIST () \"/\" \"\"\r\n");
 	}
     }
     else {
@@ -1660,7 +1674,7 @@ IMAP_RESULTS ImapSession::ListHandlerExecute(bool listAll) {
 	    }
 	    MAILBOX_NAME which = *i;
 	    response += GenMailboxFlags(i->attributes) + " \"/\" " + ImapQuoteString(i->name) + "\r\n";
-	    m_s->Send((uint8_t *)response.c_str(), response.size());
+	    m_driver->WantsToSend(response);
 	}
     }
     return IMAP_OK;
@@ -1902,7 +1916,7 @@ IMAP_RESULTS ImapSession::StatusHandler(uint8_t *data, size_t dataLen, size_t &p
 		separator = ' ';
 	    }
 	    response << ")\r\n";
-	    m_s->Send((uint8_t *)response.str().data(), response.str().length());
+	    m_driver->WantsToSend(response.str());
 	    result = IMAP_OK;
 	}
 	break;
@@ -2845,7 +2859,7 @@ IMAP_RESULTS ImapSession::SearchHandlerExecute(bool usingUid) {
 		    ss << " " << *i;
 		}
 		ss << "\r\n";
-		m_s->Send((uint8_t *)ss.str().c_str(), ss.str().size());
+		m_driver->WantsToSend(ss.str());
 		result = IMAP_OK;
 	    }
 	    else {
@@ -3176,8 +3190,8 @@ void ImapSession::SendMessageChunk(unsigned long uid, size_t offset, size_t leng
 
 	std::ostringstream literal;
 	literal << "{" << charsRead << "}\r\n";
-	m_s->Send((uint8_t *)literal.str().c_str(), literal.str().size());
-	m_s->Send((uint8_t *)xmitBuffer, charsRead);
+	m_driver->WantsToSend(literal.str());
+	m_driver->WantsToSend((uint8_t *)xmitBuffer, charsRead);
 	delete[] xmitBuffer;
     }
 }
@@ -3213,7 +3227,7 @@ void ImapSession::FetchResponseFlags(uint32_t flags) {
 	result += "\\Recent";
     }
     result += ")";
-    m_s->Send((uint8_t *) result.c_str(), result.size());
+    m_driver->WantsToSend(result);
 }
 
 void ImapSession::FetchResponseInternalDate(const MailMessage *message) {
@@ -3223,11 +3237,11 @@ void ImapSession::FetchResponseInternalDate(const MailMessage *message) {
 
     result += when.str();
     result += "\"";
-    m_s->Send((uint8_t *)result.c_str(), result.size());
+    m_driver->WantsToSend(result);
 }
 
 void ImapSession::FetchResponseRfc822(unsigned long uid, const MailMessage *message) {
-    m_s->Send((uint8_t *) "RFC822 ", 7);
+    m_driver->WantsToSend("RFC822 ");
     SendMessageChunk(uid, 0, message->GetMessageBody().bodyOctets);
 }
 
@@ -3239,14 +3253,14 @@ void ImapSession::FetchResponseRfc822Header(unsigned long uid, const MailMessage
     else {
 	length = message->GetMessageBody().bodyOctets;
     }
-    m_s->Send((uint8_t *) "RFC822.HEADER ", 14);
+    m_driver->WantsToSend("RFC822.HEADER ");
     SendMessageChunk(uid, 0, length);
 }
 
 void ImapSession::FetchResponseRfc822Size(const MailMessage *message) {
     std::ostringstream result;
     result << "RFC822.SIZE " << message->GetMessageBody().bodyOctets;
-    m_s->Send((uint8_t *) result.str().c_str(), result.str().size());
+    m_driver->WantsToSend(result.str());
 }
 
 void ImapSession::FetchResponseRfc822Text(unsigned long uid, const MailMessage *message) {
@@ -3259,11 +3273,11 @@ void ImapSession::FetchResponseRfc822Text(unsigned long uid, const MailMessage *
 	else {
 	    length = 0;
 	}
-	m_s->Send((uint8_t *) "RFC822.TEXT ", 12);
+	m_driver->WantsToSend("RFC822.TEXT ");
 	SendMessageChunk(uid, message->GetMessageBody().headerOctets, length);
     }
     else {
-	m_s->Send((uint8_t *) "RFC822.TEXT {0}\r\n", 17);
+	m_driver->WantsToSend("RFC822.TEXT {0}\r\n");
     }
 }
 
@@ -3656,7 +3670,7 @@ void ImapSession::FetchResponseEnvelope(const MailMessage *message) {
 	result += "NIL ";
     }
     result += ")";
-    m_s->Send((uint8_t *)result.c_str(), result.size());
+    m_driver->WantsToSend(result);
 }
 
 // The part before the slash is the body type
@@ -3975,23 +3989,23 @@ void ImapSession::FetchResponseBodyStructure(const MailMessage *message)
 {
     std::string result("BODYSTRUCTURE ");
     result +=  FetchResponseBodyStructureHelper(message->GetMessageBody(), true);
-    m_s->Send((uint8_t *)result.c_str(), result.size());
+    m_driver->WantsToSend(result);
 }
 
 void ImapSession::FetchResponseBody(const MailMessage *message)
 {
     std::string result("BODY ");
     result +=  FetchResponseBodyStructureHelper(message->GetMessageBody(), false);
-    m_s->Send((uint8_t *)result.c_str(), result.size());
+    m_driver->WantsToSend(result);
 }
 
 void ImapSession::FetchResponseUid(unsigned long uid) {
     std::ostringstream result;
     result << "UID " << uid;
-    m_s->Send((uint8_t *)result.str().c_str(), result.str().size());
+    m_driver->WantsToSend(result.str());
 }
 
-#define SendBlank() (blankLen?m_s->Send((uint8_t *)" ",1):0)
+#define SendBlank() (blankLen?(m_driver->WantsToSend(" ",1),0):0)
 
 IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
     IMAP_RESULTS finalResult = IMAP_OK;
@@ -4240,7 +4254,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 		    }
 		    std::ostringstream fetchResult;
 		    fetchResult << "* " << message->GetMsn() << " FETCH (";
-		    m_s->Send((uint8_t *)fetchResult.str().c_str(), fetchResult.str().size());
+		    m_driver->WantsToSend(fetchResult.str());
 		}
 		while ((IMAP_OK == result) && (specificationBase < m_parsePointer)) {
 		    SendBlank();
@@ -4342,7 +4356,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				    seenFlag = true;
 				    // NOTE NO BREAK!
 				case FETCH_BODY_PEEK:
-				    m_s->Send((uint8_t *) "BODY[", 5);
+				    m_driver->WantsToSend("BODY[");
 				    break;
 
 				default:
@@ -4382,11 +4396,11 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				if ((0 < section) && (section <= (body.subparts->size()))) {
 				    std::ostringstream sectionString;
 				    sectionString << section;
-				    m_s->Send((uint8_t *)sectionString.str().c_str(), sectionString.str().size());
+				    m_driver->WantsToSend(sectionString.str());
 				    body = (*body.subparts)[section-1];
 				    specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
 				    if ('.' == *end) {
-					m_s->Send((uint8_t *)".", 1);
+				        m_driver->WantsToSend(".");
 					++specificationBase;
 				    }
 				}
@@ -4398,7 +4412,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			    else {
 				std::ostringstream sectionString;
 				sectionString << section;
-				m_s->Send((uint8_t *)sectionString.str().c_str(), sectionString.str().size());
+				m_driver->WantsToSend(sectionString.str());
 				specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
 			    }
 			}
@@ -4423,20 +4437,20 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				if (part.substr(0, 6) == "header") {
 				    if (']' == part[6]) {
 					specificationBase += 6;
-					m_s->Send((uint8_t *) "HEADER", 6);
+					m_driver->WantsToSend("HEADER");
 					whichPart = FETCH_BODY_HEADER;
 				    }
 				    else {
 					if (part.substr(6,7) == ".FIELDS") {
 					    if (13 == part.size()) {
 						specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-						m_s->Send((uint8_t *) "HEADER.FIELDS", 13);
+						m_driver->WantsToSend("HEADER.FIELDS");
 						whichPart = FETCH_BODY_FIELDS;
 					    }
 					    else {
 						if (part.substr(13) == ".NOT") {
 						    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-						    m_s->Send((uint8_t *) "HEADER.FIELDS.NOT", 17);
+						    m_driver->WantsToSend("HEADER.FIELDS.NOT");
 						    whichPart = FETCH_BODY_NOT_FIELDS;
 						}
 						else {
@@ -4454,13 +4468,13 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				else {
 				    if (part.substr(0, 5) == "TEXT]") {
 					specificationBase += 4;
-					m_s->Send((uint8_t *) "TEXT", 4);
+					m_driver->WantsToSend("TEXT");
 					whichPart = FETCH_BODY_TEXT;
 				    }
 				    else {
 					if (part.substr(0, 5) == "MIME]") {
 					    specificationBase += 4;
-					    m_s->Send((uint8_t *) "MIME", 4);
+					    m_driver->WantsToSend("MIME");
 					    whichPart = FETCH_BODY_MIME;
 					}
 					else {
@@ -4476,20 +4490,20 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			if ((IMAP_OK == result) && (m_parsePointer > specificationBase) &&
 			    ((FETCH_BODY_FIELDS == whichPart) || (FETCH_BODY_NOT_FIELDS == whichPart))) {
 			    if (0 == strcmp((char *)&m_parseBuffer[specificationBase], "(")) {
-				m_s->Send((uint8_t *) " (", 2);
+			        m_driver->WantsToSend(" (");
 				specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
 				int blankLen = 0;
 				while((IMAP_BUFFER_LEN > specificationBase) &&
 				      (0 != strcmp((char *)&m_parseBuffer[specificationBase], ")"))) {
 				    int len = (int) strlen((char *)&m_parseBuffer[specificationBase]);
 				    SendBlank();
-				    m_s->Send((uint8_t *)&m_parseBuffer[specificationBase], len);
+				    m_driver->WantsToSend(&m_parseBuffer[specificationBase], len);
 				    blankLen = 1;
 				    fieldList.push_back((char*)&m_parseBuffer[specificationBase]);
 				    specificationBase += len + 1;
 				}
 				if (0 == strcmp((char *)&m_parseBuffer[specificationBase], ")")) {
-				    m_s->Send((uint8_t *) ")", 1);
+				    m_driver->WantsToSend(")");
 				    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
 				}
 				else {
@@ -4505,7 +4519,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 
 			// Okay, look for the end square bracket
 			if ((IMAP_OK == result) && (']' == m_parseBuffer[specificationBase])) {
-			    m_s->Send((uint8_t *) "]", 1);
+			    m_driver->WantsToSend("]");
 			    specificationBase++;
 			}
 			else {
@@ -4522,7 +4536,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				firstByte = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
 				std::ostringstream limit;
 				limit << "<" << firstByte << ">";
-				m_s->Send((uint8_t *) limit.str().c_str(), limit.str().size());
+				m_driver->WantsToSend(limit.str());
 				if ('.' == *end) {
 				    maxLength = strtoul(end+1, &end, 10);
 				}
@@ -4545,11 +4559,11 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				}
 				if (firstByte < body.bodyOctets) {
 				    length = MIN(body.bodyOctets - firstByte, maxLength);
-				    m_s->Send((uint8_t *) " ", 1);
+				    m_driver->WantsToSend(" ");
 				    SendMessageChunk(uid, firstByte + body.bodyStartOffset, length);
 				}
 				else {
-				    m_s->Send((uint8_t *) " {0}\r\n", 6);
+				    m_driver->WantsToSend(" {0}\r\n");
 				}
 				break;
 
@@ -4562,16 +4576,16 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				    if (firstByte < body.headerOctets)
 				    {
 					length = MIN(body.headerOctets - firstByte, maxLength);
-					m_s->Send((uint8_t *) " ", 1);
+					m_driver->WantsToSend(" ");
 					SendMessageChunk(uid, firstByte + body.bodyStartOffset, length);
 				    }
 				    else {
-					m_s->Send((uint8_t *) " {0}\r\n", 6);
+					m_driver->WantsToSend(" {0}\r\n");
 				    }
 				}
 				else {
 				    // If it's not a message subpart, it doesn't have a header.
-				    m_s->Send((uint8_t *) " \"\"", 3);
+				    m_driver->WantsToSend(" {0}\r\n");
 				}
 				break;
 
@@ -4579,11 +4593,11 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				if (firstByte < body.headerOctets)
 				{
 				    length = MIN(body.headerOctets - firstByte, maxLength);
-				    m_s->Send((uint8_t *) " ", 1);
+				    m_driver->WantsToSend(" ");
 				    SendMessageChunk(uid, firstByte + body.bodyStartOffset, length);
 				}
 				else {
-				    m_s->Send((uint8_t *) " {0}\r\n", 6);
+				    m_driver->WantsToSend(" {0}\r\n");
 				}
 				break;
 
@@ -4614,10 +4628,10 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 
 					headerFields << " {" << length << "}\r\n";
 					headerFields << interesting.substr(firstByte, length);
-					m_s->Send((uint8_t *)headerFields.str().c_str(), headerFields.str().size());
+					m_driver->WantsToSend(headerFields.str());
 				    }
 				    else {
-					m_s->Send((uint8_t *) " {0}\r\n", 6);
+				        m_driver->WantsToSend(" {0}\r\n");
 				    }
 				}
 				break;
@@ -4644,10 +4658,10 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 					std::ostringstream headerFields;
 					headerFields << " {" << length << "}\r\n";
 					headerFields << interesting.substr(firstByte, length).c_str();
-					m_s->Send((uint8_t *)headerFields.str().c_str(), headerFields.str().size());
+					m_driver->WantsToSend(headerFields.str());
 				    }
 				    else {
-					m_s->Send((uint8_t *) " {0}\r\n", 6);
+					m_driver->WantsToSend(" {0}\r\n");
 				    }
 				}
 				break;
@@ -4667,15 +4681,15 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 				    }
 				    if (firstByte < length) {
 					length = MIN(length - firstByte, maxLength);
-					m_s->Send((uint8_t *) " ", 1);
+					m_driver->WantsToSend(" ");
 					SendMessageChunk(uid, firstByte + body.bodyStartOffset + body.headerOctets, length);
 				    }
 				    else {
-					m_s->Send((uint8_t *) " {0}\r\n", 6);
+					m_driver->WantsToSend(" {0}\r\n");
 				    }
 				}
 				else {
-				    m_s->Send((uint8_t *) " {0}\r\n", 6);
+				    m_driver->WantsToSend(" {0}\r\n");
 				}
 				break;
 
@@ -4708,7 +4722,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 			FetchResponseUid(uid);
 			blankLen = 1;
 		    }
-		    m_s->Send((uint8_t *) ")\r\n", 3);
+		    m_driver->WantsToSend(")\r\n");
 		    blankLen = 0;
 		}
 		else {
@@ -5108,13 +5122,13 @@ IMAP_RESULTS ImapSession::StoreHandler(uint8_t *data, size_t dataLen, size_t &pa
 				    if (!silentFlag) {
 					std::ostringstream fetch;
 					fetch << "* " << m_store->MailboxUidToMsn(srVector[i]) << " FETCH (";
-					m_s->Send((uint8_t *)fetch.str().c_str(), fetch.str().size());
+					m_driver->WantsToSend(fetch.str());
 					FetchResponseFlags(flags);
 					if (usingUid) {
-					    m_s->Send((uint8_t *)" ", 1);
+					    m_driver->WantsToSend(" ");
 					    FetchResponseUid(srVector[i]);
 					}
-					m_s->Send((uint8_t *)")\r\n", 3);
+					m_driver->WantsToSend(")\r\n");
 				    }
 				}
 				else {

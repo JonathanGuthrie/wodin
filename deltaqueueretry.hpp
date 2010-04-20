@@ -12,7 +12,7 @@ class SessionDriver;
 class DeltaQueueRetry : public DeltaQueueAction
 {
 public:
-    DeltaQueueRetry(int delta, SessionDriver *driver);
+    DeltaQueueRetry(int delta, InternetSession *session);
     virtual void HandleTimeout(bool isPurge);
 
 private:

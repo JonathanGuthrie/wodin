@@ -26,13 +26,12 @@ SOURCES=imapd.cpp \
 	mailsearch.cpp \
 	mailmessage.cpp \
 	mailstorelocktest.cpp \
-	imapdriver.cpp \
 	imapmaster.cpp
 
 imapd: imapd.o imapsession.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o \
         mailstore.o deltaqueueidletimer.o deltaqueueasynchronousaction.o deltaqueuedelayedmessage.o \
         namespace.o mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o \
-        imapdriver.o imapmaster.o
+        imapmaster.o
 
 include $(SOURCES:.cpp=.d)
 
@@ -69,10 +68,6 @@ datetime.o: Makefile
 mailsearch.o: Makefile
 
 mailstorelocktest.o:  Makefile
-
-imapdriver.o: Makefile
-
-imapsessionfactory.o: Makefile
 
 imapmaster.o: Makefile
 

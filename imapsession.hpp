@@ -8,9 +8,10 @@
 
 #include <stdint.h>
 
-#include <libcppserver/socket.hpp>
 #include <libcppserver/insensitive.hpp>
 #include <libcppserver/internetsession.hpp>
+#include <libcppserver/internetserver.hpp>
+#include <libcppserver/sessiondriver.hpp>
 
 #include "imapuser.hpp"
 #include "namespace.hpp"
@@ -76,20 +77,22 @@ typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
 
 class ImapSession : public InternetSession {
 public:
-  ImapSession(Socket *sock, ImapMaster *master, SessionDriver *driver);
+  ImapSession(ImapMaster *master, SessionDriver *driver, InternetServer *server);
   virtual ~ImapSession();
   static void BuildSymbolTables(void);
-  int ReceiveData(uint8_t* pData, size_t dwDataLen );
+  void ReceiveData(uint8_t* pData, size_t dwDataLen );
 
   void AsynchronousEvent(void);
   ImapMaster *GetMaster(void) const { return m_master; }
+  InternetServer *GetServer(void) const { return m_server; }
+  SessionDriver *GetDriver(void) const { return m_driver; };
   time_t GetLastCommandTime() const { return m_lastCommandTime; }
-  Socket *GetSocket(void) const { return m_s; }
   ImapState GetState(void) const { return m_state; }
   const ImapUser *GetUser(void) const { return m_userData; }
   // ReceiveData processes data as it comes it.  It's primary job is to chop the incoming data into
   // lines and to pass each line to HandleOneLine, which is the core command processor for the system
-  int HandleOneLine(uint8_t *pData, size_t dwDataLen);
+  void HandleOneLine(uint8_t *pData, size_t dwDataLen);
+  void DoRetry(void);
 
 private:
   // These are configuration items
@@ -99,7 +102,6 @@ private:
   SessionDriver *m_driver;
   MailStore::MAIL_STORE_RESULT m_mboxErrorCode;
 
-  Socket *m_s;
   // These constitute the session's state
   enum ImapState m_state;
   IMAP_RESULTS (ImapSession::*m_currentHandler)(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool flag);
@@ -216,6 +218,7 @@ private:
   void SendMessageChunk(unsigned long uid, size_t offset, size_t length);
   ImapUser *m_userData;
   ImapMaster *m_master;
+  InternetServer *m_server;
   Sasl *m_auth;
   time_t m_lastCommandTime;
   NUMBER_SET m_purgedMessages;

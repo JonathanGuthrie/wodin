@@ -2,8 +2,7 @@
 #define _DELTAQUEUEIDLETIMER_HPP_INCLUDED_
 
 #include <libcppserver/deltaqueueaction.hpp>
-
-class SessionDriver;
+#include <libcppserver/internetsession.hpp>
 
 // The idle timer is never reset.  Instead, I keep the time the last command
 // was executed and then check for the timeout period elapsing when the timer expires
@@ -11,7 +10,7 @@ class SessionDriver;
 class DeltaQueueIdleTimer : public DeltaQueueAction
 {
 public:
-    DeltaQueueIdleTimer(int delta, SessionDriver *driver);
+    DeltaQueueIdleTimer(int delta, InternetSession *session);
     virtual void HandleTimeout(bool isPurge);
 };
 

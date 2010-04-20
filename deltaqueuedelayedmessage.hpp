@@ -5,11 +5,9 @@
 
 #include <libcppserver/deltaqueueaction.hpp>
 
-class SessionDriver;
-
 class DeltaQueueDelayedMessage : public DeltaQueueAction {
 public:
-    DeltaQueueDelayedMessage(int delta, SessionDriver *driver, const std::string message); // Note:  Calling copy constructor on the message
+    DeltaQueueDelayedMessage(int delta, InternetSession *session, const std::string message); // Note:  Calling copy constructor on the message
     virtual void HandleTimeout(bool isPurge);
 
 private:
