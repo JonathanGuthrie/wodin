@@ -491,14 +491,12 @@ void ImapSession::AddToParseBuffer(const uint8_t *data, size_t length, bool nulT
 /* AsynchronousEvent									*/
 /*--------------------------------------------------------------------------------------*/
 void ImapSession::AsynchronousEvent(void) {
-    m_driver->Lock();
     if (ImapSelected == m_state) {
 	NUMBER_SET purgedMessages;
 	if (MailStore::SUCCESS == m_store->MailboxUpdateStats(&purgedMessages)) {
 	    m_purgedMessages.insert(purgedMessages.begin(), purgedMessages.end());
 	}
     }
-    m_driver->Unlock();
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -741,9 +739,7 @@ std::string ImapSession::FormatTaggedResponse(IMAP_RESULTS status, bool sendUpda
 void ImapSession::DoRetry(void) {
   uint8_t t[1];
 
-  m_driver->Lock();
   HandleOneLine(t, 0);
-  m_driver->Unlock();
 }
 
 // This method is called to retry a locking attempt
