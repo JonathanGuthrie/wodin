@@ -93,6 +93,7 @@ public:
   // lines and to pass each line to HandleOneLine, which is the core command processor for the system
   void HandleOneLine(uint8_t *pData, size_t dwDataLen);
   void DoRetry(void);
+  void IdleTimeout(void);
 
 private:
   // These are configuration items

@@ -746,6 +746,13 @@ void ImapSession::DoRetry(void) {
   m_driver->Unlock();
 }
 
+// This method is called to retry a locking attempt
+void ImapSession::IdleTimeout(void) {
+  m_state = ImapLogoff;
+  m_driver->WantsToSend("* BYE Idle timeout disconnect\r\n");
+  m_server->KillSession(m_driver);
+}
+
 // This function assumes that it is passed a single entire line each time.
 // It returns true if it's expecting more data, and false otherwise
 void ImapSession::HandleOneLine(uint8_t *data, size_t dataLen) {
