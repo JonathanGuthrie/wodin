@@ -341,6 +341,7 @@ ImapSession::ImapSession(ImapMaster *master, SessionDriver *driver, InternetServ
   m_server->AddTimerAction(new DeltaQueueIdleTimer(m_master->GetLoginTimeout(), this));
   m_server->AddTimerAction(new DeltaQueueAsynchronousAction(m_master->GetAsynchronousEventTime(), this));
   m_driver->WantsToReceive();
+  m_currentHandler = NULL;
 }
 
 ImapSession::~ImapSession() {
