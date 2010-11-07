@@ -2,7 +2,7 @@
 
 #include <stdlib.h>
 
-#include <libcppserver/internetserver.hpp>
+#include <clotho/internetserver.hpp>
 
 #include "imapmaster.hpp"
 #include "namespace.hpp"

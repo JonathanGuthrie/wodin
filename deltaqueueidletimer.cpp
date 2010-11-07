@@ -1,7 +1,7 @@
 #include <time.h>
 
-#include <libcppserver/internetserver.hpp>
-#include <libcppserver/deltaqueueaction.hpp>
+#include <clotho/internetserver.hpp>
+#include <clotho/deltaqueueaction.hpp>
 
 #include "deltaqueueidletimer.hpp"
 #include "imapmaster.hpp"

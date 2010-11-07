@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include <libcppserver/insensitive.hpp>
+#include <clotho/insensitive.hpp>
 
 class ImapMaster;
 

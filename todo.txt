@@ -119,6 +119,9 @@ done)  Configurable home directory location
 
 done)  Figure out how to not have SocketBindErrorException
 
+38)  Fix a defect:  If it doesn't receive whole lines, it doesn't work.  This is because WantsToReceive is only called in
+  the HandleOneLine method of ImapSession.  It needs to be called in ReceiveData.
+
 38)  Really add the support for STARTTLS
 
 39)  Support listening on multiple ports, and support ports that require SSL.

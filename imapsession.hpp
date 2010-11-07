@@ -8,10 +8,10 @@
 
 #include <stdint.h>
 
-#include <libcppserver/insensitive.hpp>
-#include <libcppserver/internetsession.hpp>
-#include <libcppserver/internetserver.hpp>
-#include <libcppserver/sessiondriver.hpp>
+#include <clotho/insensitive.hpp>
+#include <clotho/internetsession.hpp>
+#include <clotho/internetserver.hpp>
+#include <clotho/sessiondriver.hpp>
 
 #include "imapuser.hpp"
 #include "namespace.hpp"

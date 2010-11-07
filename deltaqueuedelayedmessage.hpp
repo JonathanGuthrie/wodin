@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include <libcppserver/deltaqueueaction.hpp>
+#include <clotho/deltaqueueaction.hpp>
 
 class DeltaQueueDelayedMessage : public DeltaQueueAction {
 public:

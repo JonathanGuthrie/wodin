@@ -1,6 +1,6 @@
 CC=g++
 CXXFLAGS=-g
-LDFLAGS=-lpthread -lcrypt -lcppserver
+LDFLAGS=-lpthread -lcrypt -lclotho
 
 %.d: %.cpp
 	@set -e; rm -f $@; \

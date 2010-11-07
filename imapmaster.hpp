@@ -1,7 +1,7 @@
 #if !defined(_IMAPMASTER_HPP_INCLUDED_)
 #define _IMAPMASTER_HPP_INCLUDED_
 
-#include <libcppserver/servermaster.hpp>
+#include <clotho/servermaster.hpp>
 
 #include "imapsession.hpp"
 

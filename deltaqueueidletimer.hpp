@@ -1,8 +1,8 @@
 #if !defined(_DELTAQUEUEIDLETIMER_HPP_INCLUDED_)
 #define _DELTAQUEUEIDLETIMER_HPP_INCLUDED_
 
-#include <libcppserver/deltaqueueaction.hpp>
-#include <libcppserver/internetsession.hpp>
+#include <clotho/deltaqueueaction.hpp>
+#include <clotho/internetsession.hpp>
 
 // The idle timer is never reset.  Instead, I keep the time the last command
 // was executed and then check for the timeout period elapsing when the timer expires

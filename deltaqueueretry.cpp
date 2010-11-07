@@ -1,6 +1,6 @@
 #include <time.h>
 
-#include <libcppserver/internetserver.hpp>
+#include <clotho/internetserver.hpp>
 
 #include "deltaqueueretry.hpp"
 #include "imapsession.hpp"

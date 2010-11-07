@@ -1,7 +1,7 @@
 #if !defined(_DELTAQUEUERETRY_HPP_INCLUDED_)
 #define _DELTAQUEUERETRY_HPP_INCLUDED_
 
-#include <libcppserver/deltaqueueaction.hpp>
+#include <clotho/deltaqueueaction.hpp>
 
 #include "mailstore.hpp"
 
