@@ -155,7 +155,7 @@ Sasl::status SaslPlain::ReceiveResponse(const std::string &csLine2) {
       int pos = line.find('\0', 1);
       std::string author = line.substr(1, pos);
       std::string password = line.substr(pos+1);
-      ImapUser *userData = m_master->GetUserInfo(author.c_str());
+      ImapUser *userData = m_master->userInfo(author.c_str());
       if (userData->CheckCredentials(password.c_str())) { // Note: Assuming "not secure"
 	m_authorizationEntity = author;
 	m_currentStatus = ok;
@@ -172,7 +172,7 @@ Sasl::status SaslPlain::ReceiveResponse(const std::string &csLine2) {
       pos = line.find('\0');
       std::string authen = line.substr(0, pos);
       std::string password = line.substr(pos+1);
-      ImapUser *userData = m_master->GetUserInfo(author.c_str());
+      ImapUser *userData = m_master->userInfo(author.c_str());
       if (userData->CheckCredentials(password.c_str())) { // Note: Assuming "not secure"
 	m_authorizationEntity = author;
 	m_currentStatus = ok;

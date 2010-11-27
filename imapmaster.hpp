@@ -16,29 +16,29 @@ public:
   virtual ~ImapMaster(void);
   virtual ImapSession *NewSession(SessionDriver *driver, InternetServer *server);
 
-  ImapUser *GetUserInfo(const char *userid);
-  Namespace *GetMailStore(ImapSession *session);
+  ImapUser *userInfo(const char *userid);
+  Namespace *mailStore(ImapSession *session);
   bool IsAnonymousEnabled() { return false; } // SYZYGY ANONYMOUS
   // This will send the specified message out the specified socket
   // after the specified number of seconds and then set that session
   // up to receive again
-  time_t GetIdleTimeout(void) const { return m_idleTimeout; /* seconds */ }
-  time_t GetLoginTimeout(void) const { return m_loginTimeout; /* seconds */ }
-  time_t GetAsynchronousEventTime(void) const { return m_asynchronousEventTime; /* seconds */ }
-  const std::string &GetFQDN(void) const { return m_fqdn; }
-  bool UseConfiguredUid(void) const { return m_useConfiguredUid; }
-  uid_t GetConfiguredUid(void) const { return m_configuredUid; }
-  bool UseConfiguredGid(void) const { return m_useConfiguredGid; }
-  uid_t GetConfiguredGid(void) const { return m_configuredGid; }
-  void SetFQDN(const std::string &fqdn) { m_fqdn = fqdn; }
-  unsigned GetBadLoginPause(void) const { return m_badLoginPause; }
-  unsigned GetMaxRetries(void) const { return m_maxRetries; }
-  unsigned GetRetryDelaySeconds(void) const { return m_retryDelaySeconds; }
+  time_t idleTimeout(void) const { return m_idleTimeout; /* seconds */ }
+  time_t loginTimeout(void) const { return m_loginTimeout; /* seconds */ }
+  time_t asynchronousEventTime(void) const { return m_asynchronousEventTime; /* seconds */ }
+  const std::string &fqdn(void) const { return m_fqdn; }
+  bool useConfiguredUid(void) const { return m_useConfiguredUid; }
+  uid_t configuredUid(void) const { return m_configuredUid; }
+  bool useConfiguredGid(void) const { return m_useConfiguredGid; }
+  uid_t configuredGid(void) const { return m_configuredGid; }
+  void fqdn(const std::string &fqdn) { m_fqdn = fqdn; }
+  unsigned badLoginPause(void) const { return m_badLoginPause; }
+  unsigned maxRetries(void) const { return m_maxRetries; }
+  unsigned retryDelaySeconds(void) const { return m_retryDelaySeconds; }
 #if 0
-  void SetIdleTimer(SessionDriver *driver, unsigned seconds);
-  void ScheduleAsynchronousAction(SessionDriver *driver, unsigned seconds);
-  void ScheduleRetry(SessionDriver *driver, unsigned seconds);
-  void DelaySend(SessionDriver *driver, unsigned seconds, const std::string &message);
+  void idleTimer(SessionDriver *driver, unsigned seconds);
+  void scheduleAsynchronousAction(SessionDriver *driver, unsigned seconds);
+  void scheduleRetry(SessionDriver *driver, unsigned seconds);
+  void delaySend(SessionDriver *driver, unsigned seconds, const std::string &message);
 #endif // 0
 
 private:

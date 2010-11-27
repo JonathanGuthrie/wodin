@@ -16,8 +16,8 @@ void DeltaQueueIdleTimer::HandleTimeout(bool isPurge) {
         const ImapMaster *imap_master = dynamic_cast<const ImapMaster *>(imap_session->GetMaster());
 	time_t now = time(NULL);
 	unsigned timeout = (ImapNotAuthenticated == imap_session->GetState()) ?
-	    imap_master->GetLoginTimeout() :
-	    imap_master->GetIdleTimeout();
+	    imap_master->loginTimeout() :
+	    imap_master->idleTimeout();
 
 	if ((now - timeout) > imap_session->GetLastCommandTime()) {
 	    imap_session->IdleTimeout();

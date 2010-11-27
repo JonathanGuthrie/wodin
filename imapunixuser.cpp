@@ -17,14 +17,14 @@ ImapUnixUser::ImapUnixUser(const char *user, const ImapMaster *master) : ImapUse
     {
 	if (0 == strcmp(pass->pw_name, user))
 	{
-	    if (master->UseConfiguredUid()) {
-		m_uid = master->GetConfiguredUid();
+	    if (master->useConfiguredUid()) {
+		m_uid = master->configuredUid();
 	    }
 	    else {
 		m_uid = pass->pw_uid;
 	    }
-	    if (master->UseConfiguredGid()) {
-		m_gid = master->GetConfiguredGid();
+	    if (master->useConfiguredGid()) {
+		m_gid = master->configuredGid();
 	    }
 	    else {
 		m_gid = pass->pw_gid;

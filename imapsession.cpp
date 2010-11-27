@@ -324,12 +324,12 @@ ImapSession::ImapSession(ImapMaster *master, SessionDriver *driver, InternetServ
   m_purgedMessages.clear();
   m_retries = 0;
 
-  m_failedLoginPause = m_master->GetBadLoginPause();
-  m_maxRetries = m_master->GetMaxRetries();
-  m_retryDelay = m_master->GetRetryDelaySeconds();
+  m_failedLoginPause = m_master->badLoginPause();
+  m_maxRetries = m_master->maxRetries();
+  m_retryDelay = m_master->retryDelaySeconds();
 
-  m_server->AddTimerAction(new DeltaQueueIdleTimer(m_master->GetLoginTimeout(), this));
-  m_server->AddTimerAction(new DeltaQueueAsynchronousAction(m_master->GetAsynchronousEventTime(), this));
+  m_server->AddTimerAction(new DeltaQueueIdleTimer(m_master->loginTimeout(), this));
+  m_server->AddTimerAction(new DeltaQueueAsynchronousAction(m_master->asynchronousEventTime(), this));
   m_driver->WantsToReceive();
   m_currentHandler = NULL;
 }
@@ -949,7 +949,7 @@ IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, siz
     IMAP_RESULTS result; 
     switch (m_parseStage) {
     case 0:
-	m_userData = m_master->GetUserInfo((char *)&m_parseBuffer[m_arguments]);
+	m_userData = m_master->userInfo((char *)&m_parseBuffer[m_arguments]);
 	atom(data, dataLen, parsingAt);
 	m_auth = SaslChooser(m_master, (char *)&m_parseBuffer[m_arguments]);
 	if (NULL != m_auth) {
@@ -971,10 +971,10 @@ IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, siz
 	case Sasl::ok:
 	    result = IMAP_OK;
 	    // user->GetUserFileSystem();
-	    m_userData = m_master->GetUserInfo(m_auth->getUser().c_str());
+	    m_userData = m_master->userInfo(m_auth->getUser().c_str());
 
 	    if (NULL == m_store) {
-		m_store = m_master->GetMailStore(this);
+		m_store = m_master->mailStore(this);
 	    }
 
 	    // Log("Client %u logged-in user %s %lu\n", m_dwClientNumber, m_pUser->m_szUsername.c_str(), m_pUser->m_nUserID);
@@ -1006,7 +1006,7 @@ IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, siz
 IMAP_RESULTS ImapSession::LoginHandlerExecute() {
     IMAP_RESULTS result;
 
-    m_userData = m_master->GetUserInfo((char *)&m_parseBuffer[m_arguments]);
+    m_userData = m_master->userInfo((char *)&m_parseBuffer[m_arguments]);
     bool v = m_userData->CheckCredentials((char *)&m_parseBuffer[m_arguments+(strlen((char *)&m_parseBuffer[m_arguments])+1)]);
     if (v)
     {
@@ -1014,7 +1014,7 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute() {
 	// SYZYGY LOG
 	// Log("Client %u logged-in user %s %lu\n", m_dwClientNumber, m_pUser->m_szUsername.c_str(), m_pUser->m_nUserID);
 	if (NULL == m_store) {
-	    m_store = m_master->GetMailStore(this);
+	    m_store = m_master->mailStore(this);
 	}
 	// store->FixMailstore(); // I only un-comment this, if I have reason to believe that mailboxes are broken
 

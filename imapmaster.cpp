@@ -25,11 +25,11 @@ ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_t
 ImapMaster::~ImapMaster(void) {
 }
 
-ImapUser *ImapMaster::GetUserInfo(const char *userid) {
+ImapUser *ImapMaster::userInfo(const char *userid) {
   return (ImapUser *) new ImapUnixUser(userid, this);
 }
 
-Namespace *ImapMaster::GetMailStore(ImapSession *session) {
+Namespace *ImapMaster::mailStore(ImapSession *session) {
   Namespace *result = new Namespace(session);
   // need namespaces for #mhinbox, #mh, ~, #shared, #ftp, #news, and #public, just like
   // uw-imap, although all of them have stubbed-out mail stores for them

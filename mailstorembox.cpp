@@ -167,7 +167,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::CreateMailbox(const std::string &Ful
 			}
 		    }
 		    else {
-			if (0 != (m_errnoFromLibrary = writeMailboxMetadataFile(fullPath.c_str(), m_session->GetMaster()->GetFQDN().c_str(), m_session->GetUser()->GetUid()))) {
+			if (0 != (m_errnoFromLibrary = writeMailboxMetadataFile(fullPath.c_str(), m_session->GetMaster()->fqdn().c_str(), m_session->GetUser()->GetUid()))) {
 			    result = MAILBOX_PATH_BAD;
 			}
 		    }
@@ -349,7 +349,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::RenameMailbox(const std::string &Sou
 	// std::cout << "Attempting to rename \"" << sourcePath << "\" to \"" << destPath << "\"" << std::endl;
 	if (0 == rename(sourcePath.c_str(), destPath.c_str())) {
 	    if (isInbox) {
-		writeMailboxMetadataFile(sourcePath.c_str(), m_session->GetMaster()->GetFQDN().c_str(), m_session->GetUser()->GetUid());
+		writeMailboxMetadataFile(sourcePath.c_str(), m_session->GetMaster()->fqdn().c_str(), m_session->GetUser()->GetUid());
 	    }
 	}
 	else {
@@ -607,7 +607,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::AddMessageToMailbox(const std::strin
 		m_outFile = new std::ofstream(fullPath.c_str(), std::ios_base::out|std::ios_base::app|std::ios_base::binary);
 
 		createTime.SetFormat(DateTime::FROM_LINE);
-		*m_outFile << "From " << m_session->GetUser()->GetName() << "@" << m_session->GetMaster()->GetFQDN() << " " << createTime.str() << "\n";
+		*m_outFile << "From " << m_session->GetUser()->GetName() << "@" << m_session->GetMaster()->fqdn() << " " << createTime.str() << "\n";
 		*m_outFile << "X-Status: ";
 		if (0 != (IMAP_MESSAGE_ANSWERED & messageFlags)) {
 		    *m_outFile << 'A';

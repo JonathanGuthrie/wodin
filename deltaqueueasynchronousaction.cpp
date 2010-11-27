@@ -17,6 +17,6 @@ void DeltaQueueAsynchronousAction::HandleTimeout(bool isPurge)
     ImapMaster *imap_master = dynamic_cast<ImapMaster *>(imap_session->GetMaster());
     if (!isPurge) {
       imap_session->AsynchronousEvent();
-      imap_session->GetServer()->AddTimerAction(new DeltaQueueAsynchronousAction(imap_master->GetAsynchronousEventTime(), m_session));
+      imap_session->GetServer()->AddTimerAction(new DeltaQueueAsynchronousAction(imap_master->asynchronousEventTime(), m_session));
     }
 }
