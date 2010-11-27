@@ -102,7 +102,9 @@ done)  Throw exception for failures in ImapServer::ImapServer
 
 done)  Configurable home directory location
 
-36)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf,
+done)  Rename the project to Wodin
+
+37)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf,
   dot lock)
   done)  Reformulate the handlers to get rid of the huge switch
   done)  Add a "cannot_complete" result to Mail store
@@ -119,28 +121,28 @@ done)  Configurable home directory location
 
 done)  Figure out how to not have SocketBindErrorException
 
-38)  Fix a defect:  If it doesn't receive whole lines, it doesn't work.  This is because WantsToReceive is only called in
+39)  Fix a defect:  If it doesn't receive whole lines, it doesn't work.  This is because WantsToReceive is only called in
   the HandleOneLine method of ImapSession.  It needs to be called in ReceiveData.
 
-38)  Really add the support for STARTTLS
+39)  Really add the support for STARTTLS
 
-39)  Support listening on multiple ports, and support ports that require SSL.
+40)  Support listening on multiple ports, and support ports that require SSL.
 
-40)  Re-do the boyer-moore-pratt search so it's not downloaded code
+41)  Re-do the boyer-moore-pratt search so it's not downloaded code
 
-41)  Add support user-defined flags to the initial mailstore
+42)  Add support user-defined flags to the initial mailstore
 
-42)  Add the logic required to forbid logins outside of tls sessions
+43)  Add the logic required to forbid logins outside of tls sessions
 
-43)  Compile without warnings with -Wall
+44)  Compile without warnings with -Wall
 
-44)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
+45)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
-45)  Test the SASL authentication modes
+46)  Test the SASL authentication modes
 
-46)  Overwrite the strings that hold passwords
+47)  Overwrite the strings that hold passwords
 
-)  Handle search charsets other than US-ASCII
+48)  Handle search charsets other than US-ASCII
 
 )  Add anonymous authentication to the capability string (availability should be known by the server class--make that so as well)
 

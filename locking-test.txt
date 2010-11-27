@@ -99,7 +99,9 @@ OpenMessageFile is called in ImapSession::SendMessageChunk and ImapSession::Copy
 
 MailboxLock is called in ImapSession::SearchHandlerExecute and ImapSession::FetchHandlerExecute
 
-MailboxUnlock is called in ImapSession::SearchHandlerExecute  WHAT ABOUT ImapSession::FetchHandlerExecute?
+MailboxUnlock is called in ImapSession::SearchHandlerExecute and ImapSession::FetchHandlerExecute
+
+
 
 
 
