@@ -1,0 +1,2 @@
+The "CANNOT_COMPLETE_ACTION" response indicates that there was a temporary failure that should be tried again after a short delay.  It originally meant that a locking operation failed due to the resource already being locked by another process.  If the Lock method returns success, then that indicates that a temporary failure is not possible because all the conditions that could lead to temporary failures have been checked and the possibility of temporary failure has been eliminated.  In the original implementation, the "Lock" actually locked the file.
+

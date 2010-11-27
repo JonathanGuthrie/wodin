@@ -1,0 +1,105 @@
+I have been critical of the idea of unit tests for a long time.  I have pointed
+that unit tests as implemented fall in to one of two categores:  trivial and
+impossible.  The impossible tests are, well, impossible so they are never done
+and the trivial tests are easily replaced with manual, integrated, tests so
+they're just so much wasted work.
+
+Further, every time I've asked unit test fans about why they demand that the
+entire world produce unit tests for all the world's code, the answers I get
+are tautologies like "that way, your code will be tested" or statements about
+the quality of their code like "I would never produce a program without unit
+tests".  To my mind, neither of those sorts of responses is particularly
+helpful in determining whether or not I should go to the extra work (something
+like three to five times as much work as it took to write the code that is
+under test!) to produce unit tests.
+
+It has been claimed that I'm missing the benefits, and that's true, but since
+I have made multiple strenuous good-faith attempts to find out what those 
+benefits are and since the people who supposedly know about those benefits 
+have been entirely unable to express them to me in anything like an coherent
+fashion, that claim leaves me unmoved.  I will produce unit tests when those
+who sign my checks insist on them, and no sooner.
+
+After that three-paragraph rant on unit tests, it may surprise you to know that
+I am planning a sort of a unit test suite for the IMAP locking code.  Indeed,
+this document forms the basis of the design for those tests.  I am doing these
+test in this way because the logic for locking lives in two different places,
+the command processing and the low-level mail store driver.  In order to isolate
+problems, I need to separate the tests and that's easiest done with a test
+framework specially implemented to make it easy.  If I'm going to the trouble of
+building a test framework, then it is easy enough to automate the tests, which
+result in a unit test suite, at least for the command processing.
+
+The way locking in the mail store interacts with the command processor is by
+returning the enum value CANNOT_COMPLETE_ACTION instead of success.  That means
+that any method that could return a MAIL_STORE_RESULT value can fail to acquire
+a lock and, therefore, any command that calls one of those methods needs to have
+its locking logic tested.  One wrinkle:  A mail store is not permitted to return
+CANNOT_COMPLETE_ACTION if MailboxLock has already been called.  That allows the
+implmentor (that is, me) to concentrate the locking logic for situations where
+it would be complicated if each call could fail.
+
+These are the methods that return a MAIL_STORE_RESULT:
+    CreateMailbox
+    DeleteMailbox
+    RenameMailbox
+    MailboxClose
+    SubscribeMailbox
+    AddMessageToMailbox
+    AppendDataToMessage
+    DoneAppendingDataToMessage
+    MailboxOpen
+    ListDeletedMessages
+    ExpungeThisUid
+    GetMailboxCounts
+    MessageList
+    MessageUpdateFlags
+    MailboxFlushBuffers
+    MailboxUpdateStats
+    DeleteMessage
+    OpenMessageFile
+    MailboxLock
+    MailboxUnlock
+
+CreateMailbox is called in ImapSession::AuthenticateHandler, ImapSession::LoginHandlerExecute, ImapSession::CreateHandlerExecute
+
+DeleteMailbox is called in ImapSession::DeleteHandlerExecute
+
+RenameMailbox is called in ImapSession::RenameHandler
+
+MailboxClose is called in ImapSession::~ImapSession, ImapSession::LogoutHandler, ImapSession::SelectHandlerExecute, ImapSession::CloseHandler
+
+SubscribeMailbox is called in ImapSession::SubscribeHandlerExecute
+
+AddMessageToMailbox is called in ImapSession::AppendHandlerExecute and ImapSession::CopyHandlerExecute
+
+AppendDataToMessage is called in ImapSession::AppendHandler
+
+DoneAppendingDataToMessage is called in ImapSession::AppendHandler (in two different places) and ImapSession::CopyHandlerExecute
+
+MailboxOpen is called in ImapSession::SelectHandlerExecute
+
+ListDeletedMessages is called in ImapSession::CloseHandler, ImapSession::ExpungeHandler
+
+ExpungeThisUid is called in ImapSession::FormatTaggedResponse, ImapSession::CloseHandler
+
+GetMailboxCounts is called in ImapSession::StatusHandler
+
+MessageList is called in ImapSession::UpdateSearchTerm
+
+MessageUpdateFlags is called in ImapSession::FetchHandlerExecute, ImapSession::StoreHandler
+
+MailboxFlushBuffers is called in ImapSession::CheckHandler
+
+MailboxUpdateStats is called in ImapSession::AsynchronousEvent and ImapSession::CheckHandler
+
+DeleteMessage is called in ImapSession::AppendHandler and ImapSession::CopyHandlerExecute
+
+OpenMessageFile is called in ImapSession::SendMessageChunk and ImapSession::CopyHandlerExecute
+
+MailboxLock is called in ImapSession::SearchHandlerExecute and ImapSession::FetchHandlerExecute
+
+MailboxUnlock is called in ImapSession::SearchHandlerExecute  WHAT ABOUT ImapSession::FetchHandlerExecute?
+
+
+
