@@ -5,7 +5,7 @@ LDFLAGS=-lpthread -lcrypt -lclotho
 %.d: %.cpp
 	@set -e; rm -f $@; \
 	$(CC) -MM $(CPPFLAGS) $< > $@.$$$$; \
-	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : Makefile ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
 SOURCES=imapd.cpp \
@@ -33,44 +33,10 @@ imapd: imapd.o imapsession.o imapunixuser.o imapuser.o sasl.o base64.o mailstore
         namespace.o mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o \
         imapmaster.o
 
+locking-test: locking-test.o imapsession.o
+
 include $(SOURCES:.cpp=.d)
 
-imapd.o:  Makefile
-
-imapsession.o:  Makefile
-
-socket.o:  Makefile
-
-imapunixuser.o:  Makefile
-
-imapuser.o:  Makefile
-
-sasl.o:  Makefile
-
-base64.o:  Makefile
-
-mailstorembox.o:  Makefile
-
-mailstore.o:  Makefile
-
-deltaqueueidletimer.o:  Makefile
-
-deltaqueuecheckmailbox.o:  Makefile
-
-deltaqueuedelayedmessage.o: Makefile
-
-namespace.o: Makefile
-
-mailstoreinvalid.o: Makefile
-
-datetime.o: Makefile
-
-mailsearch.o: Makefile
-
-mailstorelocktest.o:  Makefile
-
-imapmaster.o: Makefile
-
 clean:
-	rm -f *.o *.d imapd
+	rm -f *.o *.d imapd locking-test
 
