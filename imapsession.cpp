@@ -4734,6 +4734,7 @@ IMAP_RESULTS ImapSession::FetchHandlerExecute(bool usingUid) {
 	    }
 // ^-- This part executes the fetch request
 	}
+	m_store->MailboxUnlock();
     }
     else {
 	finalResult = IMAP_TRY_AGAIN;
