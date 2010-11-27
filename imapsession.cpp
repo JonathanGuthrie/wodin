@@ -976,7 +976,6 @@ IMAP_RESULTS ImapSession::AuthenticateHandler(uint8_t *data, size_t dataLen, siz
 	    if (NULL == m_store) {
 		m_store = m_master->GetMailStore(this);
 	    }
-	    m_store->CreateMailbox("INBOX");
 
 	    // Log("Client %u logged-in user %s %lu\n", m_dwClientNumber, m_pUser->m_szUsername.c_str(), m_pUser->m_nUserID);
 
@@ -1017,7 +1016,6 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute() {
 	if (NULL == m_store) {
 	    m_store = m_master->GetMailStore(this);
 	}
-	m_store->CreateMailbox("INBOX");
 	// store->FixMailstore(); // I only un-comment this, if I have reason to believe that mailboxes are broken
 
 	// SYZYGY LOG
