@@ -1,13 +1,3 @@
-///////////////////////////////////////////////////////////////////////////////
-//
-// imapsession.cpp : Implementation of ImapSession
-//
-// Simdesk, Inc. © 2002-2004
-// Author: Jonathan Guthrie
-//
-///////////////////////////////////////////////////////////////////////////////
-
-
 // I have a timer that can fire and handle several different cases:
 //   Look for updated data for asynchronous notifies
 //   ***DONE*** Delay for failed LOGIN's or AUTHENTICATIONS
@@ -358,7 +348,7 @@ ImapSession::~ImapSession() {
     }
     m_userData = NULL;
     if (ImapLogoff != m_state) {
-      m_driver->WantsToSend("* BYE SimDesk IMAP4rev1 server shutting down\r\n");
+      m_driver->WantsToSend("* BYE Wodin IMAP4rev1 server shutting down\r\n");
     }
 }
 
@@ -1047,10 +1037,10 @@ IMAP_RESULTS ImapSession::LoginHandlerExecute() {
 
 /*
  * Okay, the login command's use is officially deprecated.  Instead, you're supposed
- * to use the AUTHENTICATE command with some SASL mechanism.  Since I'm trying to
- * duplicate the functionality of SimDesk's current IMAP server, I will include it,
+ * to use the AUTHENTICATE command with some SASL mechanism.  I will include it,
  * but I'll also include a check of the login_disabled flag, which will set whether or
- * not this command is accepted by the command processor
+ * not this command is accepted by the command processor.  Eventually, the master will
+ * know whether or not to accept the login command.
  */
 IMAP_RESULTS ImapSession::LoginHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused) {
     IMAP_RESULTS result;
