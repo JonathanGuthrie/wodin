@@ -12,6 +12,8 @@ public:
   bool mailboxAlreadyLocked(void);
 };
 
+extern LockState g_lockState;
+
 /*
  * The MailStoreLockTest class implements a mail store that is only useful to test the lock handling of the
  * IMAP session handler
@@ -69,7 +71,6 @@ public:
 
 private:
   bool m_isLocked;
-  LockState *m_lockState;
 };
 
 #endif // _MAILSTORELOCKTEST_HPP_INCLUDED_

@@ -3,19 +3,20 @@
 #include "mailstorelocktest.hpp"
 #include "imapsession.hpp"
 
+LockState g_lockState;
+
 bool LockState::mailboxAlreadyLocked(void) {
   return true;
 }
 
 MailStoreLockTest::MailStoreLockTest(ImapSession *session) : MailStore(session) {
   m_isLocked = false;
-  m_lockState = NULL;
 }
 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::createMailbox(const std::string &FullName) {
   MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  if (m_lockState->mailboxAlreadyLocked()) {
+  if (g_lockState.mailboxAlreadyLocked()) {
     result = MailStore::CANNOT_COMPLETE_ACTION;
   }
   return result;
@@ -194,7 +195,7 @@ MailStoreLockTest *MailStoreLockTest::clone(void) {
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::lock(void) {
   MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
-  if (m_lockState->mailboxAlreadyLocked()) {
+  if (g_lockState.mailboxAlreadyLocked()) {
     result = MailStore::CANNOT_COMPLETE_ACTION;
   }
   else {

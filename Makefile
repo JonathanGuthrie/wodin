@@ -26,8 +26,12 @@ SOURCES=imapd.cpp \
 	datetime.cpp \
 	mailsearch.cpp \
 	mailmessage.cpp \
+	imapmaster.cpp \
+	locking-test.cpp \
 	mailstorelocktest.cpp \
-	imapmaster.cpp
+	imapmasterlocktest.cpp \
+	locktestmaster.cpp \
+	imaplocktestuser.cpp
 
 imapd: imapd.o imapsession.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o \
         mailstore.o idletimer.o asynchronousaction.o delayedmessage.o \
@@ -41,7 +45,7 @@ testasynchronousaction.o:  asynchronousaction.cpp Makefile
 	$(CC) $(CXXTESTFLAGS) -c -o $@ $<
 
 # The first five targets are custom just for the test.  The imapmasterlocktest.cpp file contains a reimplementation of ImapMaster
-locking-test: locking-test.o mailstorelocktest.o imapmasterlocktest.o locktestmaster.o imaplocktestuser.o  testidletimer.o testasynchronousaction.o namespace.o mailstore.o imapsession.o datetime.o mailmessage.o delayedmessage.o retry.o sasl.o mailsearch.o imapuser.o base64.o
+locking-test: locking-test.o mailstorelocktest.o imapmasterlocktest.o locktestmaster.o imaplocktestuser.o testidletimer.o testasynchronousaction.o namespace.o mailstore.o imapsession.o datetime.o mailmessage.o delayedmessage.o retry.o sasl.o mailsearch.o imapuser.o base64.o
 
 include $(SOURCES:.cpp=.d)
 
