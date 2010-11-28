@@ -2,7 +2,7 @@
 
 #include <clotho/deltaqueueaction.hpp>
 
-#include "deltaqueueasynchronousaction.hpp"
+#include "asynchronousaction.hpp"
 #include "imapmaster.hpp"
 #include "imapsession.hpp"
 

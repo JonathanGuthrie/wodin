@@ -16,10 +16,10 @@ SOURCES=imapd.cpp \
 	base64.cpp \
 	mailstore.cpp \
 	mailstorembox.cpp \
-	deltaqueueidletimer.cpp \
-	deltaqueueasynchronousaction.cpp \
-	deltaqueuedelayedmessage.cpp \
-	deltaqueueretry.cpp \
+	idletimer.cpp \
+	asynchronousaction.cpp \
+	delayedmessage.cpp \
+	retry.cpp \
 	namespace.cpp \
 	mailstoreinvalid.cpp \
 	datetime.cpp \
@@ -29,9 +29,9 @@ SOURCES=imapd.cpp \
 	imapmaster.cpp
 
 imapd: imapd.o imapsession.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o \
-        mailstore.o deltaqueueidletimer.o deltaqueueasynchronousaction.o deltaqueuedelayedmessage.o \
-        namespace.o mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o deltaqueueretry.o mailstorelocktest.o \
-        imapmaster.o
+        mailstore.o idletimer.o asynchronousaction.o delayedmessage.o \
+        namespace.o mailstoreinvalid.o datetime.o mailsearch.o mailmessage.o retry.o \
+	imapmaster.o
 
 locking-test: locking-test.o imapsession.o
 

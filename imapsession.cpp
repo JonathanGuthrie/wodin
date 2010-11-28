@@ -15,10 +15,10 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "deltaqueuedelayedmessage.hpp"
-#include "deltaqueueidletimer.hpp"
-#include "deltaqueueasynchronousaction.hpp"
-#include "deltaqueueretry.hpp"
+#include "delayedmessage.hpp"
+#include "idletimer.hpp"
+#include "asynchronousaction.hpp"
+#include "retry.hpp"
 #include "imapsession.hpp"
 #include "imapmaster.hpp"
 #include "sasl.hpp"

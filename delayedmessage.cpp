@@ -1,6 +1,6 @@
 #include <clotho/internetserver.hpp>
 
-#include "deltaqueuedelayedmessage.hpp"
+#include "delayedmessage.hpp"
 #include "imapsession.hpp"
 
 DeltaQueueDelayedMessage::DeltaQueueDelayedMessage(int delta, InternetSession *session, const std::string message) : DeltaQueueAction(delta, session), message(message) {}

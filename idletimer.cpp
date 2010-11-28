@@ -3,7 +3,7 @@
 #include <clotho/internetserver.hpp>
 #include <clotho/deltaqueueaction.hpp>
 
-#include "deltaqueueidletimer.hpp"
+#include "idletimer.hpp"
 #include "imapmaster.hpp"
 #include "imapsession.hpp"
 

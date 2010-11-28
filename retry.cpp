@@ -2,7 +2,7 @@
 
 #include <clotho/internetserver.hpp>
 
-#include "deltaqueueretry.hpp"
+#include "retry.hpp"
 #include "imapsession.hpp"
 
 DeltaQueueRetry::DeltaQueueRetry(int delta, InternetSession *session) : DeltaQueueAction(delta, session) { }
