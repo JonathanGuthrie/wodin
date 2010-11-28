@@ -2,51 +2,49 @@
 
 #include "imapuser.hpp"
 
-ImapUser::ImapUser(const char *user, const ImapMaster *master)
-{
-    name = new std::string(user);
-    userFound = false;
-}
-
-ImapUser::~ImapUser()
-{
-    delete name;
+ImapUser::ImapUser(const char *user, const ImapMaster *master) {
+  m_name = new std::string(user);
+  m_userFound = false;
 }
 
 
-std::string *ImapUser::ExpandPath(const std::string &specifier) const
-{
-    std::string *result = new std::string;
-    std::string::size_type i, previous;
+ImapUser::~ImapUser() {
+  delete m_name;
+}
 
-    for (i = specifier.find_first_of('%', 0), previous = 0; i != std::string::npos; i = specifier.find_first_of('%', i+1)) {
-	result->append(specifier.substr(previous, i-previous));
-	if (i < specifier.size()-1) {
-	    ++i;
-	    switch(specifier[i]) {
-	    case 'n':
-		++i;
-		result->append(this->GetName());
-		break;
 
-	    case 'h':
-		++i;
-		result->append(this->GetHomeDir());
-		break;
+std::string *ImapUser::expandPath(const std::string &specifier) const {
+  std::string *result = new std::string;
+  std::string::size_type i, previous;
 
-	    case '%':
-		++i;
-		result->append("%");
-		break;
+  for (i = specifier.find_first_of('%', 0), previous = 0; i != std::string::npos; i = specifier.find_first_of('%', i+1)) {
+    result->append(specifier.substr(previous, i-previous));
+    if (i < specifier.size()-1) {
+      ++i;
+      switch(specifier[i]) {
+      case 'n':
+	++i;
+	result->append(this->name());
+	break;
 
-	    default:
-		result->append("%");
-		break;
-	    }
-	}
-	previous = i;
+      case 'h':
+	++i;
+	result->append(this->homeDir());
+	break;
+
+      case '%':
+	++i;
+	result->append("%");
+	break;
+
+      default:
+	result->append("%");
+	break;
+      }
     }
-    result->append(specifier.substr(previous));
+    previous = i;
+  }
+  result->append(specifier.substr(previous));
 
-    return result;
+  return result;
 }

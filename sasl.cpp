@@ -99,7 +99,7 @@ Sasl *SaslChooser(ImapMaster *master, const insensitiveString &residue) {
       }
       else {
 #endif /* 0 */
-	if (master->IsAnonymousEnabled() && (0 == residue.compare("ANONYMOUS"))) {
+	if (master->isAnonymousEnabled() && (0 == residue.compare("ANONYMOUS"))) {
 	  result = new SaslAnonymous(master);
 	}
 	else {
@@ -118,11 +118,11 @@ Sasl::Sasl(ImapMaster *master) {
   this->m_master = master;
 }
 
-void SaslAnonymous::SendChallenge(char *challenge_buff) {
+void SaslAnonymous::sendChallenge(char *challenge_buff) {
   challenge_buff[0] = '\0';
 }
 
-Sasl::status SaslAnonymous::ReceiveResponse(const std::string &csLine2) {
+Sasl::status SaslAnonymous::receiveResponse(const std::string &csLine2) {
   // RFC 2245 says that the response is optional, but that it can contain
   // tracking stuff.  I just ignore it until I have a use for it.
   m_authorizationEntity = "";
@@ -130,11 +130,11 @@ Sasl::status SaslAnonymous::ReceiveResponse(const std::string &csLine2) {
   return m_currentStatus;
 }
 
-void SaslPlain::SendChallenge(char *challenge_buff) {
+void SaslPlain::sendChallenge(char *challenge_buff) {
   challenge_buff[0] = '\0';
 }
 
-Sasl::status SaslPlain::ReceiveResponse(const std::string &csLine2) {
+Sasl::status SaslPlain::receiveResponse(const std::string &csLine2) {
   // What it gets back from the read_command is a base-64 encoded string with
   // the authentication stuff in it.  It's base-64 encoded because the response
   // is supposed to include NUL characters in it.
@@ -156,7 +156,7 @@ Sasl::status SaslPlain::ReceiveResponse(const std::string &csLine2) {
       std::string author = line.substr(1, pos);
       std::string password = line.substr(pos+1);
       ImapUser *userData = m_master->userInfo(author.c_str());
-      if (userData->CheckCredentials(password.c_str())) { // Note: Assuming "not secure"
+      if (userData->checkCredentials(password.c_str())) { // Note: Assuming "not secure"
 	m_authorizationEntity = author;
 	m_currentStatus = ok;
       }
@@ -173,7 +173,7 @@ Sasl::status SaslPlain::ReceiveResponse(const std::string &csLine2) {
       std::string authen = line.substr(0, pos);
       std::string password = line.substr(pos+1);
       ImapUser *userData = m_master->userInfo(author.c_str());
-      if (userData->CheckCredentials(password.c_str())) { // Note: Assuming "not secure"
+      if (userData->checkCredentials(password.c_str())) { // Note: Assuming "not secure"
 	m_authorizationEntity = author;
 	m_currentStatus = ok;
       }
@@ -187,14 +187,14 @@ Sasl::status SaslPlain::ReceiveResponse(const std::string &csLine2) {
 }
 
 #if 0
-CStdString CSaslDigestMD5::SendChallenge() {
+std::string CSaslDigestMD5::sendChallenge() {
   m_eCurrentStatus = no;
 
   // DANGER!  WIL ROBINSON!  DANGER!
   long int r1= random(), r2 = random(), r3 = random();
   // DANGER!  WIL ROBINSON!  DANGER!
 
-  CStdString nonce_value;
+  std::string nonce_value;
   m_csNonce += 0xff & (r1 >> 16);
   m_csNonce += 0xff & (r2 >> 16);
   m_csNonce += 0xff & (r3 >> 16);
@@ -208,7 +208,7 @@ CStdString CSaslDigestMD5::SendChallenge() {
   m_csNonce += 0xff & (r1 >> 0);
 
   m_csNonce = base64_encode(m_csNonce);
-  CStdString challenge;
+  std::string challenge;
   if (0 < m_cClient->GetAuthenticationRealm().size()) {
     challenge += _T("realm=\"") + m_cClient->GetAuthenticationRealm() + _T("\",");
   }
@@ -216,23 +216,23 @@ CStdString CSaslDigestMD5::SendChallenge() {
   return base64_encode(challenge);
 }
 
-CSasl::status CSASLDigestMD5::ReceiveResponse(const CStdString &csLine2) {
+CSasl::status CSASLDigestMD5::receiveResponse(const std::string &csLine2) {
   // std::cout << "The reply is \"" << reply << "\"\n";
   if ((csLine2.size() < 3) || (('*' == csLine2[0]) && ('\r' == csLine2[1]) && ('\n' == csLine2[2]))) {
     m_eCurrentStatus = bad;
   }
   else {
-    CStdString reply = base64_decode(csLine2);
-    CStdString username, realm, rcvdNonce, cnonce, nc, uri, response, authzid, temp, tname;
-    CStdString parsed;
-    CStdString qop(_T("auth"));
+    std::string reply = base64_decode(csLine2);
+    std::string username, realm, rcvdNonce, cnonce, nc, uri, response, authzid, temp, tname;
+    std::string parsed;
+    std::string qop(_T("auth"));
     parsed = reply;
     int usernameCount = 0, realmCount = 0, rcvdNonceCount = 0, cnonceCount = 0, ncCount = 0;
     int qopCount = 0, uriCount = 0, responseCount = 0, authzidCount = 0;
 
     while ('\0' != parsed[0]) {
       int pos = parsed.Find('=');
-      if (CStdString::npos != pos) {
+      if (std::string::npos != pos) {
 	tname = parsed.Mid(0, pos);
 	parsed = parsed.Mid(pos+1);
 	if (0 == tname.CompareNoCase("username")) {
@@ -262,7 +262,7 @@ CSasl::status CSASLDigestMD5::ReceiveResponse(const CStdString &csLine2) {
 		if (0 == tname.CompareNoCase(_T("nc"))) {
 		  ++ncCount;
 		  // nc is NOT a quoted string
-		  if (CStdString::npos != (pos = parsed.Find(','))) {
+		  if (std::string::npos != (pos = parsed.Find(','))) {
 		    nc = parsed.Mid(0, pos);
 		    parsed = parsed.Mid(pos);
 		  }
@@ -275,7 +275,7 @@ CSasl::status CSASLDigestMD5::ReceiveResponse(const CStdString &csLine2) {
 		  if (0 == tname.CompareNoCase(_T("qop"))) {
 		    ++qopCount;
 		    // qop is NOT quoted string
-		    if (CStdString::npos != (pos = parsed.Find(','))) {
+		    if (std::string::npos != (pos = parsed.Find(','))) {
 		      qop = parsed.Mid(0, pos);
 		      parsed = parsed.Mid(pos);
 		    }
@@ -294,7 +294,7 @@ CSasl::status CSASLDigestMD5::ReceiveResponse(const CStdString &csLine2) {
 		      if (0 == tname.CompareNoCase(_T("response"))) {
 			++responseCount;
 			// response is NOT a quoted string
-			if (CStdString::npos != (pos = parsed.Find(','))) {
+			if (std::string::npos != (pos = parsed.Find(','))) {
 			  response = parsed.Mid(0, pos);
 			  parsed = parsed.Mid(pos);
 			}
@@ -324,7 +324,7 @@ CSasl::status CSASLDigestMD5::ReceiveResponse(const CStdString &csLine2) {
 	m_eCurrentStatus = no;
 	return m_eCurrentStatus;
       }
-      if (CStdString::npos != (pos = parsed.Find(','))) {
+      if (std::string::npos != (pos = parsed.Find(','))) {
 	parsed = parsed.Mid(pos+1);
       }
     }
@@ -361,7 +361,7 @@ CSasl::status CSASLDigestMD5::ReceiveResponse(const CStdString &csLine2) {
       return m_eCurrentStatus;
     }
 	
-    CStdString passwd = lookupPassword(username);
+    std::string passwd = lookupPassword(username);
 
     // std::cout << "passwd = " << passwd << "\n";
 
@@ -378,39 +378,39 @@ CSasl::status CSASLDigestMD5::ReceiveResponse(const CStdString &csLine2) {
 	
     MD5 hasher;
 
-    CStdString A1 = username+_T(":")+realm+_T(":")+passwd;
+    std::string A1 = username+_T(":")+realm+_T(":")+passwd;
     // std::cout << "A1 = " << A1 << "\n";
     hasher.update(A1);
     A1 = hasher.value()+_T(":")+rcvdNonce+_T(":")+cnonce;
     hasher.update(A1);
     A1 = tohex(hasher.value());
-    CStdString A2 = ((CStdString)_T("AUTHENTICATE:"))+uri;
+    std::string A2 = ((std::string)_T("AUTHENTICATE:"))+uri;
     // std::cout << "A2 = " << A2 << "\n";
     hasher.update(A2);
     A2 = tohex(hasher.value());
-    CStdString checkVal = A1 + _T(":") + rcvdNonce + _T(":00000001:") + cnonce + _T(":auth:")+ A2;
+    std::string checkVal = A1 + _T(":") + rcvdNonce + _T(":00000001:") + cnonce + _T(":auth:")+ A2;
     hasher.update(checkVal);
     checkVal = tohex(hasher.value());
     if (checkVal.Equals(response)) {
       m_eCurrentStatus = ok;
-      A2 = ((CStdString)_T(":")) + uri;
+      A2 = ((std::string)_T(":")) + uri;
       hasher.update(A2);
       A2 = tohex(hasher.value());
       response = A1 + _T(":") + rcvdNonce + _T(":00000001:") + cnonce + _T(":auth:")+ A2;
       hasher.update(response);
       response = tohex(hasher.value()); 
       reply = _T("rspauth=") + response;
-      reply = ((CStdString) _T("+ ")) + base64_encode(response) + _T("\r\n");
+      reply = ((std::string) _T("+ ")) + base64_encode(response) + _T("\r\n");
       m_cClient->Send((void *)reply.data(), reply.size());
     }
   }
   return m_eCurrentStatus;
 }
 
-static bool hmac_check(CStdString &uid, CStdString &challenge, CStdString &credential) {
+static bool hmac_check(std::string &uid, std::string &challenge, std::string &credential) {
   MD5 hasher;
 
-  CStdString pw = lookupPassword(uid);
+  std::string pw = lookupPassword(uid);
 
   int len = pw.GetLength();
   if (64 < len) {
@@ -419,7 +419,7 @@ static bool hmac_check(CStdString &uid, CStdString &challenge, CStdString &crede
     pw = hasher.value();
     len = 64;
   }
-  CStdString k(pw);
+  std::string k(pw);
 
   // It's less than or equal to 64 bytes, so I (may) have to pad it to 64 bytes and xor with ipad
   for (int i=0; i<64; ++i) {
@@ -445,25 +445,25 @@ static bool hmac_check(CStdString &uid, CStdString &challenge, CStdString &crede
   pw += k;
   // Retrieving the value of a hash resets the state of the hash so I can calculate another hash
   hasher.update(pw);
-  CStdString response = tohex(hasher.value());
+  std::string response = tohex(hasher.value());
   return response.Equals(credential);
 }
 
-CStdString CSaslCramMD5::SendChallenge() {
+std::string CSaslCramMD5::sendChallenge() {
   // DANGER!  WIL ROBINSON!  DANGER!
   long int r1= random(), r2 = random();
   // DANGER!  WIL ROBINSON!  DANGER!
   char buff[15];
-  CStdString h(m_cClient->GetHostname());
+  std::string h(m_cClient->GetHostname());
 
   sprintf(buff, _T("%u"), (0xffff & (r1 >> 16)) | (0xffff & (r2 >> 16)));
-  m_csChallenge = ((CStdString)_T("<")) + buff + _T(".");
+  m_csChallenge = ((std::string)_T("<")) + buff + _T(".");
   sprintf(buff, _T("%u"), time(NULL));
-  m_csChallenge += ((CStdString) buff) + _T("@") + h + _T(">");
+  m_csChallenge += ((std::string) buff) + _T("@") + h + _T(">");
   return base64_encode(m_csChallenge);
 }
 
-CSasl::status CSaslCramMD5::ReceiveResponse(CStdString &csLine2) {
+CSasl::status CSaslCramMD5::receiveResponse(std::string &csLine2) {
   if ((csLine2.size() < 3) || (('*' == csLine2[0]) && ('\r' == csLine2[1]) && ('\n' == csLine2[2]))) {
     m_eCurrentStatus = bad;
   }
@@ -472,11 +472,11 @@ CSasl::status CSaslCramMD5::ReceiveResponse(CStdString &csLine2) {
     // response.  The response is the userid followed by a space followed by the lowercase
     // hexadecimal representation of an hmac-md5 message encrypted with the secret key that
     //  is the user's password.  Therefore, the first step is to un-base64 it.
-    CStdString response = base64_decode(csLine2);
+    std::string response = base64_decode(csLine2);
 
     int pos = response.Find(' ');
-    CStdString author = response.Mid(0, pos);
-    CStdString password = response.Mid(pos+1);
+    std::string author = response.Mid(0, pos);
+    std::string password = response.Mid(pos+1);
     // std::cout << "The author is \"" << author << "\"\n";
     // std::cout << "The password is \"" << password << "\"\n";
     if (hmac_check(author, m_csChallenge, password)) {
@@ -497,10 +497,10 @@ CSasl::status CSaslCramMD5::ReceiveResponse(CStdString &csLine2) {
 
 int
 main() {
-  CStdString challenge("<1896.697170952@postoffice.reston.mci.net>");
-  CStdString password("tanstaaftanstaaf");
-  CStdString credential("b913a602c7eda7a495b4e6e7334d3890");
-  CStdString uid("tim");
+  std::string challenge("<1896.697170952@postoffice.reston.mci.net>");
+  std::string password("tanstaaftanstaaf");
+  std::string credential("b913a602c7eda7a495b4e6e7334d3890");
+  std::string uid("tim");
 
   if (hmac_check(uid, challenge, credential)) {
     std::cout << "The check succeeded\n";

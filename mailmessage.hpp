@@ -17,8 +17,7 @@ typedef struct MessageBody MESSAGE_BODY;
 typedef std::multimap<insensitiveString, insensitiveString> HEADER_FIELDS;
 typedef std::vector<MESSAGE_BODY> *BODY_PARTS;
 
-typedef enum
-{
+typedef enum {
     MIME_TYPE_UNKNOWN,
     MIME_TYPE_TEXT,
     MIME_TYPE_IMAGE,
@@ -43,8 +42,7 @@ struct MessageBody {
 
 class MailMessage {
 public:
-    typedef enum
-    {
+    typedef enum {
 	SUCCESS = 0,
 	MESSAGE_DOESNT_EXIST,
 	GENERAL_FAILURE,
@@ -54,31 +52,31 @@ public:
     } MAIL_MESSAGE_RESULT;
     MailMessage(unsigned long uid, unsigned long msn);
     ~MailMessage();
-    MAIL_MESSAGE_RESULT Parse(MailStore *store, bool readBody = true, bool loadBinaryParts = true);
-    static void BuildSymbolTable();
-    MAIL_MESSAGE_RESULT GetStatus() const { return m_messageStatus; }
-    const insensitiveString &GetSubject() const { return m_subject; }
-    const insensitiveString &GetCc() const { return m_ccLine; }
-    const insensitiveString &GetBcc() const { return m_bccLine; }
-    const insensitiveString &GetTo() const { return m_toLine; }
-    const insensitiveString &GetFrom() const { return m_fromLine; }
-    unsigned short GetTextLines() const { return m_textLines; }
-    const HEADER_FIELDS &GetHeaderList() const { return m_mainBody.fieldList; }
-    const MESSAGE_BODY &GetMessageBody() const { return m_mainBody; }
-    const DateTime &GetMessageTime() const { return m_date; }
-    uint32_t GetMessageFlags() const { return m_flagsWhenRead; }
-    unsigned long GetUid() const { return m_uid; }
-    unsigned long GetMsn() const { return m_msn; }
-    const insensitiveString &GetDateLine() const { return m_dateLine; }
-    const insensitiveString &GetSender() const { return m_senderLine; }
-    const insensitiveString &GetReplyTo() const { return m_replyToLine; }
-    const insensitiveString &GetInReplyTo() const { return m_inReplyTo; }
-    const insensitiveString &GetMessageId() const { return m_messageId; }
-    void SetMessageFlags(uint32_t newFlags) { m_flagsWhenRead = newFlags; }
+    MAIL_MESSAGE_RESULT parse(MailStore *store, bool readBody = true, bool loadBinaryParts = true);
+    static void buildSymbolTable();
+    MAIL_MESSAGE_RESULT status() const { return m_messageStatus; }
+    const insensitiveString &subject() const { return m_subject; }
+    const insensitiveString &cc() const { return m_ccLine; }
+    const insensitiveString &bcc() const { return m_bccLine; }
+    const insensitiveString &to() const { return m_toLine; }
+    const insensitiveString &from() const { return m_fromLine; }
+    unsigned short textLines() const { return m_textLines; }
+    const HEADER_FIELDS &headerList() const { return m_mainBody.fieldList; }
+    const MESSAGE_BODY &messageBody() const { return m_mainBody; }
+    const DateTime &messageTime() const { return m_date; }
+    uint32_t messageFlags() const { return m_flagsWhenRead; }
+    unsigned long uid() const { return m_uid; }
+    unsigned long msn() const { return m_msn; }
+    const insensitiveString &dateLine() const { return m_dateLine; }
+    const insensitiveString &sender() const { return m_senderLine; }
+    const insensitiveString &replyTo() const { return m_replyToLine; }
+    const insensitiveString &inReplyTo() const { return m_inReplyTo; }
+    const insensitiveString &messageId() const { return m_messageId; }
+    void messageFlags(uint32_t newFlags) { m_flagsWhenRead = newFlags; }
     
 private:
-    bool ProcessHeaderLine(const insensitiveString &line);
-    void ParseBodyParts(bool loadBinaryParts, MESSAGE_BODY &parentBody, char *messageBuffer, size_t &parsePointer,
+    bool processHeaderLine(const insensitiveString &line);
+    void parseBodyParts(bool loadBinaryParts, MESSAGE_BODY &parentBody, char *messageBuffer, size_t &parsePointer,
 			const char *parentSeparator, int nestingDepth);
     DateTime m_date;
     insensitiveString m_dateLine, m_subject, m_inReplyTo, m_messageId;

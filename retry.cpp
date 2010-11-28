@@ -8,9 +8,9 @@
 DeltaQueueRetry::DeltaQueueRetry(int delta, InternetSession *session) : DeltaQueueAction(delta, session) { }
 
 
-void DeltaQueueRetry::HandleTimeout(bool isPurge) {
+void DeltaQueueRetry::handleTimeout(bool isPurge) {
   if (!isPurge) {
     ImapSession *imap_session = dynamic_cast<ImapSession *>(m_session);
-    imap_session->DoRetry();
+    imap_session->doRetry();
   }
 }

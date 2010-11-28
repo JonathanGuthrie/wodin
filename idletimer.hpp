@@ -7,11 +7,10 @@
 // The idle timer is never reset.  Instead, I keep the time the last command
 // was executed and then check for the timeout period elapsing when the timer expires
 // and set the timeout for the time since that command happened.
-class DeltaQueueIdleTimer : public DeltaQueueAction
-{
+class DeltaQueueIdleTimer : public DeltaQueueAction {
 public:
     DeltaQueueIdleTimer(int delta, InternetSession *session);
-    virtual void HandleTimeout(bool isPurge);
+    virtual void handleTimeout(bool isPurge);
 };
 
 

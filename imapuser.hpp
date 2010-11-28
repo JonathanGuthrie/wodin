@@ -18,22 +18,22 @@ class ImapMaster;
 // SYZYGY -- I don't know which I like better.
 class ImapUser {
 public:
-    ImapUser(const char *user, const ImapMaster *server);
-    virtual ~ImapUser();
-    virtual bool HavePlaintextPassword() = 0;
-    virtual bool CheckCredentials(const char *password) = 0;
-    virtual char *GetPassword(void) const = 0;
-    virtual char *GetHomeDir(void) const = 0;
-    const char *GetName(void) const { return name->c_str(); }
-    virtual std::string *ExpandPath(const std::string &specifier) const;
-    uid_t GetUid(void) const { return m_uid; }
-    gid_t GetGid(void) const { return m_gid; }
+  ImapUser(const char *user, const ImapMaster *server);
+  virtual ~ImapUser();
+  virtual bool havePlaintextPassword() = 0;
+  virtual bool checkCredentials(const char *password) = 0;
+  virtual char *password(void) const = 0;
+  virtual char *homeDir(void) const = 0;
+  const char *name(void) const { return m_name->c_str(); }
+  virtual std::string *expandPath(const std::string &specifier) const;
+  uid_t uid(void) const { return m_uid; }
+  gid_t gid(void) const { return m_gid; }
 
 protected:
-    std::string *name;
-    uid_t m_uid;
-    gid_t m_gid;
-    bool userFound;
+  std::string *m_name;
+  uid_t m_uid;
+  gid_t m_gid;
+  bool m_userFound;
 };
 
 #endif // _IMAPUSER_HPP_INCLUDED_

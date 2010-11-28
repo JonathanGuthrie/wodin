@@ -18,7 +18,7 @@ ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_t
   m_maxRetries = max_retries;
   m_retryDelaySeconds = retry_seconds;
 
-  ImapSession::BuildSymbolTables();
+  ImapSession::buildSymbolTables();
 
 }
 
@@ -34,20 +34,20 @@ Namespace *ImapMaster::mailStore(ImapSession *session) {
   // need namespaces for #mhinbox, #mh, ~, #shared, #ftp, #news, and #public, just like
   // uw-imap, although all of them have stubbed-out mail stores for them
 
-  result->AddNamespace(Namespace::PERSONAL, "", (MailStore *) new MailStoreMbox(session), '/');
-  result->AddNamespace(Namespace::PERSONAL, "#mhinbox", (MailStore *) new MailStoreInvalid(session));
-  result->AddNamespace(Namespace::PERSONAL, "#mh/", (MailStore *) new MailStoreInvalid(session), '/');
-  result->AddNamespace(Namespace::OTHERS, "~", (MailStore *) new MailStoreInvalid(session), '/');
-  result->AddNamespace(Namespace::SHARED, "#shared/", (MailStore *) new MailStoreInvalid(session), '/');
-  result->AddNamespace(Namespace::SHARED, "#ftp/", (MailStore *) new MailStoreInvalid(session), '/');
-  result->AddNamespace(Namespace::SHARED, "#news.", (MailStore *) new MailStoreInvalid(session), '.');
-  result->AddNamespace(Namespace::SHARED, "#public/", (MailStore *) new MailStoreInvalid(session), '/');
+  result->addNamespace(Namespace::PERSONAL, "", (MailStore *) new MailStoreMbox(session), '/');
+  result->addNamespace(Namespace::PERSONAL, "#mhinbox", (MailStore *) new MailStoreInvalid(session));
+  result->addNamespace(Namespace::PERSONAL, "#mh/", (MailStore *) new MailStoreInvalid(session), '/');
+  result->addNamespace(Namespace::OTHERS, "~", (MailStore *) new MailStoreInvalid(session), '/');
+  result->addNamespace(Namespace::SHARED, "#shared/", (MailStore *) new MailStoreInvalid(session), '/');
+  result->addNamespace(Namespace::SHARED, "#ftp/", (MailStore *) new MailStoreInvalid(session), '/');
+  result->addNamespace(Namespace::SHARED, "#news.", (MailStore *) new MailStoreInvalid(session), '.');
+  result->addNamespace(Namespace::SHARED, "#public/", (MailStore *) new MailStoreInvalid(session), '/');
 
   return result;
 }
 
 
-ImapSession *ImapMaster::NewSession(SessionDriver *driver, InternetServer *server) {
+ImapSession *ImapMaster::newSession(SessionDriver *driver, Server *server) {
   return new ImapSession(this, driver, server);
 }
 

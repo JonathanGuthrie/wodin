@@ -15,10 +15,10 @@ public:
     bad // authentication exchange cancelled
   } status;
   Sasl(ImapMaster *myMaster);
-  status IsAuthenticated() { return m_currentStatus;}
+  status isAuthenticated() { return m_currentStatus;}
   const std::string getUser() const { return m_authorizationEntity;}
-  virtual void SendChallenge(char *challenge_buff) = 0;
-  virtual status ReceiveResponse(const std::string &csLine2) = 0;
+  virtual void sendChallenge(char *challenge_buff) = 0;
+  virtual status receiveResponse(const std::string &csLine2) = 0;
 
 protected:
   status m_currentStatus;
@@ -29,41 +29,41 @@ protected:
 class SaslAnonymous : public Sasl {
 public:
   SaslAnonymous(ImapMaster *myMaster) : Sasl(myMaster) {};
-  void SendChallenge(char *challenge_buff);
-  Sasl::status ReceiveResponse(const std::string &csLine2);
+  void sendChallenge(char *challenge_buff);
+  Sasl::status receiveResponse(const std::string &csLine2);
 };
 
 class SaslPlain : public Sasl {
 public:
   SaslPlain(ImapMaster *myMaster) : Sasl(myMaster) {};
-  void SendChallenge(char *challenge_buff);
-  Sasl::status ReceiveResponse(const std::string &csLine2);
+  void sendChallenge(char *challenge_buff);
+  Sasl::status receiveResponse(const std::string &csLine2);
 };
 
 // SYZYGY -- if the user data has access to the plaintext password, the rest of these can work
 #if 0
-class CSaslDigestMD5 : public CSasl {
+class SaslDigestMD5 : public CSasl {
 public:
-  CSaslDigestMD5(CIMapClient *myClient) : CSasl(myClient) {};
-  CStdString SendChallenge();
-  CSasl::status ReceiveResponse(const CStdString &csLine2);
+  SaslDigestMD5(ImapMaster *master) : Sasl(master) {};
+  void sendChallenge();
+  Sasl::status receiveResponse(const CStdString &csLine2);
 
 private:
-  CStdString m_csNonce;
+  std::string m_nonce;
 };
 
-class CSASLCramMD5 : public CSasl {
+class SaslCramMD5 : public CSasl {
 public:
-  CSASLCramMD5(CIMapClient *myClient) : CSASL(myClient) {};
-  CStdString SendChallenge();
-  CSASL::status ReceiveResponse(CStdString &csLine2);
+  SaslCramMD5(ImapMaster *master) : Sasl(master) {};
+  std::string sendChallenge();
+  Sasl::status receiveResponse(CStdString &csLine2);
 
 private:
-  CStdString m_csChallenge;
+  std::string m_challenge;
 };
 #endif /* 0 */
 
 typedef std::basic_string<char, caseInsensitiveTraits> insensitiveString;
-Sasl *SaslChooser(ImapMaster *myMaster, const insensitiveString &residue);
+Sasl *SaslChooser(ImapMaster *master, const insensitiveString &residue);
 
 #endif /* _SASL_HPP_INCLUDED_ */

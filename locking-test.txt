@@ -37,7 +37,9 @@ a lock and, therefore, any command that calls one of those methods needs to have
 its locking logic tested.  One wrinkle:  A mail store is not permitted to return
 CANNOT_COMPLETE_ACTION if MailboxLock has already been called.  That allows the
 implmentor (that is, me) to concentrate the locking logic for situations where
-it would be complicated if each call could fail.
+it would be complicated if each call could fail.  This state ends when MailboxUnlock
+is called, which is the last thing that is not permitted to return
+CANNOT_COMPLETE_ACTION.
 
 These are the methods that return a MAIL_STORE_RESULT:
     CreateMailbox
@@ -62,6 +64,10 @@ These are the methods that return a MAIL_STORE_RESULT:
     MailboxUnlock
 
 CreateMailbox is called in ImapSession::AuthenticateHandler, ImapSession::LoginHandlerExecute, ImapSession::CreateHandlerExecute
+
+The thing is, ImapSession::AuthenticateHandler and ImapSession::LoginHandlerExecute both attempt to create the mailbox INBOX, which is not permitted in IMAP.  I do this operation here in order to be certain that there is a mailbox called INBOX as soon as someone logs in.  Anyway.  I need to remove the calls because not only do they do nothing, they aren't permitted to do anything.  Okay, they're removed.
+
+So, testing CreateMailbox.  I need to create a session with the correct mail box driver and simulate the rest of the system.  It wants the be passed an ImapMaster pointer, a SessionDriver point, and an InternetServer pointer.
 
 DeleteMailbox is called in ImapSession::DeleteHandlerExecute
 

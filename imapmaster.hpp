@@ -14,11 +14,11 @@ public:
   ImapMaster(std::string fqdn, unsigned login_timeout = 60,
 	     unsigned idle_timeout = 1800, unsigned asynchronous_event_time = 900, unsigned bad_login_pause = 5, unsigned max_retries = 12, unsigned retry_seconds = 5);
   virtual ~ImapMaster(void);
-  virtual ImapSession *NewSession(SessionDriver *driver, InternetServer *server);
+  virtual ImapSession *newSession(SessionDriver *driver, Server *server);
 
   ImapUser *userInfo(const char *userid);
   Namespace *mailStore(ImapSession *session);
-  bool IsAnonymousEnabled() { return false; } // SYZYGY ANONYMOUS
+  bool isAnonymousEnabled() { return false; } // SYZYGY ANONYMOUS
   // This will send the specified message out the specified socket
   // after the specified number of seconds and then set that session
   // up to receive again

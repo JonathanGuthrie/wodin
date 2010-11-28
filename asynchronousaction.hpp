@@ -7,11 +7,10 @@
 
 // When the timer expires, execute the check for mailbox changes method in the selected
 // mail store.
-class DeltaQueueAsynchronousAction : public DeltaQueueAction
-{
+class DeltaQueueAsynchronousAction : public DeltaQueueAction {
 public:
   DeltaQueueAsynchronousAction(int delta, InternetSession *session);
-  virtual void HandleTimeout(bool isPurge);
+  virtual void handleTimeout(bool isPurge);
 };
 
 

@@ -10,22 +10,22 @@
 DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, InternetSession *session) : DeltaQueueAction(delta, session) {}
 
 
-void DeltaQueueIdleTimer::HandleTimeout(bool isPurge) {
+void DeltaQueueIdleTimer::handleTimeout(bool isPurge) {
 #if !defined(TEST)
-    if (!isPurge) {
-        ImapSession *imap_session = dynamic_cast<ImapSession *>(m_session);
-        const ImapMaster *imap_master = dynamic_cast<const ImapMaster *>(imap_session->GetMaster());
-	time_t now = time(NULL);
-	unsigned timeout = (ImapNotAuthenticated == imap_session->GetState()) ?
-	    imap_master->loginTimeout() :
-	    imap_master->idleTimeout();
+  if (!isPurge) {
+    ImapSession *imap_session = dynamic_cast<ImapSession *>(m_session);
+    const ImapMaster *imap_master = dynamic_cast<const ImapMaster *>(imap_session->master());
+    time_t now = time(NULL);
+    unsigned timeout = (ImapNotAuthenticated == imap_session->state()) ?
+      imap_master->loginTimeout() :
+      imap_master->idleTimeout();
 
-	if ((now - timeout) > imap_session->GetLastCommandTime()) {
-	    imap_session->IdleTimeout();
-	}
-	else {
-	    imap_session->GetServer()->AddTimerAction(new DeltaQueueIdleTimer((time_t) imap_session->GetLastCommandTime() + timeout + 1 - now, m_session));
-	}
+    if ((now - timeout) > imap_session->lastCommandTime()) {
+      imap_session->idleTimeout();
     }
+    else {
+      imap_session->server()->addTimerAction(new DeltaQueueIdleTimer((time_t) imap_session->lastCommandTime() + timeout + 1 - now, m_session));
+    }
+  }
 #endif // !defined(TEST)
 }
