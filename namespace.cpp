@@ -95,7 +95,7 @@ void Namespace::dump_message_session_info(const char *s, ExpungedMessageMap &m) 
 
 MailStore::MAIL_STORE_RESULT Namespace::mailboxClose() {
   MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
-  if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
+  if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store) && (NULL != m_openMailboxName)) {
     // I reduce the reference count and remove this session from the list of those notified
     // about deleted messages wherever it appears.  I also check to see if there are any more
     // to purge from the back end and call the purge function if there are any additional
