@@ -11,6 +11,7 @@ DeltaQueueIdleTimer::DeltaQueueIdleTimer(int delta, InternetSession *session) : 
 
 
 void DeltaQueueIdleTimer::HandleTimeout(bool isPurge) {
+#if !defined(TEST)
     if (!isPurge) {
         ImapSession *imap_session = dynamic_cast<ImapSession *>(m_session);
         const ImapMaster *imap_master = dynamic_cast<const ImapMaster *>(imap_session->GetMaster());
@@ -26,4 +27,5 @@ void DeltaQueueIdleTimer::HandleTimeout(bool isPurge) {
 	    imap_session->GetServer()->AddTimerAction(new DeltaQueueIdleTimer((time_t) imap_session->GetLastCommandTime() + timeout + 1 - now, m_session));
 	}
     }
+#endif // !defined(TEST)
 }

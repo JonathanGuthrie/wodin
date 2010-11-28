@@ -13,10 +13,12 @@ DeltaQueueAsynchronousAction::DeltaQueueAsynchronousAction(int delta, InternetSe
 
 void DeltaQueueAsynchronousAction::HandleTimeout(bool isPurge)
 {
+#if !defined(TEST)
     ImapSession *imap_session = dynamic_cast<ImapSession *>(m_session);
     ImapMaster *imap_master = dynamic_cast<ImapMaster *>(imap_session->GetMaster());
     if (!isPurge) {
       imap_session->AsynchronousEvent();
       imap_session->GetServer()->AddTimerAction(new DeltaQueueAsynchronousAction(imap_master->asynchronousEventTime(), m_session));
     }
+#endif // !defined(TEST)
 }
