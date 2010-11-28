@@ -7,9 +7,18 @@
 
 #include "mailstore.hpp"
 
+/*
+ * when mailboxAlreadyLocked is called, it will return true if the count is 
+ * greater than 0 and subtract one from m_retryCount for next time
+ */
 class LockState {
 public:
   bool mailboxAlreadyLocked(void);
+  int retryCount(void) { return m_retryCount; }
+  void retryCount(int count) { m_retryCount = count; }
+
+private:
+  int m_retryCount;
 };
 
 extern LockState g_lockState;

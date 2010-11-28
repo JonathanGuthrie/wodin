@@ -92,11 +92,19 @@ int main() {
   TestServer server(&master);
   TestSocket *s = new TestSocket();
 
+  g_lockState.retryCount(1000);
   s->in("1 login foo bar\r\n");
   s->in("2 create inbox\r\n");
-  s->in("3 noop\r\n");
-  s->in("4 noop\r\n");
-  s->in("5 logout\r\n");
+  s->in("3 logout\r\n");
   server.test(s);
+  std::cout << "Has " << g_lockState.retryCount() << " retries left" << std::endl;
+
+  g_lockState.retryCount(0);
+  s->reset();
+  s->in("1 login foo bar\r\n");
+  s->in("2 create inbox\r\n");
+  s->in("3 logout\r\n");
+  server.test(s);
+  std::cout << "Has " << g_lockState.retryCount() << " retries left" << std::endl;
   return 0;
 }

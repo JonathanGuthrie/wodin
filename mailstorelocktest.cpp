@@ -6,7 +6,9 @@
 LockState g_lockState;
 
 bool LockState::mailboxAlreadyLocked(void) {
-  return true;
+  bool result = (0 < m_retryCount);
+  --m_retryCount;
+  return result;
 }
 
 MailStoreLockTest::MailStoreLockTest(ImapSession *session) : MailStore(session) {
