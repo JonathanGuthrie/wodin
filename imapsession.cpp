@@ -816,6 +816,7 @@ void ImapSession::handleOneLine(uint8_t *data, size_t dataLen) {
 	m_driver->wantsToSend(response);
 	m_retries = 0;
 	m_driver->wantsToReceive();
+	m_currentHandler = NULL;
       }
       break;
 
