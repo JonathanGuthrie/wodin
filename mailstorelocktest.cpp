@@ -16,41 +16,43 @@ MailStoreLockTest::MailStoreLockTest(ImapSession *session) : MailStore(session) 
 }
 
 
-MailStore::MAIL_STORE_RESULT MailStoreLockTest::createMailbox(const std::string &FullName) {
+MailStore::MAIL_STORE_RESULT MailStoreLockTest::internalLockLogic(void) {
   MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  if (g_lockState.mailboxAlreadyLocked()) {
+  if (!m_isLocked && g_lockState.mailboxAlreadyLocked()) {
     result = MailStore::CANNOT_COMPLETE_ACTION;
   }
   return result;
 }
 
+
+MailStore::MAIL_STORE_RESULT MailStoreLockTest::createMailbox(const std::string &FullName) {
+  return internalLockLogic();
+}
+
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::deleteMailbox(const std::string &FullName) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  return result;
+  return internalLockLogic();
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::renameMailbox(const std::string &SourceName, const std::string &DestinationName) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  return result;
+  return internalLockLogic();
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxClose() {
-  return MailStore::SUCCESS;
+  return internalLockLogic();
 }
 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::addMessageToMailbox(const std::string &FullName, uint8_t *data, size_t length,
 								    DateTime &createTime, uint32_t messageFlags, size_t *newUid) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  return result;
+  return internalLockLogic();
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::appendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
-  return MailStore::SUCCESS; // SYZYGY 
+  return internalLockLogic();
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::doneAppendingDataToMessage(const std::string &MailboxName, size_t uid) {
-  return MailStore::SUCCESS; // SYZYGY
+  return internalLockLogic();
 }
 
 unsigned MailStoreLockTest::serialNumber()
@@ -70,28 +72,24 @@ unsigned MailStoreLockTest::serialNumber()
 // the results of that parsing for things like message sequence numbers, UID's, and offsets in the
 // file
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxOpen(const std::string &FullName, bool readWrite) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  return result;
+  return internalLockLogic();
 }
 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::listDeletedMessages(NUMBER_SET *uidsToBeExpunged) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  return result;
+  return internalLockLogic();
 }
 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::expungeThisUid(unsigned long uid) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::MESSAGE_NOT_FOUND;
-  return result;
+  return internalLockLogic();
 }
 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::getMailboxCounts(const std::string &FullName, uint32_t which, unsigned &messageCount,
 								 unsigned &recentCount, unsigned &uidLast, unsigned &uidValidity,
 								 unsigned &firstUnseen) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  return result;
+  return internalLockLogic();
 }
 
 
@@ -101,8 +99,7 @@ const DateTime &MailStoreLockTest::messageInternalDate(const unsigned long uid) 
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::messageUpdateFlags(unsigned long uid, uint32_t andMask, uint32_t orMask, uint32_t &flags) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  return result;
+  return internalLockLogic();
 }
 
 
@@ -112,8 +109,7 @@ std::string MailStoreLockTest::mailboxUserPath() const {
 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxFlushBuffers(void) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  return result;
+  return internalLockLogic();
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxUpdateStats(NUMBER_SET *nowGone) {
@@ -127,8 +123,7 @@ void MailStoreLockTest::mailboxList(const std::string &pattern, MAILBOX_LIST *re
 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::subscribeMailbox(const std::string &MailboxName, bool isSubscribe) {
-  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  return result;
+  return internalLockLogic();
 }
 
 
@@ -140,7 +135,7 @@ MailStoreLockTest::~MailStoreLockTest() {
 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::deleteMessage(const std::string &MailboxName, unsigned long uid) {
-  return MailStore::SUCCESS;
+  return internalLockLogic();
 }
 
 MailMessage::MAIL_MESSAGE_RESULT MailStoreLockTest::messageData(MailMessage **message, unsigned long uid) {
@@ -160,7 +155,7 @@ size_t MailStoreLockTest::bufferLength(unsigned long uid) {
 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::openMessageFile(unsigned long uid) {
-  return MailStore::SUCCESS;
+  return internalLockLogic();
 }
 
 // This function must replace LF's with CRLF's and it must ignore the headers that don't belong,
@@ -197,7 +192,7 @@ MailStoreLockTest *MailStoreLockTest::clone(void) {
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::lock(void) {
   MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
-  if (g_lockState.mailboxAlreadyLocked()) {
+  if (!m_isLocked && g_lockState.mailboxAlreadyLocked()) {
     result = MailStore::CANNOT_COMPLETE_ACTION;
   }
   else {

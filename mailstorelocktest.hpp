@@ -80,6 +80,7 @@ public:
 
 private:
   bool m_isLocked;
+  MailStore::MAIL_STORE_RESULT internalLockLogic(void);
 };
 
 #endif // _MAILSTORELOCKTEST_HPP_INCLUDED_

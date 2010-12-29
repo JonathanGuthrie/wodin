@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include <list>
 #include <string>
 
@@ -57,7 +59,7 @@ ssize_t TestSocket::send(const uint8_t *data, size_t length) {
   }
 
   m_outputs->push_back(new std::string((char *)data, length));
-  std::cout << data << std::endl;
+  // std::cout << data << std::endl;
   m_pOut = m_outputs->begin();
 
   return length;
@@ -87,24 +89,143 @@ void TestSocket::reset(void) {
   m_outputs = NULL;
 }
 
+bool test(TestServer &server, TestSocket *s, const std::string commands[],
+	  int command_count, const std::string &match, int response,
+	  int initial_retry_count, int final_retry_count) {
+  bool result = true;
+  const std::string *o;
+
+  g_lockState.retryCount(initial_retry_count);
+  s->reset();
+  for (int i=0; i<command_count; ++i) {
+    s->in(commands[i]);
+  }
+  server.test(s);
+  for (int i=0; i< response; ++i) {
+    o = s->out();
+  }
+  if ((NULL == o) || (*o != match)) {
+    std::cout << "Response doesn't match. \"";
+    if (NULL != o) {
+      std::cout << *o;
+    }
+    else {
+      std::cout << "NULL";
+    }
+    std::cout << "\" expecting \"" << match << "\"" << std::endl;
+    result = false;
+  }
+  if (final_retry_count != g_lockState.retryCount()) {
+    std:: cout << "The retry count is " << g_lockState.retryCount() << " and I was expecting " << final_retry_count << std::endl;
+    result = false;
+  }
+  return result;
+}
+
+typedef struct {
+  const std::string commands[10];
+  int command_count;
+  const std::string match;
+  int response_number;
+  int initial_retry_count;
+  int final_retry_count;
+  const std::string test_name;
+} test_descriptor;
+
+test_descriptor descriptors[] = {
+  {{
+    "1 login foo bar\r\n",
+    "2 create inbox\r\n",
+    "3 logout\r\n"
+    }, 3, "2 NO create Locking Error:  Too Many Retries\r\n", 3, 1000, 987,
+   "Creation failure"},
+  {{
+    "1 login foo bar\r\n",
+    "2 create inbox\r\n",
+    "3 logout\r\n"
+    }, 3, "2 OK create Completed\r\n", 3, 0, -1,
+   "Successful creation"},
+  {{
+      "1 login foo bar\r\n",
+      "2 delete inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 NO delete Locking Error:  Too Many Retries\r\n", 3, 1000, 987,
+   "Deletion failure"},
+  {{
+      "1 login foo bar\r\n",
+      "2 delete inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 OK delete Completed\r\n", 3, 0, -1,
+   "Successful deletion"},
+  {{
+      "1 login foo bar\r\n",
+      "2 rename inbox outbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 NO rename Locking Error:  Too Many Retries\r\n", 3, 1000, 987,
+   "Renaming failure"},
+  {{
+      "1 login foo bar\r\n",
+      "2 rename inbox outbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 OK rename Completed\r\n", 3, 0, -1,
+   "Successful renaming"},
+  {{
+      "1 login foo bar\r\n",
+      "2 subscribe inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 NO subscribe Locking Error:  Too Many Retries\r\n", 3, 1000, 987,
+   "Subscribing failure"},
+  {{
+      "1 login foo bar\r\n",
+      "2 subscribe inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 OK subscribe Completed\r\n", 3, 0, -1,
+   "Successful subscribing"},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 NO select Locking Error:  Too Many Retries\r\n", 3, 1000, 987,
+   "Selecting failure"},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 OK [READ-WRITE] select Completed\r\n", 4, 0, -1,
+   "Successful selecting"},
+  {{
+      "1 login foo bar\r\n",
+      "2 examine inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 NO examine Locking Error:  Too Many Retries\r\n", 3, 1000, 987,
+   "Examining failure"},
+  {{
+      "1 login foo bar\r\n",
+      "2 examine inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 OK [READ-ONLY] examine Completed\r\n", 4, 0, -1,
+   "Successful examining"},
+};
+
 int main() {
   LockTestMaster master("localhost", 60, 1800, 900, 5, 12, 5);
   TestServer server(&master);
   TestSocket *s = new TestSocket();
+  int pass_count = 0;
+  int fail_count = 0;
 
-  g_lockState.retryCount(1000);
-  s->in("1 login foo bar\r\n");
-  s->in("2 create inbox\r\n");
-  s->in("3 logout\r\n");
-  server.test(s);
-  std::cout << "Has " << g_lockState.retryCount() << " retries left" << std::endl;
+  for (int i=0; i<(sizeof(descriptors)/sizeof(test_descriptor)); ++i) {
+    bool result = test(server, s, descriptors[i].commands, descriptors[i].command_count, descriptors[i].match, descriptors[i].response_number, descriptors[i].initial_retry_count, descriptors[i].final_retry_count);
+    std::cout << descriptors[i].test_name;
+    if (result) {
+      std::cout << " success" << std::endl;
+      ++pass_count;
+    }
+    else {
+      std::cout << " failure" << std::endl;
+      ++fail_count;
+    }
+  }
 
-  g_lockState.retryCount(0);
-  s->reset();
-  s->in("1 login foo bar\r\n");
-  s->in("2 create inbox\r\n");
-  s->in("3 logout\r\n");
-  server.test(s);
-  std::cout << "Has " << g_lockState.retryCount() << " retries left" << std::endl;
   return 0;
 }
