@@ -1482,6 +1482,7 @@ IMAP_RESULTS ImapSession::renameHandler(uint8_t *data, size_t dataLen, size_t &p
       break;
 
     default: {
+      m_parseStage = 5;
       std::string source((char *)&m_parseBuffer[m_arguments]);
       std::string destination((char *)&m_parseBuffer[m_arguments+(strlen((char *)&m_parseBuffer[m_arguments])+1)]);
 
@@ -1497,7 +1498,7 @@ IMAP_RESULTS ImapSession::renameHandler(uint8_t *data, size_t dataLen, size_t &p
     }
       break;
     }
-  } while ((IMAP_OK == result) && (m_parseStage < 4));
+  } while ((IMAP_OK == result) && (m_parseStage < 5));
 
   return result;
 }
