@@ -196,10 +196,10 @@ void ImapSession::buildSymbolTables() {
   // after a close as per RFC 3501 6.4.2
   symbolToInsert.sendUpdatedStatus = false;
   symbolToInsert.handler = &ImapSession::selectHandler;
-  m_symbols.insert(IMAPSYMBOLS::value_type("SELECT", symbolToInsert));
+  m_symbols.insert(IMAPSYMBOLS::value_type("EXAMINE", symbolToInsert));
   symbolToInsert.flag = true;
   symbolToInsert.handler = &ImapSession::selectHandler;
-  m_symbols.insert(IMAPSYMBOLS::value_type("EXAMINE", symbolToInsert));
+  m_symbols.insert(IMAPSYMBOLS::value_type("SELECT", symbolToInsert));
 
   symbolToInsert.levels[0] = false;
   symbolToInsert.levels[1] = false;
