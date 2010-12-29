@@ -1,8 +1,6 @@
 #if !defined(_IMAPSESSION_HPP_INCLUDED_)
 #define _IMAPSESSION_HPP_INCLUDED_
 
-#include <iostream>
-
 #include <map>
 #include <string>
 
