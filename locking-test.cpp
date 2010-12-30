@@ -14,7 +14,12 @@
  * Reimplement these classes:  imapmaster, internetserver
  */
 
-typedef std::list<std::string *> StringList;
+typedef struct {
+  std::string s;
+  int retry_count;
+} commands;
+
+typedef std::list<commands> StringList;
 
 class TestSocket : public Socket {
 public:
@@ -22,8 +27,9 @@ public:
   virtual ~TestSocket();
   virtual ssize_t receive(uint8_t *buffer, size_t size);
   virtual ssize_t send(const uint8_t *data, size_t length);
-  void in(const std::string &s);
+  void in(const std::string &s, int count);
   const std::string *out(void);
+  int retry_out(void);
   void reset(void);
 
 private:
@@ -45,8 +51,9 @@ TestSocket::~TestSocket() {
 ssize_t TestSocket::receive(uint8_t *buffer, size_t size) {
   ssize_t result = -1;
   if ((NULL != m_inputs) && (m_inputs->end() != m_pIn)) {
-    strcpy((char *)buffer, (*m_pIn)->c_str());
-    result = (*m_pIn)->length();
+    strcpy((char *)buffer, (*m_pIn).s.c_str());
+    result = (*m_pIn).s.length();
+    g_lockState.retryCount((*m_pIn).retry_count);
     m_pIn++;
   }
 
@@ -58,28 +65,38 @@ ssize_t TestSocket::send(const uint8_t *data, size_t length) {
     m_outputs = new StringList;
   }
 
-  m_outputs->push_back(new std::string((char *)data, length));
+  commands command = { std::string((char *)data, length), g_lockState.retryCount() };
+  m_outputs->push_back(command);
+  // m_outputs->push_back(new std::string((char *)data, length));
   // std::cout << data << std::endl;
   m_pOut = m_outputs->begin();
 
   return length;
 }
 
-void TestSocket::in(const std::string &s) {
+void TestSocket::in(const std::string &s, int count) {
   if (NULL == m_inputs) {
     m_inputs = new StringList;
   }
-  m_inputs->push_back(new std::string(s));
+  commands command = { s, count };
+  m_inputs->push_back(command);
   m_pIn = m_inputs->begin();
 }
 
 const std::string *TestSocket::out(void) {
   std::string *result = NULL;
   if ((NULL != m_outputs) && (m_outputs->end() != m_pOut)) {
-    result = *m_pOut;
+    result = new std::string ((*m_pOut).s);
     m_pOut++;
   }
   return result;
+}
+
+int TestSocket::retry_out(void) {
+  if ((NULL != m_outputs) && (m_outputs->end() != m_pOut)) {
+    return (*m_pOut).retry_count;
+  }
+  return -999;
 }
 
 void TestSocket::reset(void) {
@@ -95,13 +112,14 @@ bool test(TestServer &server, TestSocket *s, const std::string commands[],
   bool result = true;
   const std::string *o;
 
-  g_lockState.retryCount(initial_retry_count);
   s->reset();
   for (int i=0; i<command_count; ++i) {
-    s->in(commands[i]);
+    s->in(commands[i], initial_retry_count);
   }
   server.test(s);
+  int retries;
   for (int i=0; i< response; ++i) {
+    retries = s->retry_out();
     o = s->out();
   }
   if ((NULL == o) || (*o != match)) {
@@ -115,8 +133,8 @@ bool test(TestServer &server, TestSocket *s, const std::string commands[],
     std::cout << "\" expecting \"" << match << "\"" << std::endl;
     result = false;
   }
-  if (final_retry_count != g_lockState.retryCount()) {
-    std:: cout << "The retry count is " << g_lockState.retryCount() << " and I was expecting " << final_retry_count << std::endl;
+  if (final_retry_count != retries) {
+    std:: cout << "The retry count is " << retries << " and I was expecting " << final_retry_count << std::endl;
     result = false;
   }
   return result;
@@ -133,6 +151,8 @@ typedef struct {
 } test_descriptor;
 
 test_descriptor descriptors[] = {
+#if 0
+#endif // 0
   {{
     "1 login foo bar\r\n",
     "2 create inbox\r\n",
@@ -191,7 +211,7 @@ test_descriptor descriptors[] = {
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
       "3 logout\r\n"
-    }, 3, "2 OK [READ-WRITE] select Completed\r\n", 4, 0, -2,  // -2 instead of -1 because it also does a close
+    }, 3, "2 OK [READ-WRITE] select Completed\r\n", 4, 0, -1,
    "Successful selecting"},
   {{
       "1 login foo bar\r\n",
@@ -203,7 +223,7 @@ test_descriptor descriptors[] = {
       "1 login foo bar\r\n",
       "2 examine inbox\r\n",
       "3 logout\r\n"
-    }, 3, "2 OK [READ-ONLY] examine Completed\r\n", 4, 0, -2, // -2 instead of -1 b3ecause it also does a close
+    }, 3, "2 OK [READ-ONLY] examine Completed\r\n", 4, 0, -1,
    "Successful examining"},
   {{
       "1 login foo bar\r\n",
@@ -218,7 +238,7 @@ test_descriptor descriptors[] = {
       "2 select inbox\r\n",
       "3 close\r\n",
       "4 logout\r\n"
-    }, 4, "3 OK close Completed\r\n", 5, 0, -3,  // -3 instead of -1 because it also does a close
+    }, 4, "3 OK close Completed\r\n", 5, 0, -1,
    "Successful selecting"},
 };
 
