@@ -191,7 +191,7 @@ test_descriptor descriptors[] = {
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
       "3 logout\r\n"
-    }, 3, "2 OK [READ-WRITE] select Completed\r\n", 4, 0, -1,
+    }, 3, "2 OK [READ-WRITE] select Completed\r\n", 4, 0, -2,  // -2 instead of -1 because it also does a close
    "Successful selecting"},
   {{
       "1 login foo bar\r\n",
@@ -203,8 +203,23 @@ test_descriptor descriptors[] = {
       "1 login foo bar\r\n",
       "2 examine inbox\r\n",
       "3 logout\r\n"
-    }, 3, "2 OK [READ-ONLY] examine Completed\r\n", 4, 0, -1,
+    }, 3, "2 OK [READ-ONLY] examine Completed\r\n", 4, 0, -2, // -2 instead of -1 b3ecause it also does a close
    "Successful examining"},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 close\r\n",
+      "4 close\r\n",
+      "5 logout\r\n"
+    }, 5, "3 NO close Locking Error:  Too Many Retries\r\n", 5, 1, 4,
+   "Selecting failure"},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 close\r\n",
+      "4 logout\r\n"
+    }, 4, "3 OK close Completed\r\n", 5, 0, -3,  // -3 instead of -1 because it also does a close
+   "Successful selecting"},
 };
 
 int main() {

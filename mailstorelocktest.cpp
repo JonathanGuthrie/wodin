@@ -72,7 +72,12 @@ unsigned MailStoreLockTest::serialNumber()
 // the results of that parsing for things like message sequence numbers, UID's, and offsets in the
 // file
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxOpen(const std::string &FullName, bool readWrite) {
-  return internalLockLogic();
+  MailStore::MAIL_STORE_RESULT result = internalLockLogic();
+  // This is necessary because the close doesn't happen properly unless I set the name
+  if (MailStore::SUCCESS == result) {
+    m_openMailboxName = new std::string("foo");
+  }
+  return  result;
 }
 
 
