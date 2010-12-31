@@ -2136,15 +2136,20 @@ IMAP_RESULTS ImapSession::checkHandler(uint8_t *data, size_t dataLen, size_t &pa
 IMAP_RESULTS ImapSession::closeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused) {
   // If the mailbox is open, close it
   // In IMAP, deleted messages are always purged before a close
-  NUMBER_SET purgedMessages;
-  m_store->listDeletedMessages(&purgedMessages);
-  m_purgedMessages.insert(purgedMessages.begin(), purgedMessages.end());
-  for(NUMBER_SET::iterator i=purgedMessages.begin(); i!=purgedMessages.end(); ++i) {
-    m_store->expungeThisUid(*i);
+  IMAP_RESULTS result = IMAP_TRY_AGAIN;
+  if (MailStore::SUCCESS == m_store->lock()) {
+    NUMBER_SET purgedMessages;
+    m_store->listDeletedMessages(&purgedMessages);
+    m_purgedMessages.insert(purgedMessages.begin(), purgedMessages.end());
+    for(NUMBER_SET::iterator i=purgedMessages.begin(); i!=purgedMessages.end(); ++i) {
+      m_store->expungeThisUid(*i);
+    }
+    m_store->mailboxClose();
+    m_state = ImapAuthenticated;
+    m_store->unlock();
+    result = IMAP_OK;
   }
-  m_store->mailboxClose();
-  m_state = ImapAuthenticated;
-  return IMAP_OK;
+  return result;
 }
 
 IMAP_RESULTS ImapSession::expungeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused) {
