@@ -1950,67 +1950,57 @@ IMAP_RESULTS ImapSession::appendHandlerExecute(uint8_t *data, size_t dataLen, si
   IMAP_RESULTS result = IMAP_BAD;
   DateTime messageDateTime;
 
-  if ((2 < (dataLen - parsingAt)) && (' ' == data[parsingAt++])) {
-    if ('(' == data[parsingAt]) {
-      ++parsingAt;
-      bool flagsOk;
-      m_mailFlags = readEmailFlags(data, dataLen, parsingAt, flagsOk);
-      if (flagsOk && (2 < (dataLen - parsingAt)) &&
-	  (')' == data[parsingAt]) && (' ' == data[parsingAt+1])) {
-	parsingAt += 2;
-      }
-      else {
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-      }
-    }
-    else {
-      m_mailFlags = 0;
-    }
-
-    if ('"' == data[parsingAt]) {
-      ++parsingAt;
-      // The constructor for DateTime swallows both the leading and trailing
-      // double quote characters
-      if (messageDateTime.parse(data, dataLen, parsingAt, DateTime::IMAP) &&
-	  ('"' == data[parsingAt]) &&
-	  (' ' == data[parsingAt+1])) {
-	parsingAt += 2;
-      }
-      else {
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-      }
-    }
-
-    if ((2 < (dataLen - parsingAt)) && ('{' == data[parsingAt])) {
-      // It's a literal string
-      parsingAt++; // Skip the curly brace
-      char *close;
-      // read the number
-      m_literalLength = strtoul((char *)&data[parsingAt], &close, 10);
-      // check for the close curly brace and end of message and to see if I can fit all that data
-      // into the buffer
-      size_t lastChar = (size_t) (close - ((char *)data));
-      if ((NULL == close) || ('}' != close[0]) || (lastChar != (dataLen - 1))) {
-	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
-      }
-      else {
-	std::string mailbox((char *)&m_parseBuffer[m_arguments]);
-		
-	switch (m_store->addMessageToMailbox(mailbox, m_lineBuffer, 0, messageDateTime, m_mailFlags, &m_appendingUid)) {
-	case MailStore::SUCCESS:
-	  strncpy(m_responseText, "Ready for the Message Data", MAX_RESPONSE_STRING_LENGTH);
-	  m_parseStage = 2;
-	  result = IMAP_NOTDONE;
-	  break;
-
-	case MailStore::CANNOT_COMPLETE_ACTION:
-	  result = IMAP_TRY_AGAIN;
-	  break;
-
-	default:
-	  result = IMAP_MBOX_ERROR;
-	  break;
+  if (m_parseStage < 2) {
+    if ((2 < (dataLen - parsingAt)) && (' ' == data[parsingAt++])) {
+      if ('(' == data[parsingAt]) {
+	++parsingAt;
+	bool flagsOk;
+	m_mailFlags = readEmailFlags(data, dataLen, parsingAt, flagsOk);
+	if (flagsOk && (2 < (dataLen - parsingAt)) &&
+	    (')' == data[parsingAt]) && (' ' == data[parsingAt+1])) {
+	  parsingAt += 2;
 	}
+	else {
+	  strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	}
+      }
+      else {
+	m_mailFlags = 0;
+      }
+
+      if ('"' == data[parsingAt]) {
+	++parsingAt;
+	// The constructor for DateTime swallows both the leading and trailing
+	// double quote characters
+	if (messageDateTime.parse(data, dataLen, parsingAt, DateTime::IMAP) &&
+	    ('"' == data[parsingAt]) &&
+	    (' ' == data[parsingAt+1])) {
+	  parsingAt += 2;
+	}
+	else {
+	  strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	}
+      }
+
+      if ((2 < (dataLen - parsingAt)) && ('{' == data[parsingAt])) {
+	// It's a literal string
+	parsingAt++; // Skip the curly brace
+	char *close;
+	// read the number
+	m_literalLength = strtoul((char *)&data[parsingAt], &close, 10);
+	// check for the close curly brace and end of message and to see if I can fit all that data
+	// into the buffer
+	size_t lastChar = (size_t) (close - ((char *)data));
+	if ((NULL == close) || ('}' != close[0]) || (lastChar != (dataLen - 1))) {
+	  strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+	}
+	else {
+	  m_parseStage = 2;
+	  result = IMAP_OK;
+	}
+      }
+      else {
+	strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
       }
     }
     else {
@@ -2018,7 +2008,27 @@ IMAP_RESULTS ImapSession::appendHandlerExecute(uint8_t *data, size_t dataLen, si
     }
   }
   else {
-    strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
+    result = IMAP_OK;
+  }
+
+  if (IMAP_OK == result) {
+    std::string mailbox((char *)&m_parseBuffer[m_arguments]);
+		
+    switch (m_store->addMessageToMailbox(mailbox, m_lineBuffer, 0, messageDateTime, m_mailFlags, &m_appendingUid)) {
+    case MailStore::SUCCESS:
+      strncpy(m_responseText, "Ready for the Message Data", MAX_RESPONSE_STRING_LENGTH);
+      m_parseStage = 3;
+      result = IMAP_NOTDONE;
+      break;
+
+    case MailStore::CANNOT_COMPLETE_ACTION:
+      result = IMAP_TRY_AGAIN;
+      break;
+
+    default:
+      result = IMAP_MBOX_ERROR;
+      break;
+    }
   }
   return result;
 }
@@ -2074,6 +2084,13 @@ IMAP_RESULTS ImapSession::appendHandler(uint8_t *data, size_t dataLen, size_t &p
 
   case 2:
     {
+      size_t i = 0;
+      result = appendHandlerExecute(data, 0, i);
+    }
+    break;
+
+  case 3:
+    {
       size_t residue;
       // It's the message body that's arrived
       size_t len = MIN(m_literalLength, dataLen);
@@ -2087,11 +2104,25 @@ IMAP_RESULTS ImapSession::appendHandler(uint8_t *data, size_t dataLen, size_t &p
       std::string mailbox((char *)&m_parseBuffer[m_arguments]);
       switch (m_store->appendDataToMessage(mailbox, m_appendingUid, data, len)) {
       case MailStore::SUCCESS:
+	result = IMAP_MBOX_ERROR;
 	m_literalLength -= len;
 	if (0 == m_literalLength) {
-	  m_store->doneAppendingDataToMessage(mailbox, m_appendingUid);
-	  m_parseStage = 3;
-	  m_appendingUid = 0;
+	  m_parseStage = 4;
+	  switch(m_store->doneAppendingDataToMessage(mailbox, m_appendingUid)) {
+	  case MailStore::SUCCESS:
+	    m_appendingUid = 0;
+	    result = IMAP_OK;
+	    break;
+
+	  case MailStore::CANNOT_COMPLETE_ACTION:
+	    result = IMAP_TRY_AGAIN;
+	    break;
+
+	  default:
+	    m_store->deleteMessage(mailbox, m_appendingUid);
+	    m_appendingUid = 0;
+	    result = IMAP_MBOX_ERROR;
+	  }
 	}
 	break;
 
@@ -2106,6 +2137,28 @@ IMAP_RESULTS ImapSession::appendHandler(uint8_t *data, size_t dataLen, size_t &p
 	m_appendingUid = 0;
 	m_literalLength = 0;
 	break;
+      }
+    }
+    break;
+
+  case 4:
+    // I've got the last of the data, and I'm retrying the done appending code
+    {
+      std::string mailbox((char *)&m_parseBuffer[m_arguments]);
+      switch(m_store->doneAppendingDataToMessage(mailbox, m_appendingUid)) {
+      case MailStore::SUCCESS:
+	m_appendingUid = 0;
+	result = IMAP_OK;
+	break;
+
+      case MailStore::CANNOT_COMPLETE_ACTION:
+	result = IMAP_TRY_AGAIN;
+	break;
+
+      default:
+	m_store->deleteMessage(mailbox, m_appendingUid);
+	m_appendingUid = 0;
+	result = IMAP_MBOX_ERROR;
       }
     }
     break;
