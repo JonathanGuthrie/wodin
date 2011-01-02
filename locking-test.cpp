@@ -54,6 +54,7 @@ ssize_t TestSocket::receive(uint8_t *buffer, size_t size) {
     strcpy((char *)buffer, (*m_pIn).s.c_str());
     result = (*m_pIn).s.length();
     g_lockState.retryCount((*m_pIn).retry_count);
+    // std::cout << (*m_pIn).s << std::endl;
     m_pIn++;
   }
 
@@ -146,7 +147,7 @@ bool test(TestServer &server, TestSocket *s, const std::string commands[],
 }
 
 typedef struct {
-  const std::string commands[10];
+  const std::string commands[100];
   int command_count;
   const std::string match;
   int test_step;
@@ -197,18 +198,6 @@ test_descriptor descriptors[] = {
    "Successful renaming"},
   {{
       "1 login foo bar\r\n",
-      "2 subscribe inbox\r\n",
-      "3 logout\r\n"
-    }, 3, "2 NO subscribe Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
-   "Subscribing failure"},
-  {{
-      "1 login foo bar\r\n",
-      "2 subscribe inbox\r\n",
-      "3 logout\r\n"
-    }, 3, "2 OK subscribe Completed\r\n", 1, 3, 0, -1,
-   "Successful subscribing"},
-  {{
-      "1 login foo bar\r\n",
       "2 select inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 NO select Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
@@ -246,6 +235,48 @@ test_descriptor descriptors[] = {
       "4 logout\r\n"
     }, 4, "3 OK close Completed\r\n", 2, 5, 0, -1,
    "Successful closing"},
+  {{
+      "1 login foo bar\r\n",
+      "2 subscribe inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 NO subscribe Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
+   "Subscribing failure"},
+  {{
+      "1 login foo bar\r\n",
+      "2 subscribe inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 OK subscribe Completed\r\n", 1, 3, 0, -1,
+   "Successful subscribing"},
+  {{
+      "1 login foo bar\r\n",
+      "2 append inbox {3}\r\n",
+      "foo\r\n\r\n",
+      "3 logout\r\n"
+    }, 5, "2 NO append Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
+   "Appending failure"},
+  {{
+      "1 login foo bar\r\n",
+      "2 append inbox {3}\r\n",
+      "foo\r\n",
+      "10 logout\r\n"
+    }, 4, "2 OK append Completed\r\n", 1, 4, 0, -2,  // -2 not -1 because it does two actions that could conceivably lock
+   "Successful appending"},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 copy 1 foo\r\n",
+      "4 logout\r\n"
+    }, 4, "3 NO copy Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
+   "Copying failure"},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 copy 1 foo\r\n",
+      "4 logout\r\n"
+    }, 4, "3 OK copy Completed\r\n", 2, 5, 0, -3,
+   "Successful copying"},
+#if 0
+#endif // 0
 };
 
 int main() {

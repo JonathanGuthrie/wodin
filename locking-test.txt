@@ -73,6 +73,8 @@ DeleteMailbox is called in ImapSession::DeleteHandlerExecute
 
 RenameMailbox is called in ImapSession::RenameHandler
 
+MailboxOpen is called in ImapSession::SelectHandlerExecute
+
 MailboxClose is called in ImapSession::~ImapSession, ImapSession::LogoutHandler, ImapSession::SelectHandlerExecute, ImapSession::CloseHandler
 
 SubscribeMailbox is called in ImapSession::SubscribeHandlerExecute
@@ -82,8 +84,6 @@ AddMessageToMailbox is called in ImapSession::AppendHandlerExecute and ImapSessi
 AppendDataToMessage is called in ImapSession::AppendHandler
 
 DoneAppendingDataToMessage is called in ImapSession::AppendHandler (in two different places) and ImapSession::CopyHandlerExecute
-
-MailboxOpen is called in ImapSession::SelectHandlerExecute
 
 ListDeletedMessages is called in ImapSession::CloseHandler, ImapSession::ExpungeHandler
 
