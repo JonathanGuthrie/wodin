@@ -48,7 +48,7 @@ public:
   virtual MAIL_STORE_RESULT getMailboxCounts(const std::string &MailboxName, uint32_t which, unsigned &messageCount,
 					     unsigned &recentCount, unsigned &uidNext, unsigned &uidValidity, unsigned &firstUnseen);
 
-  virtual unsigned mailboxMessageCount() { return 0; }
+  virtual unsigned mailboxMessageCount() { return 1; }
   virtual unsigned mailboxRecentCount() { return 0; }
   virtual unsigned mailboxFirstUnseen() { return 0; }
 

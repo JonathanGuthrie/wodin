@@ -94,6 +94,11 @@ MailStore::MAIL_STORE_RESULT MailStoreLockTest::expungeThisUid(unsigned long uid
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::getMailboxCounts(const std::string &FullName, uint32_t which, unsigned &messageCount,
 								 unsigned &recentCount, unsigned &uidLast, unsigned &uidValidity,
 								 unsigned &firstUnseen) {
+  messageCount = 1;
+  recentCount = 0;
+  uidLast = 2;
+  uidValidity = 1;
+  firstUnseen = 0;
   return internalLockLogic();
 }
 
@@ -144,6 +149,7 @@ MailStore::MAIL_STORE_RESULT MailStoreLockTest::deleteMessage(const std::string 
 }
 
 MailMessage::MAIL_MESSAGE_RESULT MailStoreLockTest::messageData(MailMessage **message, unsigned long uid) {
+  *message = new MailMessage(1, 1);
   MailMessage::MAIL_MESSAGE_RESULT result = MailMessage::SUCCESS;
   return result;
 }
