@@ -5179,7 +5179,7 @@ IMAP_RESULTS ImapSession::storeHandler(uint8_t *data, size_t dataLen, size_t &pa
 
  
 IMAP_RESULTS ImapSession::copyHandlerExecute(bool usingUid) {
-  IMAP_RESULTS result = IMAP_MBOX_ERROR;
+  IMAP_RESULTS result = IMAP_OK;
   size_t execute_pointer = 0;
 
   // Skip the first two tokens that are the tag and the command
@@ -5215,24 +5215,33 @@ IMAP_RESULTS ImapSession::copyHandlerExecute(bool usingUid) {
 
 	char buffer[m_store->bufferLength(*i)+1];
 	switch (m_mboxErrorCode = m_store->openMessageFile(*i)) {
-	case MailStore::SUCCESS: {
-	  size_t size = m_store->readMessage(buffer, 0, m_store->bufferLength(*i));
-	  switch (m_mboxErrorCode = m_store->addMessageToMailbox(mailboxName, (uint8_t *)buffer, size, when, flags, &newUid)) {
-	  case MailStore::SUCCESS:
-	    m_store->doneAppendingDataToMessage(mailboxName, newUid);
-	    messageUidsAdded.push_back(newUid);
-	    result = IMAP_OK;
-	    break;
+	case MailStore::SUCCESS:
+	  {
+	    size_t size = m_store->readMessage(buffer, 0, m_store->bufferLength(*i));
+	    switch (m_mboxErrorCode = m_store->addMessageToMailbox(mailboxName, (uint8_t *)buffer, size, when, flags, &newUid)) {
+	    case MailStore::SUCCESS:
+	      m_store->doneAppendingDataToMessage(mailboxName, newUid);
+	      messageUidsAdded.push_back(newUid);
+	      result = IMAP_OK;
+	      break;
 
-	  case MailStore::CANNOT_COMPLETE_ACTION:
-	    result = IMAP_TRY_AGAIN;
-	    break;
+	    case MailStore::CANNOT_COMPLETE_ACTION:
+	      result = IMAP_TRY_AGAIN;
+	      break;
+
+	    default:
+	      result = IMAP_MBOX_ERROR;
+	      break;
+	    }
 	  }
-	}
 	  break;
 
 	case MailStore::CANNOT_COMPLETE_ACTION:
 	  result = IMAP_TRY_AGAIN;
+	  break;
+
+	default:
+	  result = IMAP_MBOX_ERROR;
 	  break;
 	}
       }
@@ -5271,7 +5280,7 @@ IMAP_RESULTS ImapSession::copyHandler(uint8_t *data, size_t dataLen, size_t &par
     if (IMAP_OK == result) {
       switch (astring(data, dataLen, parsingAt, false, NULL)) {
       case ImapStringGood:
-	result = copyHandlerExecute(usingUid);
+	m_parseStage = 2;
 	break;
 
       case ImapStringBad:
@@ -5292,8 +5301,9 @@ IMAP_RESULTS ImapSession::copyHandler(uint8_t *data, size_t dataLen, size_t &par
     }
   }
   else {
-    if (dataLen >= m_literalLength)
-      {
+    result = IMAP_OK;
+    if (1 == m_parseStage) {
+      if (dataLen >= m_literalLength) {
 	++m_parseStage;
 	addToParseBuffer(data, m_literalLength);
 	size_t i = m_literalLength;
@@ -5307,13 +5317,16 @@ IMAP_RESULTS ImapSession::copyHandler(uint8_t *data, size_t dataLen, size_t &par
 	  data[dataLen] = '\0';  // Make sure it's terminated so strchr et al work
 	}
 	m_responseText[0] = '\0';
-	copyHandlerExecute(m_usesUid);
       }
-    else {
-      result = IMAP_IN_LITERAL;
-      addToParseBuffer(data, dataLen, false);
-      m_literalLength -= dataLen;
+      else {
+	result = IMAP_IN_LITERAL;
+	addToParseBuffer(data, dataLen, false);
+	m_literalLength -= dataLen;
+      }
     }
+  }
+  if (IMAP_OK == result) {
+    result = copyHandlerExecute(m_usesUid);
   }
   return result;
 }
