@@ -17,6 +17,8 @@
 typedef struct {
   std::string s;
   int retry_count;
+  bool test_open;
+  bool test_close;
 } commands;
 
 typedef std::list<commands> StringList;
@@ -27,7 +29,7 @@ public:
   virtual ~TestSocket();
   virtual ssize_t receive(uint8_t *buffer, size_t size);
   virtual ssize_t send(const uint8_t *data, size_t length);
-  void in(const std::string &s, int count);
+  void in(const std::string &s, int count, bool open, bool close);
   const std::string *out(void);
   int retry_out(void);
   void reset(void);
@@ -53,6 +55,8 @@ ssize_t TestSocket::receive(uint8_t *buffer, size_t size) {
   if ((NULL != m_inputs) && (m_inputs->end() != m_pIn)) {
     strcpy((char *)buffer, (*m_pIn).s.c_str());
     result = (*m_pIn).s.length();
+    g_lockState.testOpen((*m_pIn).test_open);
+    g_lockState.testClose((*m_pIn).test_close);
     g_lockState.retryCount((*m_pIn).retry_count);
     // std::cout << (*m_pIn).s << std::endl;
     m_pIn++;
@@ -75,11 +79,11 @@ ssize_t TestSocket::send(const uint8_t *data, size_t length) {
   return length;
 }
 
-void TestSocket::in(const std::string &s, int count) {
+void TestSocket::in(const std::string &s, int count, bool test_open, bool test_close) {
   if (NULL == m_inputs) {
     m_inputs = new StringList;
   }
-  commands command = { s, count };
+  commands command = { s, count, test_open, test_close };
   m_inputs->push_back(command);
   m_pIn = m_inputs->begin();
 }
@@ -107,45 +111,6 @@ void TestSocket::reset(void) {
   m_outputs = NULL;
 }
 
-bool test(TestServer &server, TestSocket *s, const std::string commands[],
-	  int command_count, const std::string &match, int test_step,
-	  int response, int initial_retry_count, int final_retry_count) {
-  bool result = true;
-  const std::string *o;
-
-  s->reset();
-  for (int i=0; i<command_count; ++i) {
-    if (i == test_step) {
-      s->in(commands[i], initial_retry_count);
-    }
-    else {
-      s->in(commands[i], 0);
-    }
-  }
-  server.test(s);
-  int retries;
-  for (int i=0; i< response; ++i) {
-    retries = s->retry_out();
-    o = s->out();
-  }
-  if ((NULL == o) || (*o != match)) {
-    std::cout << "Response doesn't match. \"";
-    if (NULL != o) {
-      std::cout << *o;
-    }
-    else {
-      std::cout << "NULL";
-    }
-    std::cout << "\" expecting \"" << match << "\"" << std::endl;
-    result = false;
-  }
-  if (final_retry_count != retries) {
-    std:: cout << "The retry count is " << retries << " and I was expecting " << final_retry_count << std::endl;
-    result = false;
-  }
-  return result;
-}
-
 typedef struct {
   const std::string commands[100];
   int command_count;
@@ -155,7 +120,46 @@ typedef struct {
   int initial_retry_count;
   int final_retry_count;
   const std::string test_name;
+  bool test_open;
+  bool test_close;
 } test_descriptor;
+
+bool test(TestServer &server, TestSocket *s, const test_descriptor *descriptor) {
+  bool result = true;
+  const std::string *o;
+
+  s->reset();
+  for (int i=0; i<descriptor->command_count; ++i) {
+    if (i == descriptor->test_step) {
+      s->in(descriptor->commands[i], descriptor->initial_retry_count, descriptor->test_open, descriptor->test_close);
+    }
+    else {
+      s->in(descriptor->commands[i], 0, false, false);
+    }
+  }
+  server.test(s);
+  int retries;
+  for (int i=0; i<descriptor->response_number; ++i) {
+    retries = s->retry_out();
+    o = s->out();
+  }
+  if ((NULL == o) || (*o != descriptor->match)) {
+    std::cout << "Response doesn't match. \"";
+    if (NULL != o) {
+      std::cout << *o;
+    }
+    else {
+      std::cout << "NULL";
+    }
+    std::cout << "\" expecting \"" << descriptor->match << "\"" << std::endl;
+    result = false;
+  }
+  if (descriptor->final_retry_count != retries) {
+    std:: cout << "The retry count is " << retries << " and I was expecting " << descriptor->final_retry_count << std::endl;
+    result = false;
+  }
+  return result;
+}
 
 test_descriptor descriptors[] = {
 #if 0
@@ -165,61 +169,87 @@ test_descriptor descriptors[] = {
     "2 create inbox\r\n",
     "3 logout\r\n"
     }, 3, "2 NO create Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
-   "Creation failure"},
+   "Creation failure",
+   true, true},
   {{
     "1 login foo bar\r\n",
     "2 create inbox\r\n",
     "3 logout\r\n"
     }, 3, "2 OK create Completed\r\n", 1, 3, 0, -1,
-   "Successful creation"},
+   "Successful creation",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 delete inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 NO delete Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
-   "Deletion failure"},
+   "Deletion failure",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 delete inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK delete Completed\r\n", 1, 3, 0, -1,
-   "Successful deletion"},
+   "Successful deletion",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 rename inbox outbox\r\n",
       "3 logout\r\n"
     }, 3, "2 NO rename Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
-   "Renaming failure"},
+   "Renaming failure",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 rename inbox outbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK rename Completed\r\n", 1, 3, 0, -1,
-   "Successful renaming"},
-  {{
-      "1 login foo bar\r\n",
-      "2 select inbox\r\n",
-      "3 logout\r\n"
-    }, 3, "2 NO select Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
-   "Selecting failure"},
+   "Successful renaming",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK [READ-WRITE] select Completed\r\n", 1, 4, 0, -1,
-   "Successful selecting"},
+   "Successful selecting",
+   true, true},
   {{
       "1 login foo bar\r\n",
-      "2 examine inbox\r\n",
+      "2 select inbox\r\n",
       "3 logout\r\n"
-    }, 3, "2 NO examine Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
-   "Examining failure"},
+    }, 3, "2 NO select Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
+   "Selecting failure (open)",
+   true, false},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 select inbox\r\n",
+      "4 logout\r\n"
+    }, 4, "3 NO select Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
+   "Selecting failure (close)",
+   false, true},
   {{
       "1 login foo bar\r\n",
       "2 examine inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK [READ-ONLY] examine Completed\r\n", 1, 4, 0, -1,
-   "Successful examining"},
+   "Successful examining",
+   true, true},
+  {{
+      "1 login foo bar\r\n",
+      "2 examine inbox\r\n",
+      "3 logout\r\n"
+    }, 3, "2 NO examine Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
+   "Examining failure (open)",
+   true, false},
+  {{
+      "1 login foo bar\r\n",
+      "2 examine inbox\r\n",
+      "3 examine inbox\r\n",
+      "4 logout\r\n"
+    }, 4, "2 NO examine Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
+   "Examining failure (close)",
+   false, true},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
@@ -227,54 +257,62 @@ test_descriptor descriptors[] = {
       "4 close\r\n",
       "5 logout\r\n"
     }, 5, "3 NO close Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
-   "Closing failure"},
+   "Closing failure",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
       "3 close\r\n",
       "4 logout\r\n"
     }, 4, "3 OK close Completed\r\n", 2, 5, 0, -1,
-   "Successful closing"},
+   "Successful closing",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 subscribe inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 NO subscribe Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
-   "Subscribing failure"},
+   "Subscribing failure",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 subscribe inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK subscribe Completed\r\n", 1, 3, 0, -1,
-   "Successful subscribing"},
+   "Successful subscribing",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 append inbox {3}\r\n",
       "foo\r\n\r\n",
       "3 logout\r\n"
     }, 5, "2 NO append Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
-   "Appending failure"},
+   "Appending failure",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 append inbox {3}\r\n",
       "foo\r\n",
       "10 logout\r\n"
     }, 4, "2 OK append Completed\r\n", 1, 4, 0, -2,  // -2 not -1 because it does two actions that could conceivably lock
-   "Successful appending"},
+   "Successful appending",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
       "3 copy 1 foo\r\n",
       "4 logout\r\n"
     }, 4, "3 NO copy Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
-   "Copying failure"},
+   "Copying failure",
+   true, true},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
       "3 copy 1 foo\r\n",
       "4 logout\r\n"
     }, 4, "3 OK copy Completed\r\n", 2, 5, 0, -3,
-   "Successful copying"},
+   "Successful copying",
+   true, true},
 #if 0
 #endif // 0
 };
@@ -287,7 +325,7 @@ int main() {
   int fail_count = 0;
 
   for (int i=0; i<(sizeof(descriptors)/sizeof(test_descriptor)); ++i) {
-    bool result = test(server, s, descriptors[i].commands, descriptors[i].command_count, descriptors[i].match, descriptors[i].test_step, descriptors[i].response_number, descriptors[i].initial_retry_count, descriptors[i].final_retry_count);
+    bool result = test(server, s, &descriptors[i]);
     std::cout << descriptors[i].test_name;
     if (result) {
       std::cout << " success" << std::endl;

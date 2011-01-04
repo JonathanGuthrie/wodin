@@ -16,9 +16,15 @@ public:
   bool mailboxAlreadyLocked(void);
   int retryCount(void) { return m_retryCount; }
   void retryCount(int count) { m_retryCount = count; }
+  void testOpen(bool state) { m_testOpen = state; }
+  bool testOpen(void) { return m_testOpen; }
+  void testClose(bool state) { m_testClose = state; }
+  bool testClose(void) { return m_testClose; }
 
 private:
   int m_retryCount;
+  bool m_testOpen;
+  bool m_testClose;
 };
 
 extern LockState g_lockState;

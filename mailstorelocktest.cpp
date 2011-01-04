@@ -38,7 +38,11 @@ MailStore::MAIL_STORE_RESULT MailStoreLockTest::renameMailbox(const std::string 
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxClose() {
-  return internalLockLogic();
+  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+  if (g_lockState.testClose()) {
+    result = internalLockLogic();
+  }
+  return result;
 }
 
 
@@ -72,7 +76,11 @@ unsigned MailStoreLockTest::serialNumber()
 // the results of that parsing for things like message sequence numbers, UID's, and offsets in the
 // file
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxOpen(const std::string &FullName, bool readWrite) {
-  MailStore::MAIL_STORE_RESULT result = internalLockLogic();
+  MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
+
+  if (g_lockState.testOpen()) {
+    result = internalLockLogic();
+  }
   // This is necessary because the close doesn't happen properly unless I set the name
   if (MailStore::SUCCESS == result) {
     m_openMailboxName = new std::string("foo");
