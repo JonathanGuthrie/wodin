@@ -133,7 +133,7 @@ LOGOUT calls MailboxClose
 EXPUNGE calls ListDeletedMessages
 
 Oh, jeez!  FormatTaggedResponse calls ExpungeThisUid at the end of the successful conclusion of ANY command, if that command has executed in a session in the "Selected" state, that command has "sendUpdateStatus" enabled and a UID has to be expunged.  That's, um, a lot of possible commands, and it's hard to test.  I think I want to send the expunge message only after expungeThisUid returns successfully, so retries aren't at issue.
-ImapSession::FormatTaggedResponse calls ExpungeThisUid
+(NOT TESTED) ImapSession::FormatTaggedResponse calls ExpungeThisUid
 
 STATUS calls GetMailboxCounts
 
