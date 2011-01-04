@@ -106,6 +106,48 @@ OpenMessageFile is called in ImapSession::SendMessageChunk and ImapSession::Copy
 MailboxLock is called in ImapSession::SearchHandlerExecute and ImapSession::FetchHandlerExecute
 
 MailboxUnlock is called in ImapSession::SearchHandlerExecute and ImapSession::FetchHandlerExecute
+=========
+
+(Done) CREATE calls CreateMailbox
+
+(Done) DELETE calls DeleteMailbox
+
+(Done) RENAME calls RenameMailbox
+
+(Done, partly) SELECT calls MailboxOpen, MailboxClose, 
+
+(Done, partly) EXAMINE calls MailboxOpen, MailboxClose, 
+
+ImapSession::~ImapSession calls MailboxClose (This needs to not retry)
+
+LOGOUT calls MailboxClose 
+
+(Done, partly) CLOSE calls MailboxClose, ListDeletedMessages, ExpungeThisUid
+
+(Done) SUBSCRIBE calls SubscribeMailbox
+
+(Done, partly) APPEND calls AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, and DeleteMessage
+
+(Done, partly) COPY calls AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, OpenMessageFile, and DeleteMessage
+
+EXPUNGE calls ListDeletedMessages
+
+Oh, jeez!  FormatTaggedResponse calls ExpungeThisUid at the end of the successful conclusion of ANY command, if that command has executed in a session in the "Selected" state, that command has "sendUpdateStatus" enabled and a UID has to be expunged.  That's, um, a lot of possible commands, and it's hard to test.  I think I want to send the expunge message only after expungeThisUid returns successfully, so retries aren't at issue.
+ImapSession::FormatTaggedResponse calls ExpungeThisUid
+
+STATUS calls GetMailboxCounts
+
+SEARCH calls MessageList, MailboxLock, and MailboxUnlock
+
+FETCH calls OpenMessageFile, MessageUpdateFlags, MailboxLock, and MailboxUnlock
+
+STORE calls MessageUpdateFlags
+
+CHECK calls MailboxFlushBuffers and MailboxUpdateStats
+
+AsynchronousEvent?  Well, shoot.  I need to make sure I ignore errors and retries aren't at issue.
+ImapSession::AsynchronousEvent calls MailboxUpdateStats.  I need to add asynchronous handling of closing a mailbox at the end of a session when it's inappropriate to make the user wait for the close to complete.  It should just keep trying and trying in AsynchronousEvent until it succeeds.
+
 
 
 
