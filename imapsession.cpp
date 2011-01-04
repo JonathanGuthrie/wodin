@@ -616,8 +616,9 @@ std::string ImapSession::formatTaggedResponse(IMAP_RESULTS status, bool sendUpda
       std::ostringstream ss;
 
       message_number = m_store->mailboxUidToMsn(*i);
-      ss << "* " << message_number << " EXPUNGE\r\n";
-      m_store->expungeThisUid(*i);
+      if (MailStore::SUCCESS == m_store->expungeThisUid(*i)) {
+	ss << "* " << message_number << " EXPUNGE\r\n";
+      }
       m_driver->wantsToSend(ss.str());
     }
     m_purgedMessages.clear();
