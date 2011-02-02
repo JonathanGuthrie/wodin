@@ -124,25 +124,29 @@ done)  Figure out how to not have SocketBindErrorException
 39)  Fix a defect:  If it doesn't receive whole lines, it doesn't work.  This is because WantsToReceive is only called in
   the HandleOneLine method of ImapSession.  It needs to be called in ReceiveData.
 
-39)  Really add the support for STARTTLS
+40)  Fix a defect:  The namespace mailboxOpen method doesn't apparently care about whether or not the mailbox was previously
+  opened in read/write or read-only mode when opening a mail box.  The namespace should always open the mailbox in read-write
+  mode and simulate read-only when that's what the client asks for.
 
-40)  Support listening on multiple ports, and support ports that require SSL.
+41)  Really add the support for STARTTLS
 
-41)  Re-do the boyer-moore-pratt search so it's not downloaded code
+42)  Support listening on multiple ports, and support ports that require SSL.
 
-42)  Add support user-defined flags to the initial mailstore
+43)  Re-do the boyer-moore-pratt search so it's not downloaded code
 
-43)  Add the logic required to forbid logins outside of tls sessions
+44)  Add support user-defined flags to the initial mailstore
 
-44)  Compile without warnings with -Wall
+45)  Add the logic required to forbid logins outside of tls sessions
 
-45)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
+46)  Compile without warnings with -Wall
 
-46)  Test the SASL authentication modes
+47)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
-47)  Overwrite the strings that hold passwords
+48)  Test the SASL authentication modes
 
-48)  Handle search charsets other than US-ASCII
+49)  Overwrite the strings that hold passwords
+
+50)  Handle search charsets other than US-ASCII
 
 )  Add anonymous authentication to the capability string (availability should be known by the server class--make that so as well)
 

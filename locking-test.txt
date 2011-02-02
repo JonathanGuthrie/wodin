@@ -41,6 +41,18 @@ it would be complicated if each call could fail.  This state ends when MailboxUn
 is called, which is the last thing that is not permitted to return
 CANNOT_COMPLETE_ACTION.
 
+Another wrinkle is this:  A close cannot fail from the client's perspective.  However,
+a mailstore's close method might certainly fail due to lock contention.  So, what's
+going to happen is that the namespace will record the fact that the mail store remains
+open and will periodically attempt to close it.  That operation will be retried without
+limit until another session opens the mail box or the mailbox is finally successfully
+closed.  Okay, this will require making several modifications to the Namespace class.
+First, mailboxClose has to understand the response from the mail store's mailboxClose
+call.  If that call fails, then it needs to be put in a map of pending mailboxes.
+Second, the mailboxOpen must look in the list of pending closes before opening a new
+mail box.  Third, I need to modify mailboxUpdateStats to retry the close if the pending
+mailboxes map is not empty.
+
 These are the methods that return a MAIL_STORE_RESULT:
     CreateMailbox
     DeleteMailbox
@@ -107,6 +119,10 @@ MailboxLock is called in ImapSession::SearchHandlerExecute and ImapSession::Fetc
 
 MailboxUnlock is called in ImapSession::SearchHandlerExecute and ImapSession::FetchHandlerExecute
 =========
+Namespace will never return a fail to MailboxClose, but it will retry that operation until it is no
+longer necessary to retry.  I need to figure out how to test that, but that is a substantially
+different circumstance.  The MailboxClose will be called from Namespace::MailboxUpdateStats.  THAT
+will have to be tested.
 
 (Done) CREATE calls CreateMailbox
 
@@ -146,10 +162,9 @@ STORE calls MessageUpdateFlags
 CHECK calls MailboxFlushBuffers and MailboxUpdateStats
 
 AsynchronousEvent?  Well, shoot.  I need to make sure I ignore errors and retries aren't at issue.
+
 ImapSession::AsynchronousEvent calls MailboxUpdateStats.  I need to add asynchronous handling of closing a mailbox at the end of a session when it's inappropriate to make the user wait for the close to complete.  It should just keep trying and trying in AsynchronousEvent until it succeeds.
 
-
-
-
-
-
+Other tests required:
+Test to see if an orphaned mailbox is restored to non-orphaned status when the mail box is opened again
+Test to see if an orphaned mailbox finally gets closed
