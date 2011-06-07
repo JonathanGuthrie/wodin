@@ -326,6 +326,9 @@ ImapSession::ImapSession(ImapMaster *master, SessionDriver *driver, Server *serv
   m_server->addTimerAction(new DeltaQueueAsynchronousAction(m_master->asynchronousEventTime(), this));
   m_driver->wantsToReceive();
   m_currentHandler = NULL;
+  m_savedParsingAt = 0;
+  m_flag = false;
+  m_usesUid = false;
 }
 
 ImapSession::~ImapSession() {
@@ -790,12 +793,15 @@ void ImapSession::handleOneLine(uint8_t *data, size_t dataLen) {
 	m_flag = found->second.flag;
       }
     }
+    m_savedParsingAt = i;
   }
   if (NULL != m_currentHandler) {
     IMAP_RESULTS status;
     m_responseCode[0] = '\0';
+    i = m_savedParsingAt;
     strncpy(m_responseText, "Completed", MAX_RESPONSE_STRING_LENGTH);
     status = (this->*m_currentHandler)(data, dataLen, i, m_flag);
+    m_savedParsingAt = i;
     response = formatTaggedResponse(status, m_sendUpdatedStatus);
     if ((IMAP_NOTDONE != status) && (IMAP_IN_LITERAL != status) && (IMAP_TRY_AGAIN != status)) {
       m_currentHandler = NULL;
@@ -5365,7 +5371,7 @@ IMAP_RESULTS ImapSession::uidHandler(uint8_t *data, size_t dataLen, size_t &pars
       }
     }
     if (NULL != m_currentHandler) {
-      result = (this->*m_currentHandler)(data, dataLen, parsingAt, m_flag);
+      result = (this->*m_currentHandler)(data, dataLen, parsingAt, true);
     }
     else {
       result = unimplementedHandler();

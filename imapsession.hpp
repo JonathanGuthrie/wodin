@@ -97,6 +97,7 @@ private:
   unsigned m_failedLoginPause;
   SessionDriver *m_driver;
   MailStore::MAIL_STORE_RESULT m_mboxErrorCode;
+  size_t m_savedParsingAt;
 
   // These constitute the session's state
   enum ImapState m_state;
