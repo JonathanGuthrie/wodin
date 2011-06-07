@@ -5,5 +5,4 @@ ImapLockTestUser::ImapLockTestUser(const char *user, const ImapMaster *Master) :
 }
 
 ImapLockTestUser::~ImapLockTestUser() {
-  delete m_home;
 }
