@@ -131,10 +131,13 @@ will have to be tested.
 (Done) RENAME calls RenameMailbox
 
 (Done, partly) SELECT calls MailboxOpen, MailboxClose, 
+  Need to check to make sure that the open mailbox is eventually closed in the retry loop
 
 (Done, partly) EXAMINE calls MailboxOpen, MailboxClose, 
+  Need to check to make sure that the open mailbox is eventually closed in the retry loop
 
 ImapSession::~ImapSession calls MailboxClose (This needs to not retry)
+  Need to check to make sure that the open mailbox is eventually closed in the retry loop
 
 LOGOUT calls MailboxClose 
 
@@ -143,8 +146,10 @@ LOGOUT calls MailboxClose
 (Done) SUBSCRIBE calls SubscribeMailbox
 
 (Done, partly) APPEND calls AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, and DeleteMessage
+  This needs to do a lock at the beginning, and an unlock at the end
 
 (Done, partly) COPY calls AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, OpenMessageFile, and DeleteMessage
+  This needs to do a lock at the beginning, and an unlock at the end
 
 EXPUNGE calls ListDeletedMessages
 
@@ -168,3 +173,12 @@ ImapSession::AsynchronousEvent calls MailboxUpdateStats.  I need to add asynchro
 Other tests required:
 Test to see if an orphaned mailbox is restored to non-orphaned status when the mail box is opened again
 Test to see if an orphaned mailbox finally gets closed
+
+
+===========================================================================
+ENUMERATED TEST CASES
+Case 1: Creation failure
+Attempt to create a mail folder, but lock causes the creation to fail.
+
+Case 2: Creation success
+Attempt to create a mail folder, which succeeds

@@ -225,7 +225,7 @@ test_descriptor descriptors[] = {
       "2 select inbox\r\n",
       "3 select inbox\r\n",
       "4 logout\r\n"
-    }, 4, "3 NO select Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
+    }, 4, "2 OK [READ-WRITE] select Completed\r\n", 1, 4, 0, 0,
    "Selecting failure (close)",
    false, true},
   {{
@@ -247,7 +247,7 @@ test_descriptor descriptors[] = {
       "2 examine inbox\r\n",
       "3 examine inbox\r\n",
       "4 logout\r\n"
-    }, 4, "2 NO examine Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
+    }, 4, "2 OK [READ-ONLY] examine Completed\r\n", 1, 4, 0, 0,
    "Examining failure (close)",
    false, true},
   {{
