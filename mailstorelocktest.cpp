@@ -83,7 +83,7 @@ MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxOpen(const std::string &F
   }
   // This is necessary because the close doesn't happen properly unless I set the name
   if (MailStore::SUCCESS == result) {
-    m_openMailboxName = new std::string("foo");
+    m_openMailboxName = new std::string(FullName);
   }
   return  result;
 }
@@ -198,7 +198,7 @@ const SEARCH_RESULT *MailStoreLockTest::searchMetaData(uint32_t xorMask, uint32_
 
 
 const std::string MailStoreLockTest::generateUrl(const std::string MailboxName) const {
-  std::string result = "locktest:///";
+  std::string result = "locktest://" + MailboxName + "/";
   return result;
 }
 

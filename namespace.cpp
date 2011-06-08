@@ -8,6 +8,8 @@
 
 pthread_mutex_t Namespace::m_mailboxMapMutex;
 Namespace::MailboxMap Namespace::m_mailboxMap;
+pthread_mutex_t Namespace::m_orphanMapMutex;
+Namespace::MailStoreMap Namespace::m_orphanMap;
 
 Namespace::Namespace(ImapSession *session) : MailStore(session) {
   m_defaultNamespace = NULL;
@@ -109,9 +111,20 @@ MailStore::MAIL_STORE_RESULT Namespace::mailboxClose() {
 	// If the reference count is zero, then call mailboxClose and remove this from the mailboxMap and then
 	// delete the mailstore
 	result = m_selectedMailbox->store->mailboxClose();
-	pthread_mutex_destroy(&found->second.mutex);
+	if (MailStore::CANNOT_COMPLETE_ACTION == result) {
+	  // The mail box is locked, but the user wants it gone, so it is now an orphan
+	  pthread_mutex_lock(&Namespace::m_orphanMapMutex);
+	  m_orphanMap.insert(MailStoreMap::value_type(mailboxUrl, m_selectedMailbox->store));
+	  pthread_mutex_unlock(&Namespace::m_orphanMapMutex);
+	}
+	else {
+	  // if the close was successful, remove this from the mailboxMap and then delete the mailstore
+	  pthread_mutex_destroy(&found->second.mutex);
+	  delete m_selectedMailbox->store;
+	}
 	m_mailboxMap.erase(found);
-	delete m_selectedMailbox->store;
+	// no matter what, as far as the end user is concerned, everything worked just fine
+	result = MailStore::SUCCESS;
       }
       else {
 	// SYZYGY -- need to test the update of the list of sessions notified about messages from this mailstore
@@ -248,25 +261,44 @@ MailStore::MAIL_STORE_RESULT Namespace::mailboxOpen(const std::string &MailboxNa
     pthread_mutex_lock(&Namespace::m_mailboxMapMutex);
     MailboxMap::iterator found = m_mailboxMap.find(mailboxUrl);
     if (found == m_mailboxMap.end()) {
-      MailStore *selectedNamespace = store->clone();
-      if (SUCCESS == (result = selectedNamespace->mailboxOpen(MailboxName, readWrite))) {
-	std::pair<MailboxMap::iterator, bool> insert_result;
-	m_openMailboxName = selectedNamespace->mailboxName();
+      std::pair<MailboxMap::iterator, bool> insert_result;
+      pthread_mutex_lock(&Namespace::m_orphanMapMutex);
+      MailStoreMap::iterator foundOrphan = m_orphanMap.find(mailboxUrl);
+      if (foundOrphan == m_orphanMap.end()) {
+	MailStore *selectedNamespace = store->clone();
+	// It's not an orphaned mail box, open it
+	if (SUCCESS == (result = selectedNamespace->mailboxOpen(MailboxName, readWrite))) {
+	  m_openMailboxName = selectedNamespace->mailboxName();
+
+	  mailbox_t boxToInsert;
+	  pthread_mutex_init(&boxToInsert.mutex, NULL);
+	  boxToInsert.store = selectedNamespace;
+	  refCount = boxToInsert.refcount = 1;
+	  boxToInsert.messages.clear();
+	  insert_result = m_mailboxMap.insert(MailboxMap::value_type(mailboxUrl, boxToInsert));
+	  m_selectedMailbox = &(insert_result.first->second);
+	}
+	else {
+	  delete selectedNamespace;
+	  selectedNamespace = NULL;
+	  m_openMailboxName = NULL;
+	  m_selectedMailbox = NULL;
+	}
+      }
+      else {
+	// It's an orphaned mail box. I don't need to open it because it was never closed.
 
 	mailbox_t boxToInsert;
 	pthread_mutex_init(&boxToInsert.mutex, NULL);
-	boxToInsert.store = selectedNamespace;
+	boxToInsert.store = foundOrphan->second;
 	refCount = boxToInsert.refcount = 1;
 	boxToInsert.messages.clear();
 	insert_result = m_mailboxMap.insert(MailboxMap::value_type(mailboxUrl, boxToInsert));
 	m_selectedMailbox = &(insert_result.first->second);
+	m_openMailboxName = foundOrphan->second->mailboxName();
+	m_orphanMap.erase(foundOrphan);
       }
-      else {
-	delete selectedNamespace;
-	selectedNamespace = NULL;
-	m_openMailboxName = NULL;
-	m_selectedMailbox = NULL;
-      }
+      pthread_mutex_unlock(&Namespace::m_orphanMapMutex);
     }
     else {
       result = MailStore::SUCCESS;
@@ -277,8 +309,8 @@ MailStore::MAIL_STORE_RESULT Namespace::mailboxOpen(const std::string &MailboxNa
     }
     if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
       pthread_mutex_lock(&m_selectedMailbox->mutex);
-      // SYZYGY -- if selectedNamespace is not NULL then I need to generate the MSN/UID mapping for the
-      // SYZYGY -- session and generate a message count
+      // if selectedNamespace is not NULL then I need to generate the MSN/UID mapping for the
+      // session and generate a message count
       m_mailboxMessageCount = m_selectedMailbox->store->mailboxMessageCount();
       m_uidGivenMsn.assign(m_selectedMailbox->store->uidGivenMsn().begin(), m_selectedMailbox->store->uidGivenMsn().end());
       for (ExpungedMessageMap::iterator i = m_selectedMailbox->messages.begin(); i!= m_selectedMailbox->messages.end(); ++i) {
@@ -487,6 +519,14 @@ MailStore::MAIL_STORE_RESULT Namespace::mailboxUpdateStats(NUMBER_SET *nowGone) 
     result = mailboxUpdateStatsInternal(nowGone);
     pthread_mutex_unlock(&m_selectedMailbox->mutex);
   }
+  // Attempt to close any orphaned mail stores
+  pthread_mutex_lock(&Namespace::m_orphanMapMutex);
+  for (MailStoreMap::iterator i = m_orphanMap.begin(); i!= m_orphanMap.end(); ++i) {
+    if (MailStore::SUCCESS == i->second->mailboxClose()) {
+      m_orphanMap.erase(i);
+    }
+  }
+  pthread_mutex_unlock(&Namespace::m_orphanMapMutex);
   return result;
 }
 
@@ -674,5 +714,14 @@ MailStore::MAIL_STORE_RESULT Namespace::unlock(void) {
     result = m_selectedMailbox->store->unlock();
     pthread_mutex_unlock(&m_selectedMailbox->mutex);
   }
+  return result;
+}
+
+
+size_t Namespace::orphanCount(void) {
+  size_t result;
+  pthread_mutex_lock(&Namespace::m_orphanMapMutex);
+  result = m_orphanMap.size();
+  pthread_mutex_unlock(&Namespace::m_orphanMapMutex);
   return result;
 }

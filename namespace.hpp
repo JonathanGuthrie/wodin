@@ -86,6 +86,8 @@ public:
     m_mailboxMap.clear();
   }
 
+  size_t orphanCount(void);
+
 private:
   // SYZYGY -- each item in the MailboxMap class must have a mail store that is talking to the
   // SYZYGY -- mail store for that mailbox, a ref count so that it knows when to clean up, and
@@ -99,6 +101,8 @@ private:
     SessionList expungedSessions;
   } expunged_message_t;
   typedef std::map<unsigned, expunged_message_t> ExpungedMessageMap;
+  // SYZYGY -- This needs a readonly flag because otherwise you get whatever state (read/write or
+  // SYZYGY -- read only) that the first one opened has.
   typedef struct {
     MailStore *store;
     ExpungedMessageMap messages;
@@ -108,6 +112,9 @@ private:
   typedef std::map<std::string, mailbox_t> MailboxMap;
   static MailboxMap m_mailboxMap;
   static pthread_mutex_t m_mailboxMapMutex;
+  typedef std::map<std::string, MailStore *> MailStoreMap;
+  static MailStoreMap m_orphanMap;
+  static pthread_mutex_t m_orphanMapMutex;
 
   mailbox_t *m_selectedMailbox;
 

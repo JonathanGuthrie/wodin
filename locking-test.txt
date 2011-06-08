@@ -130,10 +130,10 @@ will have to be tested.
 
 (Done) RENAME calls RenameMailbox
 
-(Done, partly) SELECT calls MailboxOpen, MailboxClose, 
+(Done) SELECT calls MailboxOpen, MailboxClose
   Need to check to make sure that the open mailbox is eventually closed in the retry loop
 
-(Done, partly) EXAMINE calls MailboxOpen, MailboxClose, 
+(Done) EXAMINE calls MailboxOpen, MailboxClose
   Need to check to make sure that the open mailbox is eventually closed in the retry loop
 
 ImapSession::~ImapSession calls MailboxClose (This needs to not retry)

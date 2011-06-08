@@ -124,7 +124,7 @@ typedef struct {
   bool test_close;
 } test_descriptor;
 
-bool test(TestServer &server, TestSocket *s, const test_descriptor *descriptor) {
+bool test(TestServer &server, TestSocket *s, Namespace *utilityNamespace, const test_descriptor *descriptor) {
   bool result = true;
   const std::string *o;
 
@@ -158,6 +158,11 @@ bool test(TestServer &server, TestSocket *s, const test_descriptor *descriptor) 
     std:: cout << "The retry count is " << retries << " and I was expecting " << descriptor->final_retry_count << std::endl;
     result = false;
   }
+  std::cout << "The namespace has " << utilityNamespace->orphanCount() << " orphans in it" << std::endl;
+  NUMBER_SET nowGone;
+  g_lockState.testOpen(false);
+  g_lockState.testClose(false);
+  utilityNamespace->mailboxUpdateStats(&nowGone);
   return result;
 }
 
@@ -222,10 +227,10 @@ test_descriptor descriptors[] = {
    true, false},
   {{
       "1 login foo bar\r\n",
-      "2 select inbox\r\n",
-      "3 select inbox\r\n",
+      "2 select foo\r\n",
+      "3 select bar\r\n",
       "4 logout\r\n"
-    }, 4, "2 OK [READ-WRITE] select Completed\r\n", 1, 4, 0, 0,
+    }, 4, "2 OK [READ-WRITE] select Completed\r\n", 2, 4, 1000, 0,
    "Selecting failure (close)",
    false, true},
   {{
@@ -244,12 +249,13 @@ test_descriptor descriptors[] = {
    true, false},
   {{
       "1 login foo bar\r\n",
-      "2 examine inbox\r\n",
-      "3 examine inbox\r\n",
+      "2 examine foo\r\n",
+      "3 examine bar\r\n",
       "4 logout\r\n"
-    }, 4, "2 OK [READ-ONLY] examine Completed\r\n", 1, 4, 0, 0,
+    }, 4, "2 OK [READ-ONLY] examine Completed\r\n", 2, 4, 1000, 0,
    "Examining failure (close)",
    false, true},
+  // SYZYGY -- close doesn't fail any more.  Instead, it generates orphans
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
@@ -319,13 +325,14 @@ test_descriptor descriptors[] = {
 
 int main() {
   LockTestMaster master("localhost", 60, 1800, 900, 5, 12, 5);
+  Namespace *utilityNamespace = master.mailStore(NULL);
   TestServer server(&master);
   TestSocket *s = new TestSocket();
   int pass_count = 0;
   int fail_count = 0;
 
   for (int i=0; i<(sizeof(descriptors)/sizeof(test_descriptor)); ++i) {
-    bool result = test(server, s, &descriptors[i]);
+    bool result = test(server, s, utilityNamespace, &descriptors[i]);
     std::cout << descriptors[i].test_name;
     if (result) {
       std::cout << " success" << std::endl;
@@ -336,6 +343,8 @@ int main() {
       ++fail_count;
     }
   }
+
+  delete utilityNamespace;
 
   return 0;
 }
