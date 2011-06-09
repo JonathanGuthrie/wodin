@@ -286,7 +286,8 @@ MailStore::MAIL_STORE_RESULT Namespace::mailboxOpen(const std::string &MailboxNa
 	}
       }
       else {
-	// It's an orphaned mail box. I don't need to open it because it was never closed.
+	// It's an orphaned mail box. I don't need to really open it because it was never really closed.
+	result = MailStore::SUCCESS;
 
 	mailbox_t boxToInsert;
 	pthread_mutex_init(&boxToInsert.mutex, NULL);
