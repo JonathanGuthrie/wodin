@@ -13,18 +13,16 @@
  */
 class LockState {
 public:
+  enum Bits {TestOpen = 1, TestClose = 2};
   bool mailboxAlreadyLocked(void);
   int retryCount(void) { return m_retryCount; }
   void retryCount(int count) { m_retryCount = count; }
-  void testOpen(bool state) { m_testOpen = state; }
-  bool testOpen(void) { return m_testOpen; }
-  void testClose(bool state) { m_testClose = state; }
-  bool testClose(void) { return m_testClose; }
+  void testControl(uint32_t bitfield) { m_testControl = bitfield; }
+  uint32_t testControl(void) { return m_testControl; }
 
 private:
   int m_retryCount;
-  bool m_testOpen;
-  bool m_testClose;
+  uint32_t m_testControl;
 };
 
 extern LockState g_lockState;

@@ -17,8 +17,7 @@
 typedef struct {
   std::string s;
   int retry_count;
-  bool test_open;
-  bool test_close;
+  uint32_t bitmap;
 } commands;
 
 typedef std::list<commands> StringList;
@@ -29,7 +28,7 @@ public:
   virtual ~TestSocket();
   virtual ssize_t receive(uint8_t *buffer, size_t size);
   virtual ssize_t send(const uint8_t *data, size_t length);
-  void in(const std::string &s, int count, bool open, bool close);
+  void in(const std::string &s, int count, uint32_t bitmap);
   const std::string *out(void);
   int retry_out(void);
   void reset(void);
@@ -55,8 +54,7 @@ ssize_t TestSocket::receive(uint8_t *buffer, size_t size) {
   if ((NULL != m_inputs) && (m_inputs->end() != m_pIn)) {
     strcpy((char *)buffer, (*m_pIn).s.c_str());
     result = (*m_pIn).s.length();
-    g_lockState.testOpen((*m_pIn).test_open);
-    g_lockState.testClose((*m_pIn).test_close);
+    g_lockState.testControl((*m_pIn).bitmap);
     g_lockState.retryCount((*m_pIn).retry_count);
     // std::cout << (*m_pIn).s << std::endl;
     m_pIn++;
@@ -79,11 +77,11 @@ ssize_t TestSocket::send(const uint8_t *data, size_t length) {
   return length;
 }
 
-void TestSocket::in(const std::string &s, int count, bool test_open, bool test_close) {
+void TestSocket::in(const std::string &s, int count, uint32_t bitmap) {
   if (NULL == m_inputs) {
     m_inputs = new StringList;
   }
-  commands command = { s, count, test_open, test_close };
+  commands command = { s, count, bitmap };
   m_inputs->push_back(command);
   m_pIn = m_inputs->begin();
 }
@@ -120,8 +118,8 @@ typedef struct {
   int initial_retry_count;
   int final_retry_count;
   const std::string test_name;
-  bool test_open;
-  bool test_close;
+  uint32_t bitmap;
+  int orphanCount;
 } test_descriptor;
 
 bool test(TestServer &server, TestSocket *s, Namespace *utilityNamespace, const test_descriptor *descriptor) {
@@ -131,10 +129,10 @@ bool test(TestServer &server, TestSocket *s, Namespace *utilityNamespace, const 
   s->reset();
   for (int i=0; i<descriptor->command_count; ++i) {
     if (i == descriptor->test_step) {
-      s->in(descriptor->commands[i], descriptor->initial_retry_count, descriptor->test_open, descriptor->test_close);
+      s->in(descriptor->commands[i], descriptor->initial_retry_count, descriptor->bitmap);
     }
     else {
-      s->in(descriptor->commands[i], 0, false, false);
+      s->in(descriptor->commands[i], 0, 0);
     }
   }
   server.test(s);
@@ -158,10 +156,12 @@ bool test(TestServer &server, TestSocket *s, Namespace *utilityNamespace, const 
     std:: cout << "The retry count is " << retries << " and I was expecting " << descriptor->final_retry_count << std::endl;
     result = false;
   }
-  std::cout << "The namespace has " << utilityNamespace->orphanCount() << " orphans in it" << std::endl;
+  if (descriptor->orphanCount != utilityNamespace->orphanCount()) {
+    std::cout << "The namespace has " << utilityNamespace->orphanCount() << " orphans in it but is expecting " << descriptor->orphanCount << std::endl;
+    result = false;
+  }
   NUMBER_SET nowGone;
-  g_lockState.testOpen(false);
-  g_lockState.testClose(false);
+  g_lockState.testControl(0);
   utilityNamespace->mailboxUpdateStats(&nowGone);
   return result;
 }
@@ -175,86 +175,102 @@ test_descriptor descriptors[] = {
     "3 logout\r\n"
     }, 3, "2 NO create Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
    "Creation failure",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
     "1 login foo bar\r\n",
     "2 create inbox\r\n",
     "3 logout\r\n"
     }, 3, "2 OK create Completed\r\n", 1, 3, 0, -1,
    "Successful creation",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 delete inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 NO delete Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
    "Deletion failure",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 delete inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK delete Completed\r\n", 1, 3, 0, -1,
    "Successful deletion",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 rename inbox outbox\r\n",
       "3 logout\r\n"
     }, 3, "2 NO rename Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
    "Renaming failure",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 rename inbox outbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK rename Completed\r\n", 1, 3, 0, -1,
    "Successful renaming",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK [READ-WRITE] select Completed\r\n", 1, 4, 0, -1,
    "Successful selecting",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 NO select Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
    "Selecting failure (open)",
-   true, false},
+   LockState::TestOpen, 0},
   {{
       "1 login foo bar\r\n",
       "2 select foo\r\n",
       "3 select bar\r\n",
       "4 logout\r\n"
-    }, 4, "2 OK [READ-WRITE] select Completed\r\n", 2, 4, 1000, 0,
+    }, 4, "3 OK [READ-WRITE] select Completed\r\n", 2, 6, 1000, 999,
    "Selecting failure (close)",
-   false, true},
+   LockState::TestClose, 1},
+  {{
+      "1 login foo bar\r\n",
+      "2 select foo\r\n",
+      "3 select foo\r\n",
+      "4 logout\r\n"
+    }, 4, "3 OK [READ-WRITE] select Completed\r\n", 2, 6, 1000, 999,
+   "Selecting failure (reopen)",
+   LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 examine inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK [READ-ONLY] examine Completed\r\n", 1, 4, 0, -1,
    "Successful examining",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 examine inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 NO examine Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
    "Examining failure (open)",
-   true, false},
+   LockState::TestOpen, 0},
   {{
       "1 login foo bar\r\n",
       "2 examine foo\r\n",
       "3 examine bar\r\n",
       "4 logout\r\n"
-    }, 4, "2 OK [READ-ONLY] examine Completed\r\n", 2, 4, 1000, 0,
+    }, 4, "3 OK [READ-ONLY] examine Completed\r\n", 2, 6, 1000, 999,
    "Examining failure (close)",
-   false, true},
+   LockState::TestClose, 1},
+  {{
+      "1 login foo bar\r\n",
+      "2 examine foo\r\n",
+      "3 examine foo\r\n",
+      "4 logout\r\n"
+    }, 4, "3 OK [READ-ONLY] examine Completed\r\n", 2, 6, 1000, 999,
+   "Examining failure (reopen)",
+   LockState::TestClose, 0},
   // SYZYGY -- close doesn't fail any more.  Instead, it generates orphans
   {{
       "1 login foo bar\r\n",
@@ -264,7 +280,7 @@ test_descriptor descriptors[] = {
       "5 logout\r\n"
     }, 5, "3 NO close Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
    "Closing failure",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
@@ -272,21 +288,21 @@ test_descriptor descriptors[] = {
       "4 logout\r\n"
     }, 4, "3 OK close Completed\r\n", 2, 5, 0, -1,
    "Successful closing",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 subscribe inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 NO subscribe Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
    "Subscribing failure",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 subscribe inbox\r\n",
       "3 logout\r\n"
     }, 3, "2 OK subscribe Completed\r\n", 1, 3, 0, -1,
    "Successful subscribing",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 append inbox {3}\r\n",
@@ -294,7 +310,7 @@ test_descriptor descriptors[] = {
       "3 logout\r\n"
     }, 5, "2 NO append Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
    "Appending failure",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 append inbox {3}\r\n",
@@ -302,7 +318,7 @@ test_descriptor descriptors[] = {
       "10 logout\r\n"
     }, 4, "2 OK append Completed\r\n", 1, 4, 0, -2,  // -2 not -1 because it does two actions that could conceivably lock
    "Successful appending",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
@@ -310,7 +326,7 @@ test_descriptor descriptors[] = {
       "4 logout\r\n"
     }, 4, "3 NO copy Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
    "Copying failure",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
@@ -318,7 +334,7 @@ test_descriptor descriptors[] = {
       "4 logout\r\n"
     }, 4, "3 OK copy Completed\r\n", 2, 5, 0, -3,
    "Successful copying",
-   true, true},
+   LockState::TestOpen | LockState::TestClose, 0},
 #if 0
 #endif // 0
 };

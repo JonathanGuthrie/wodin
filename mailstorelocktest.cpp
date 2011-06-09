@@ -39,7 +39,7 @@ MailStore::MAIL_STORE_RESULT MailStoreLockTest::renameMailbox(const std::string 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxClose() {
   MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  if (g_lockState.testClose()) {
+  if (0 != (LockState::TestClose & g_lockState.testControl())) {
     result = internalLockLogic();
   }
   return result;
@@ -78,7 +78,7 @@ unsigned MailStoreLockTest::serialNumber()
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::mailboxOpen(const std::string &FullName, bool readWrite) {
   MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
-  if (g_lockState.testOpen()) {
+  if (0 != (LockState::TestOpen & g_lockState.testControl())) {
     result = internalLockLogic();
   }
   // This is necessary because the close doesn't happen properly unless I set the name
