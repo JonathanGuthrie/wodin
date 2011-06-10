@@ -13,7 +13,11 @@
  */
 class LockState {
 public:
-  enum Bits {TestOpen = 1, TestClose = 2};
+  enum Bits {
+    TestOpen  = 0x00000001,
+    TestClose = 0x00000002,
+    Fail      = 0x00000004,
+  };
   bool mailboxAlreadyLocked(void);
   int retryCount(void) { return m_retryCount; }
   void retryCount(int count) { m_retryCount = count; }

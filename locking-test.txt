@@ -141,15 +141,17 @@ ImapSession::~ImapSession calls MailboxClose (This needs to not retry)
 
 LOGOUT calls MailboxClose 
 
-(Done, partly) CLOSE calls MailboxClose, ListDeletedMessages, ExpungeThisUid
+(Done) CLOSE calls lock, MailboxClose, ListDeletedMessages, ExpungeThisUid, unlock
 
 (Done) SUBSCRIBE calls SubscribeMailbox
 
-(Done, partly) APPEND calls AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, and DeleteMessage
+(Done, partly) APPEND calls lock, AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, and DeleteMessage, unlock
   This needs to do a lock at the beginning, and an unlock at the end
+  Except the lock that I have doesn't work without selecting a mailbox and so I'm segfaulting.  Alas.
 
-(Done, partly) COPY calls AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, OpenMessageFile, and DeleteMessage
+(Done, partly) COPY calls lock, AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, OpenMessageFile, and DeleteMessage, unlock
   This needs to do a lock at the beginning, and an unlock at the end
+  Except the lock that I have locks the selected mailbox and I need to look this one AND the one I'm copying the message to.
 
 EXPUNGE calls ListDeletedMessages
 

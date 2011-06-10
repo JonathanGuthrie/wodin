@@ -335,6 +335,22 @@ test_descriptor descriptors[] = {
     }, 4, "3 OK copy Completed\r\n", 2, 5, 0, -3,
    "Successful copying",
    LockState::TestOpen | LockState::TestClose, 0},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 close\r\n",
+      "4 logout\r\n"
+    }, 4, "3 NO close Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
+   "Closing failure",
+   0, 0},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 close\r\n",
+      "4 logout\r\n"
+    }, 4, "3 OK close Completed\r\n", 2, 5, 0, -1,
+   "Successful close",
+   0, 0},
 #if 0
 #endif // 0
 };

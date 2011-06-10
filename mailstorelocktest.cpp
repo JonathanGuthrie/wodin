@@ -18,8 +18,14 @@ MailStoreLockTest::MailStoreLockTest(ImapSession *session) : MailStore(session) 
 
 MailStore::MAIL_STORE_RESULT MailStoreLockTest::internalLockLogic(void) {
   MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
-  if (!m_isLocked && g_lockState.mailboxAlreadyLocked()) {
-    result = MailStore::CANNOT_COMPLETE_ACTION;
+
+  if (LockState::Fail & g_lockState.testControl()) {
+    result = MailStore::GENERAL_FAILURE;
+  }
+  else {
+    if (!m_isLocked && g_lockState.mailboxAlreadyLocked()) {
+      result = MailStore::CANNOT_COMPLETE_ACTION;
+    }
   }
   return result;
 }
@@ -212,7 +218,12 @@ MailStore::MAIL_STORE_RESULT MailStoreLockTest::lock(void) {
   MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
 
   if (!m_isLocked && g_lockState.mailboxAlreadyLocked()) {
-    result = MailStore::CANNOT_COMPLETE_ACTION;
+    if (LockState::Fail & g_lockState.testControl()) {
+      result = MailStore::GENERAL_FAILURE;
+    }
+    else {
+      result = MailStore::CANNOT_COMPLETE_ACTION;
+    }
   }
   else {
     m_isLocked = true;
