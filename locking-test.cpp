@@ -316,7 +316,7 @@ test_descriptor descriptors[] = {
       "2 append inbox {3}\r\n",
       "foo\r\n",
       "10 logout\r\n"
-    }, 4, "2 OK append Completed\r\n", 1, 4, 0, -2,  // -2 not -1 because it does two actions that could conceivably lock
+    }, 4, "+ Ready for the Message Data\r\n", 1, 3, 0, -1,
    "Successful appending",
    LockState::TestOpen | LockState::TestClose, 0},
   {{
