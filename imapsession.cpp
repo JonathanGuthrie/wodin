@@ -2019,22 +2019,31 @@ IMAP_RESULTS ImapSession::appendHandlerExecute(uint8_t *data, size_t dataLen, si
   }
 
   if (IMAP_OK == result) {
+    MailStore::MAIL_STORE_RESULT mlr;
     std::string mailbox((char *)&m_parseBuffer[m_arguments]);
+    if (MailStore::SUCCESS == (mlr = m_store->lock(mailbox))) {
 		
-    switch (m_store->addMessageToMailbox(mailbox, m_lineBuffer, 0, messageDateTime, m_mailFlags, &m_appendingUid)) {
-    case MailStore::SUCCESS:
-      strncpy(m_responseText, "Ready for the Message Data", MAX_RESPONSE_STRING_LENGTH);
-      m_parseStage = 3;
-      result = IMAP_NOTDONE;
-      break;
+      switch (m_store->addMessageToMailbox(mailbox, m_lineBuffer, 0, messageDateTime, m_mailFlags, &m_appendingUid)) {
+      case MailStore::SUCCESS:
+	strncpy(m_responseText, "Ready for the Message Data", MAX_RESPONSE_STRING_LENGTH);
+	m_parseStage = 3;
+	result = IMAP_NOTDONE;
+	break;
 
-    case MailStore::CANNOT_COMPLETE_ACTION:
-      result = IMAP_TRY_AGAIN;
-      break;
+      case MailStore::CANNOT_COMPLETE_ACTION:
+	result = IMAP_TRY_AGAIN;
+	break;
 
-    default:
+      default:
+	result = IMAP_MBOX_ERROR;
+	break;
+      }
+    }
+    else {
       result = IMAP_MBOX_ERROR;
-      break;
+      if (MailStore::CANNOT_COMPLETE_ACTION == mlr) {
+	result = IMAP_TRY_AGAIN;
+      }
     }
   }
   return result;
@@ -2154,8 +2163,14 @@ IMAP_RESULTS ImapSession::appendHandler(uint8_t *data, size_t dataLen, size_t &p
       std::string mailbox((char *)&m_parseBuffer[m_arguments]);
       switch(m_store->doneAppendingDataToMessage(mailbox, m_appendingUid)) {
       case MailStore::SUCCESS:
+	if (MailStore::SUCCESS == m_store->unlock()) {
+	  result = IMAP_OK;
+	}
+	else {
+	  m_store->deleteMessage(mailbox, m_appendingUid);
+	  result = IMAP_MBOX_ERROR;
+	}
 	m_appendingUid = 0;
-	result = IMAP_OK;
 	break;
 
       case MailStore::CANNOT_COMPLETE_ACTION:

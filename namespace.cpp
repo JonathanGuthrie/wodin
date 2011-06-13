@@ -708,6 +708,17 @@ MailStore::MAIL_STORE_RESULT Namespace::lock(void) {
 }
 
 
+MailStore::MAIL_STORE_RESULT Namespace::lock(std::string &mailboxName) {
+  MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+  std::string changeableName = mailboxName;
+  MailStore *store = nameSpace(changeableName);
+  if (NULL != store) {
+    result = store->lock();
+  }
+  return result;
+}
+
+
 MailStore::MAIL_STORE_RESULT Namespace::unlock(void) {
   MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
   if ((NULL != m_selectedMailbox) && (NULL != m_selectedMailbox->store)) {
@@ -718,6 +729,16 @@ MailStore::MAIL_STORE_RESULT Namespace::unlock(void) {
   return result;
 }
 
+
+MailStore::MAIL_STORE_RESULT Namespace::unlock(std::string &mailboxName) {
+  MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
+  std::string changeableName = mailboxName;
+  MailStore *store = nameSpace(changeableName);
+  if (NULL != store) {
+    result = store->unlock();
+  }
+  return result;
+}
 
 size_t Namespace::orphanCount(void) {
   size_t result;

@@ -80,6 +80,8 @@ public:
   virtual Namespace *clone(void);
   virtual MailStore::MAIL_STORE_RESULT lock(void);
   virtual MailStore::MAIL_STORE_RESULT unlock(void);
+  MailStore::MAIL_STORE_RESULT lock(std::string &mailboxName);
+  MailStore::MAIL_STORE_RESULT unlock(std::string &mailboxName);
 
   static void runtime_init(void) {
     pthread_mutex_init(&m_mailboxMapMutex, NULL);
