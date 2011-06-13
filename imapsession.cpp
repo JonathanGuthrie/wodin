@@ -5150,13 +5150,13 @@ IMAP_RESULTS ImapSession::storeHandler(uint8_t *data, size_t dataLen, size_t &pa
 	      andMask = ~0;
 	      orMask = flagSet;
 	      break;
-	
+
 	    case '-':
 	      // Remove these flags
 	      andMask = ~flagSet;
 	      orMask = 0;
 	      break;
-	
+
 	    default:
 	      // Set these flags
 	      andMask = 0;
