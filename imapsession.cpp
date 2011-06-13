@@ -2020,10 +2020,10 @@ IMAP_RESULTS ImapSession::appendHandlerExecute(uint8_t *data, size_t dataLen, si
 
   if (IMAP_OK == result) {
     MailStore::MAIL_STORE_RESULT mlr;
-    std::string mailbox((char *)&m_parseBuffer[m_arguments]);
-    if (MailStore::SUCCESS == (mlr = m_store->lock(mailbox))) {
+    m_tempMailboxName = (char *)&m_parseBuffer[m_arguments];
+    if (MailStore::SUCCESS == (mlr = m_store->lock(m_tempMailboxName))) {
 		
-      switch (m_store->addMessageToMailbox(mailbox, m_lineBuffer, 0, messageDateTime, m_mailFlags, &m_appendingUid)) {
+      switch (m_store->addMessageToMailbox(m_tempMailboxName, m_lineBuffer, 0, messageDateTime, m_mailFlags, &m_appendingUid)) {
       case MailStore::SUCCESS:
 	strncpy(m_responseText, "Ready for the Message Data", MAX_RESPONSE_STRING_LENGTH);
 	m_parseStage = 3;
@@ -2163,7 +2163,7 @@ IMAP_RESULTS ImapSession::appendHandler(uint8_t *data, size_t dataLen, size_t &p
       std::string mailbox((char *)&m_parseBuffer[m_arguments]);
       switch(m_store->doneAppendingDataToMessage(mailbox, m_appendingUid)) {
       case MailStore::SUCCESS:
-	if (MailStore::SUCCESS == m_store->unlock()) {
+	if (MailStore::SUCCESS == m_store->unlock(m_tempMailboxName)) {
 	  result = IMAP_OK;
 	}
 	else {
@@ -2182,6 +2182,7 @@ IMAP_RESULTS ImapSession::appendHandler(uint8_t *data, size_t dataLen, size_t &p
 	m_appendingUid = 0;
 	result = IMAP_MBOX_ERROR;
       }
+      m_tempMailboxName = "";
     }
     break;
 

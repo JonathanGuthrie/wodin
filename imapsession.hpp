@@ -223,6 +223,7 @@ private:
   unsigned m_retries;
   unsigned m_maxRetries;
   unsigned m_retryDelay;
+  std::string m_tempMailboxName;
 };
 
 #endif //_IMAPSESSION_HPP_INCLUDED_
