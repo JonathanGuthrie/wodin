@@ -116,8 +116,10 @@ done)  Rename the project to Wodin
   done)  rework the fetch logic because message operations can fail
   done)  Add retry logic to the IMAP session class
   j)  check to make sure commands that are retried actually get retried
-  k)  Actually implement the locking in the mbox mail store class
-  l)  Regression on mail box operations
+  k)  Make locking session-aware.  That is, if a lock has been executed all other operations must retry until the unlock is received or the session is destroyed
+  l)  Test the session-aware locking
+  m)  Actually implement the locking in the mbox mail store class
+  n)  Regression on mail box operations
 
 done)  Figure out how to not have SocketBindErrorException
 

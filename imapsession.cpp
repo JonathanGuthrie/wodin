@@ -5224,56 +5224,74 @@ IMAP_RESULTS ImapSession::copyHandlerExecute(bool usingUid) {
   }
   if (sequenceOk) {
     NUMBER_LIST messageUidsAdded;
+    MailStore::MAIL_STORE_RESULT lock1Result = MailStore::SUCCESS;
+    MailStore::MAIL_STORE_RESULT lock2Result = MailStore::SUCCESS;
 
     execute_pointer += strlen((char *)&m_parseBuffer[execute_pointer]) + 1;
     std::string mailboxName((char *)&m_parseBuffer[execute_pointer]);
-    for (SEARCH_RESULT::iterator i=vector.begin(); (i!=vector.end()) && (IMAP_OK==result); ++i) {
-      MailMessage *message;
+    if ((MailStore::SUCCESS == (lock1Result = m_store->lock())) &&
+	(MailStore::SUCCESS == (lock2Result = m_store->lock(mailboxName)))) {
+      for (SEARCH_RESULT::iterator i=vector.begin(); (i!=vector.end()) && (IMAP_OK==result); ++i) {
+	MailMessage *message;
 
-      MailMessage::MAIL_MESSAGE_RESULT messageReadResult = m_store->messageData(&message, *i);
-      if (MailMessage::SUCCESS == messageReadResult) {
-	size_t newUid;
-	DateTime when = m_store->messageInternalDate(*i);
-	uint32_t flags = message->messageFlags();
+	MailMessage::MAIL_MESSAGE_RESULT messageReadResult = m_store->messageData(&message, *i);
+	if (MailMessage::SUCCESS == messageReadResult) {
+	  size_t newUid;
+	  DateTime when = m_store->messageInternalDate(*i);
+	  uint32_t flags = message->messageFlags();
 
-	char buffer[m_store->bufferLength(*i)+1];
-	switch (m_mboxErrorCode = m_store->openMessageFile(*i)) {
-	case MailStore::SUCCESS:
-	  {
-	    size_t size = m_store->readMessage(buffer, 0, m_store->bufferLength(*i));
-	    switch (m_mboxErrorCode = m_store->addMessageToMailbox(mailboxName, (uint8_t *)buffer, size, when, flags, &newUid)) {
-	    case MailStore::SUCCESS:
-	      m_store->doneAppendingDataToMessage(mailboxName, newUid);
-	      messageUidsAdded.push_back(newUid);
-	      result = IMAP_OK;
-	      break;
+	  char buffer[m_store->bufferLength(*i)+1];
+	  switch (m_mboxErrorCode = m_store->openMessageFile(*i)) {
+	  case MailStore::SUCCESS:
+	    {
+	      size_t size = m_store->readMessage(buffer, 0, m_store->bufferLength(*i));
+	      switch (m_mboxErrorCode = m_store->addMessageToMailbox(mailboxName, (uint8_t *)buffer, size, when, flags, &newUid)) {
+	      case MailStore::SUCCESS:
+		m_store->doneAppendingDataToMessage(mailboxName, newUid);
+		messageUidsAdded.push_back(newUid);
+		result = IMAP_OK;
+		break;
 
-	    case MailStore::CANNOT_COMPLETE_ACTION:
-	      result = IMAP_TRY_AGAIN;
-	      break;
+	      case MailStore::CANNOT_COMPLETE_ACTION:
+		result = IMAP_TRY_AGAIN;
+		break;
 
-	    default:
-	      result = IMAP_MBOX_ERROR;
-	      break;
+	      default:
+		result = IMAP_MBOX_ERROR;
+		break;
+	      }
 	    }
+	    break;
+
+	  case MailStore::CANNOT_COMPLETE_ACTION:
+	    result = IMAP_TRY_AGAIN;
+	    break;
+
+	  default:
+	    result = IMAP_MBOX_ERROR;
+	    break;
 	  }
-	  break;
-
-	case MailStore::CANNOT_COMPLETE_ACTION:
-	  result = IMAP_TRY_AGAIN;
-	  break;
-
-	default:
-	  result = IMAP_MBOX_ERROR;
-	  break;
+	}
+      }
+      if (IMAP_OK != result) {
+	for (NUMBER_LIST::iterator i=messageUidsAdded.begin(); i!=messageUidsAdded.end(); ++i) {
+	  m_store->deleteMessage(mailboxName, *i);
 	}
       }
     }
-    if (IMAP_OK != result) {
-      for (NUMBER_LIST::iterator i=messageUidsAdded.begin(); i!=messageUidsAdded.end(); ++i) {
-	m_store->deleteMessage(mailboxName, *i);
+    else {
+      if (((MailStore::CANNOT_COMPLETE_ACTION == lock1Result) ||
+	   (MailStore::SUCCESS == lock1Result)) &&
+	  ((MailStore::CANNOT_COMPLETE_ACTION == lock2Result) ||
+	   (MailStore::SUCCESS == lock2Result))) {
+	result = IMAP_TRY_AGAIN;
+      }
+      else {
+	result = IMAP_MBOX_ERROR;
       }
     }
+    m_store->unlock();
+    m_store->unlock(mailboxName);
   }
   else {
     strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);

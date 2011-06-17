@@ -271,7 +271,7 @@ test_descriptor descriptors[] = {
     }, 4, "3 OK [READ-ONLY] examine Completed\r\n", 2, 6, 1000, 999,
    "Examining failure (reopen)",
    LockState::TestClose, 0},
-  // SYZYGY -- close doesn't fail any more.  Instead, it generates orphans
+  // close doesn't fail any more.  Instead, it generates orphans
   {{
       "1 login foo bar\r\n",
       "2 select inbox\r\n",
@@ -332,7 +332,7 @@ test_descriptor descriptors[] = {
       "2 select inbox\r\n",
       "3 copy 1 foo\r\n",
       "4 logout\r\n"
-    }, 4, "3 OK copy Completed\r\n", 2, 5, 0, -3,
+    }, 4, "3 OK copy Completed\r\n", 2, 5, 0, -2,
    "Successful copying",
    LockState::TestOpen | LockState::TestClose, 0},
   {{

@@ -147,7 +147,7 @@ LOGOUT calls MailboxClose
 
 (Done) APPEND calls lock, AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, and DeleteMessage, unlock
 
-(Done, partly) COPY calls lock, AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, OpenMessageFile, and DeleteMessage, unlock
+(Done) COPY calls lock, AddMessageToMailbox, AppendDataToMessage, DoneAppendingDataToMessage, OpenMessageFile, and DeleteMessage, unlock
   This needs to do a lock at the beginning, and an unlock at the end
   I need to lock this one AND the one I'm copying the message to.
 
