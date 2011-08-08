@@ -1,3 +1,10 @@
+Content-Type: text/x-zim-wiki
+Wiki-Format: zim 0.4
+Creation-Date: 2011-08-04T19:38:00-05:00
+
+====== LockingTests ======
+Created Thursday 04 August 2011
+
 I have been critical of the idea of unit tests for a long time.  I have pointed
 that unit tests as implemented fall in to one of two categores:  trivial and
 impossible.  The impossible tests are, well, impossible so they are never done
@@ -139,12 +146,12 @@ will have to be tested.
   Need to check to make sure that the open mailbox is eventually closed in the retry loop
 
 (Done) EXAMINE calls MailboxOpen, MailboxClose
-  Need to check to make sure that the open mailbox is eventually closed in the retry loop
+  (Done) Need to check to make sure that the open mailbox is eventually closed in the retry loop
 
-ImapSession::~ImapSession calls MailboxClose (This needs to not retry)
-  Need to check to make sure that the open mailbox is eventually closed in the retry loop
+(Done) ImapSession::~ImapSession calls MailboxClose (This needs to not retry)
+  (Done) Need to check to make sure that the open mailbox is eventually closed in the retry loop
 
-LOGOUT calls MailboxClose 
+(Done) LOGOUT calls MailboxClose 
 
 (Done) CLOSE calls lock, MailboxClose, ListDeletedMessages, ExpungeThisUid, unlock
 
@@ -156,12 +163,12 @@ LOGOUT calls MailboxClose
   This needs to do a lock at the beginning, and an unlock at the end
   I need to lock this one AND the one I'm copying the message to.
 
-EXPUNGE calls ListDeletedMessages
+(Done) EXPUNGE calls ListDeletedMessages
 
 Oh, jeez!  FormatTaggedResponse calls ExpungeThisUid at the end of the successful conclusion of ANY command, if that command has executed in a session in the "Selected" state, that command has "sendUpdateStatus" enabled and a UID has to be expunged.  That's, um, a lot of possible commands, and it's hard to test.  I think I want to send the expunge message only after expungeThisUid returns successfully, so retries aren't at issue.
 (NOT TESTED) ImapSession::FormatTaggedResponse calls ExpungeThisUid
 
-STATUS calls GetMailboxCounts
+(Done) STATUS calls GetMailboxCounts
 
 SEARCH calls MessageList, MailboxLock, and MailboxUnlock
 
@@ -173,11 +180,11 @@ CHECK calls MailboxFlushBuffers and MailboxUpdateStats
 
 AsynchronousEvent?  Well, shoot.  I need to make sure I ignore errors and retries aren't at issue.
 
-ImapSession::AsynchronousEvent calls MailboxUpdateStats.  I need to add asynchronous handling of closing a mailbox at the end of a session when it's inappropriate to make the user wait for the close to complete.  It should just keep trying and trying in AsynchronousEvent until it succeeds.
+(Done) ImapSession::AsynchronousEvent calls MailboxUpdateStats.  I need to add asynchronous handling of closing a mailbox at the end of a session when it's inappropriate to make the user wait for the close to complete.  It should just keep trying and trying in AsynchronousEvent until it succeeds.
 
 Other tests required:
 Test to see if an orphaned mailbox is restored to non-orphaned status when the mail box is opened again
-Test to see if an orphaned mailbox finally gets closed
+(Done) Test to see if an orphaned mailbox finally gets closed
 
 
 ===========================================================================

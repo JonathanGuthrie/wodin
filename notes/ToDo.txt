@@ -1,0 +1,202 @@
+Content-Type: text/x-zim-wiki
+Wiki-Format: zim 0.4
+Creation-Date: 2011-08-04T19:34:00-05:00
+
+====== ToDo ======
+Created Thursday 04 August 2011
+
+done)  Finish the login code (so that it actually checks the password)
+
+done)  Add case insensitivity where I've deferred it
+
+done)  Add the AUTHENTICATE code
+
+done)  Add the stubbed-out STARTTLS code
+
+done)  Create the mailbox manipulation parts of an initial mailstore (mbox under
+  unix)
+
+done)  Un-comment the creation of the inbox
+
+done) Make the mailbox error text come from the mailbox classes.  This will
+  include having some sort of IMAP error code that indicates a mailbox error
+  and some place to hold the mailbox error code
+
+done)  Basic name space implementation
+
+done)  Do the commands available in both the AUTHENTICATED and SELECTED state
+  (NAMESPACE through SUBSCRIBE)
+  done) namespace
+  done) select and examine
+  done) status
+  done) append
+
+done)  Do the commands available in the SELECTED state
+  done) check
+  done) close
+  done) expunge
+  done) search
+  done) fetch
+  done) store
+  done) copy
+  done) uid (three commands)
+
+done)  Fix the fact that copying the torture test message to another mailbox
+  corrupts it.  Two questions need answering:
+    done)  Why does a copy cause the currently opened mailbox to be updated?
+    done)  Why is part of the line copied over itself?
+      NOTE:  These are two separate problems.  I can cause the corruption by causing the
+             file to be rewritten by (for example) setting and then resetting a flag.
+
+done)  Fix expunging the torture test from foo in the mbox mail store
+
+done)  Figure out why I get the "INBOX already subscribed dialog" in Evolution
+  subtask - DONE:  Fix the logging proxy to handle sockets better and do multiple simultaneous connections in a sane fashion
+  I think it has to do with the override server namespace option.
+  DEFINITELY has to do with the override server namespace option.  It's supposed to do that because it's looking in the overridden namespace for
+  "INBOX" and not seeing it, so it tries to subscribe to it.  This is a brain-o.
+
+done)  Figure out why Evolution can't fetch the torture test
+  I also can't fetch message 4769 from Mail/challenger498 because "fetch 4769 body.peek[header]" returns no data at all.
+  Assume it's the same thing because that would be so convenient.  It was the same thing, the body[header] wasn't working
+
+done)  Figure out what problem mutt has with AUTHENTICATE=PLAIN
+
+done)  Properly handle the situation where the IMAP-specific headers aren't in the messages of an mbox message base.
+
+done)  Fix the case where I try a select before login and it crashes
+
+done)  Refactor the utility message creation in MailstoreMbox
+
+done)  Finish the parts of the NOOP command I've deferred
+
+done)  Asynchonous notifications.  An asynchronous notification is where the client is notified when a command is in progress, and not
+  just when a noop, expunge, or check is in progress.  To do this, I need to add some mechanism for the front end to ask the back end
+  about updates, and I need to have some mechanism in the front end for getting those updates for pushing to the client.
+
+done)  Change the "DeltaqueueCheckMailbox" class to "DeltaQueueAsynchronousAction" class
+
+done)  Fix the Support for mbox mailstores to add extra linefeeds before the "From " lines.
+
+done)  Fix the "00000" in the time zone.
+
+done)  Fix the "UNSEEN 1" display where there are no unseen messages.
+
+done)  Fix the multiple simultaneous connection problem
+
+done)  Fix the current memory leaks
+
+done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
+   strips off the last line in the folder
+
+done)  Make sure that the MailStoreMbox (which is actually a driver for mboxrd)
+   appends a newline to every message.
+
+done)  Change the mail store logic so that each session has it's own list of available messages
+   and so that the messages aren't purged until all sessions that are accessing a mailbox have
+   been notified that the messages are going to be purged.
+
+done)  Fix the UIDNEXT of "select inbox" is 1 should be at least 5
+
+done)  Figure out how to deal with mailboxes whose metadata are in a visible message
+  and especially figure out what do to if the X-IMAPbase header line is not in that message
+
+done)  ImapServer::GetFQDN
+
+done)  Configurable invalid login delay
+
+done)  Throw exception for failures in ImapServer::ImapServer
+
+done)  Configurable home directory location
+
+done)  Rename the project to Wodin
+
+37)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf, dot lock)
+  [[LockingTests]]
+  done)  Reformulate the handlers to get rid of the huge switch
+  done)  Add a "cannot_complete" result to Mail store
+  done)  Add a "try again" result to IMAP
+  done)  Redo all the mbox processing logic to handle the new mbox result includes enumerating all the parse states
+  done)  Fix RenameHandler
+  done)  Fix StatusHandler
+  done) rework the search logic because a search is no longer a pass/fail thing
+  done)  rework the fetch logic because message operations can fail
+  done)  Add retry logic to the IMAP session class
+  j)  check to make sure commands that are retried actually get retried
+  k)  Make locking session-aware.  That is, if a lock has been executed all other operations must retry until the unlock is received or the session is destroyed
+  l)  Test the session-aware locking
+  m)  Actually implement the locking in the mbox mail store class
+  n)  Regression on mail box operations
+
+done)  Figure out how to not have SocketBindErrorException
+
+39)  Fix a defect:  If it doesn't receive whole lines, it doesn't work.  This is because WantsToReceive is only called in
+  the HandleOneLine method of ImapSession.  It needs to be called in ReceiveData.
+
+40)  Fix a defect:  The namespace mailboxOpen method doesn't apparently care about whether or not the mailbox was previously
+  opened in read/write or read-only mode when opening a mail box.  The namespace should always open the mailbox in read-write
+  mode and simulate read-only when that's what the client asks for.
+
+41)  Really add the support for STARTTLS
+
+42)  Support listening on multiple ports, and support ports that require SSL.
+
+43)  Re-do the boyer-moore-pratt search so it's not downloaded code
+
+44)  Add support user-defined flags to the initial mailstore
+
+45)  Add the logic required to forbid logins outside of tls sessions
+
+46)  Compile without warnings with -Wall
+
+47)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
+
+48)  Test the SASL authentication modes
+
+49)  Overwrite the strings that hold passwords
+
+50)  Handle search charsets other than US-ASCII
+
+)  Add anonymous authentication to the capability string (availability should be known by the server class--make that so as well)
+
+)  Deal with logging
+
+done)  Add an idle timer
+
+done)  Add support for a delay after a failed login (need a timer manager)
+
+)  Add extension data to the BODYSTRUCTURE command
+
+done)  Build the logic to handle multiple simultaneous access properly
+
+)  Create a MailStoreMboxo mail store for compatability with Postfix
+
+)  Create a mailstore for maildir under unix
+
+)  Create a mailstore for an as-yet undesigned database-backend, maybe with a user class.
+
+)  Add support for the IDLE command.  Including the code that causes it to send out
+  updates if the asynchronous update notices an update while idle.
+
+)  Keep some sort of track about the number of connections a user has.  Maybe
+  collect some state about each user in the IMAP server
+
+)  LMTP support for local deliveries (into the defined mailstore)
+
+)  Move the body search and text search (largely) into the MailStore class.
+
+)  Configuration infrastructure
+
+)  Pluggable modules for mail stores
+
+)  Make the mbox mailstore locking process configurable
+
+)  IPv6 support
+
+)  profiling runs, memory leaks, etc.
+
+)  investigate boost for the thread pooling
+
+)  HTTP for configurability
+
+)  other things, as they occur to me

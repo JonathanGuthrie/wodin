@@ -122,9 +122,10 @@ typedef struct {
   int orphanCount;
 } test_descriptor;
 
-bool test(TestServer &server, TestSocket *s, Namespace *utilityNamespace, const test_descriptor *descriptor) {
+bool test(TestServer &server, Namespace *utilityNamespace, const test_descriptor *descriptor) {
   bool result = true;
   const std::string *o;
+  TestSocket *s = new TestSocket();
 
   s->reset();
   for (int i=0; i<descriptor->command_count; ++i) {
@@ -151,6 +152,11 @@ bool test(TestServer &server, TestSocket *s, Namespace *utilityNamespace, const 
     }
     std::cout << "\" expecting \"" << descriptor->match << "\"" << std::endl;
     result = false;
+  }
+  if (0 != (LockState::TestUpdateStats & descriptor->bitmap)) {
+    NUMBER_SET nowGone;
+    g_lockState.testControl(0);
+    utilityNamespace->mailboxUpdateStats(&nowGone);
   }
   if (descriptor->final_retry_count != retries) {
     std:: cout << "The retry count is " << retries << " and I was expecting " << descriptor->final_retry_count << std::endl;
@@ -351,6 +357,50 @@ test_descriptor descriptors[] = {
     }, 4, "3 OK close Completed\r\n", 2, 5, 0, -1,
    "Successful close",
    0, 0},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 logout\r\n",
+    }, 3, "* BYE IMAP4rev1 server closing\r\n", 2, 5, 1000, 999,
+   "Logout leaves an orphan",
+   LockState::TestOpen | LockState::TestClose, 1},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 logout\r\n",
+    }, 3, "* BYE IMAP4rev1 server closing\r\n", 2, 5, 1000, 999,
+   "Update Stats cleans up orphans",
+   LockState::TestOpen | LockState::TestClose | LockState::TestUpdateStats, 0},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 expunge\r\n",
+      "4 logout\r\n",
+    }, 4, "3 OK expunge Completed\r\n", 2, 5, 0, -1,
+   "Expunge success",
+   LockState::TestOpen | LockState::TestClose | LockState::TestUpdateStats, 0},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 expunge\r\n",
+      "4 logout\r\n",
+    }, 4, "3 NO expunge Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
+   "Expunge failure",
+   LockState::TestOpen | LockState::TestClose | LockState::TestUpdateStats, 0},
+  {{
+      "1 login foo bar\r\n",
+      "2 status bar (uidnext messages)\r\n",
+      "3 logout\r\n",
+    }, 3, "* STATUS bar (MESSAGES 1 UIDNEXT 2)\r\n", 1, 3, 0, -1,
+   "status command success",
+   LockState::TestOpen | LockState::TestClose | LockState::TestUpdateStats, 0},
+  {{
+      "1 login foo bar\r\n",
+      "2 status bar (uidnext messages)\r\n",
+      "3 logout\r\n",
+    }, 3, "2 NO status Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
+   "status command failure",
+   LockState::TestOpen | LockState::TestClose | LockState::TestUpdateStats, 0},
 #if 0
 #endif // 0
 };
@@ -359,12 +409,11 @@ int main() {
   LockTestMaster master("localhost", 60, 1800, 900, 5, 12, 5);
   Namespace *utilityNamespace = master.mailStore(NULL);
   TestServer server(&master);
-  TestSocket *s = new TestSocket();
   int pass_count = 0;
   int fail_count = 0;
 
   for (int i=0; i<(sizeof(descriptors)/sizeof(test_descriptor)); ++i) {
-    bool result = test(server, s, utilityNamespace, &descriptors[i]);
+    bool result = test(server, utilityNamespace, &descriptors[i]);
     std::cout << descriptors[i].test_name;
     if (result) {
       std::cout << " success" << std::endl;

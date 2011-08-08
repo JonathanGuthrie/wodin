@@ -1,0 +1,3 @@
+in bash:
+valgrind --leak-check=full --show-reachable=yes --read-var-info=yes --track-origins=yes -v ./imap 2> valgrind.out
+valgrind --leak-check=full --show-reachable=yes --read-var-info=yes --track-origins=yes -v ./locking-test 2> valgrind.out
