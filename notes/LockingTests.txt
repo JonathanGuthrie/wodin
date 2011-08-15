@@ -170,9 +170,9 @@ Oh, jeez!  FormatTaggedResponse calls ExpungeThisUid at the end of the successfu
 
 (Done) STATUS calls GetMailboxCounts
 
-SEARCH calls MessageList, MailboxLock, and MailboxUnlock
+(Done) SEARCH calls MessageList, MailboxLock, and MailboxUnlock
 
-FETCH calls OpenMessageFile, MessageUpdateFlags, MailboxLock, and MailboxUnlock
+(Done) FETCH calls OpenMessageFile, MessageUpdateFlags, MailboxLock, and MailboxUnlock
 
 STORE calls MessageUpdateFlags
 

@@ -59,6 +59,10 @@ ssize_t TestSocket::receive(uint8_t *buffer, size_t size) {
     // std::cout << (*m_pIn).s << std::endl;
     m_pIn++;
   }
+  else {
+    g_lockState.testControl(~LockState::Fail);
+    g_lockState.retryCount(1000);
+  }
 
   return result;
 }
@@ -401,6 +405,45 @@ test_descriptor descriptors[] = {
     }, 3, "2 NO status Locking Error:  Too Many Retries\r\n", 1, 3, 1000, 987,
    "status command failure",
    LockState::TestOpen | LockState::TestClose | LockState::TestUpdateStats, 0},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 noop\r\n",
+    }, 3, "2 OK [READ-WRITE] select Completed\r\n", 2, 4, 1000, 0,
+   "select and sudden disconnect",
+   0, 1},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 search ALL\r\n",
+      "4 logout\r\n",
+    }, 3, "3 OK search Completed\r\n", 2, 6, 0, -1,
+   "search success",
+   0, 1},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 search ALL\r\n",
+      "4 logout\r\n",
+    }, 3, "3 NO search Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
+   "search fail",
+   0, 1},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 fetch 1 (all)\r\n",
+      "4 logout\r\n",
+    }, 3, "3 OK fetch Completed\r\n", 2, 14, 0, -1,
+   "fetch success",
+   0, 1},
+  {{
+      "1 login foo bar\r\n",
+      "2 select inbox\r\n",
+      "3 fetch 1 (all)\r\n",
+      "4 logout\r\n",
+    }, 3, "3 NO fetch Locking Error:  Too Many Retries\r\n", 2, 5, 1000, 987,
+   "fetch fail",
+   0, 1},
 #if 0
 #endif // 0
 };
