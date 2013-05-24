@@ -107,7 +107,8 @@ done)  Rename the project to Wodin
 37)  Refactor the command handlers.  The handler value should still be a function, but that
   function should have no parameters and should return a pointer to an object that will have
   a method that processes the data.  I will put each command in its own file along with the
-  creation method.
+  creation method.  That way, the state can be in the class and not have to be maintained by
+  the ImapSession class.
 
 38)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf,
   dot lock)

@@ -22,6 +22,7 @@
 #include "imapsession.hpp"
 #include "imapmaster.hpp"
 #include "sasl.hpp"
+#include "capabilityhandler.hpp"
 
 #ifndef MIN
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
@@ -145,9 +146,9 @@ void ImapSession::buildSymbolTables() {
   symbolToInsert.levels[2] = true;
   symbolToInsert.levels[3] = true;
   symbolToInsert.sendUpdatedStatus = true;
-  symbolToInsert.flag = false;
-  symbolToInsert.handler = &ImapSession::capabilityHandler;
+  symbolToInsert.handler = capabilityHandler;
   m_symbols.insert(IMAPSYMBOLS::value_type("CAPABILITY", symbolToInsert));
+#if 0
   symbolToInsert.handler = &ImapSession::noopHandler;
   m_symbols.insert(IMAPSYMBOLS::value_type("NOOP", symbolToInsert));
   symbolToInsert.handler = &ImapSession::logoutHandler;
@@ -224,6 +225,7 @@ void ImapSession::buildSymbolTables() {
   m_symbols.insert(IMAPSYMBOLS::value_type("FETCH", symbolToInsert));
   symbolToInsert.handler = &ImapSession::storeHandler;
   m_symbols.insert(IMAPSYMBOLS::value_type("STORE", symbolToInsert));
+#endif // 0
 
   // This is the symbol table for the search keywords
   searchSymbolTable.insert(SEARCH_SYMBOL_T::value_type("ALL",        SSV_ALL));
@@ -327,7 +329,6 @@ ImapSession::ImapSession(ImapMaster *master, SessionDriver *driver, Server *serv
   m_driver->wantsToReceive();
   m_currentHandler = NULL;
   m_savedParsingAt = 0;
-  m_flag = false;
   m_usesUid = false;
 }
 
@@ -788,9 +789,8 @@ void ImapSession::handleOneLine(uint8_t *data, size_t dataLen) {
       // std::cout << "Looking up the command \"" << &m_parseBuffer[m_commandString] << "\"" << std::endl;
       IMAPSYMBOLS::iterator found = m_symbols.find((char *)&m_parseBuffer[m_commandString]);
       if ((found != m_symbols.end()) && found->second.levels[m_state]) {
-	m_currentHandler = found->second.handler;
+	m_currentHandler = found->second.handler(this);
 	m_sendUpdatedStatus = found->second.sendUpdatedStatus;
-	m_flag = found->second.flag;
       }
     }
     m_savedParsingAt = i;
@@ -800,7 +800,7 @@ void ImapSession::handleOneLine(uint8_t *data, size_t dataLen) {
     m_responseCode[0] = '\0';
     i = m_savedParsingAt;
     strncpy(m_responseText, "Completed", MAX_RESPONSE_STRING_LENGTH);
-    status = (this->*m_currentHandler)(data, dataLen, i, m_flag);
+    status = m_currentHandler->receiveData(data, dataLen);
     m_savedParsingAt = i;
     response = formatTaggedResponse(status, m_sendUpdatedStatus);
     if ((IMAP_NOTDONE != status) && (IMAP_IN_LITERAL != status) && (IMAP_TRY_AGAIN != status)) {
@@ -891,6 +891,7 @@ std::string ImapSession::capabilityString() {
 }
 
 
+#if 0
 /*
  * The capability handler looks simple, but there's some complexity lurking
  * there.  For starters, I'm going to return a constant string with not very
@@ -904,6 +905,7 @@ IMAP_RESULTS ImapSession::capabilityHandler(uint8_t *pData, size_t dataLen, size
   m_driver->wantsToSend(response);
   return IMAP_OK;
 }
+#endif // 0
 
 /*
  * The NOOP may be used by the server to trigger things like checking for
@@ -5375,7 +5377,7 @@ IMAP_RESULTS ImapSession::copyHandler(uint8_t *data, size_t dataLen, size_t &par
 
 IMAP_RESULTS ImapSession::uidHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool flag) {
   IMAP_RESULTS result;
-
+#if 0
   m_commandString = m_parsePointer;
   m_currentHandler = NULL;
   atom(data, dataLen, parsingAt);
@@ -5415,5 +5417,7 @@ IMAP_RESULTS ImapSession::uidHandler(uint8_t *data, size_t dataLen, size_t &pars
     strncpy(m_responseText, "Malformed Command", MAX_RESPONSE_STRING_LENGTH);
     result = IMAP_BAD;
   }
+#endif // 0
+  result = IMAP_BAD;
   return result;
 }

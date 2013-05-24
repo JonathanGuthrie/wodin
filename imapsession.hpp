@@ -40,6 +40,7 @@ enum ImapStringState {
 /*--------------------------------------------------------------------------------------*/
 
 class ImapSession;
+class ImapHandler;
 
 typedef enum {
   IMAP_OK,
@@ -58,14 +59,7 @@ typedef enum {
 typedef struct {
   bool levels[ImapLogoff+1];
   bool sendUpdatedStatus;
-  // The flag is a bit of an odd duck.  It's here because I need to pass what essentially amounts to random bools to the
-  // handler.  It means different things for different methods.
-  // It distinguishes subscribe (flag = true) from unsubscribe (flag = false)
-  // It distinguishes list (flag = true) from lsub (flag = false)
-  // It distinguishes examine (flag = true) from select (flag = false)
-  // It distinguishes uid (flag = true) from copy, close, search, fetch, and store (flag = false)
-  bool flag;
-  IMAP_RESULTS (ImapSession::*handler)(uint8_t *data, size_t dataLen, size_t &parsingAt, bool flag);
+  ImapHandler  *(*handler)(ImapSession *);
 } symbol;
 
 typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
@@ -89,6 +83,9 @@ public:
   void handleOneLine(uint8_t *pData, size_t dwDataLen);
   void doRetry(void);
   void idleTimeout(void);
+  // This creates a properly formatted capability string based on the current state and configuration
+  // of the IMAP server 
+  std::string capabilityString(void);
 
 private:
   // These are configuration items
@@ -101,8 +98,7 @@ private:
 
   // These constitute the session's state
   enum ImapState m_state;
-  IMAP_RESULTS (ImapSession::*m_currentHandler)(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool flag);
-  bool m_flag;
+  ImapHandler *m_currentHandler;
 
   uint32_t m_mailFlags;
   uint8_t *m_lineBuffer;			// This buffers the incoming data into lines to be processed
@@ -130,9 +126,6 @@ private:
 
   static IMAPSYMBOLS m_symbols;
 
-  // This creates a properly formatted capability string based on the current state and configuration
-  // of the IMAP server 
-  std::string capabilityString(void);
   // This sends the untagged responses associated with selecting a mailbox
   void selectData(const std::string &mailbox, bool isReadWrite);
   // This appends data to the Parse Buffer, extending the parse buffer as necessary.
@@ -174,7 +167,9 @@ private:
   // What follows are the handlers for the various IMAP command.  These are grouped similarly to the
   // way the commands are grouped in RFC-3501.  They all have identical function signatures so that
   // they can be called indirectly through a function pointer returned from the command map.
+#if 0
   IMAP_RESULTS capabilityHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+#endif // 0
   IMAP_RESULTS noopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
   IMAP_RESULTS logoutHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
 
