@@ -170,7 +170,7 @@ Oh, jeez!  FormatTaggedResponse calls ExpungeThisUid at the end of the successfu
 
 (Done) STATUS calls GetMailboxCounts
 
-(Done) SEARCH calls MessageList, MailboxLock, and MailboxUnlock
+(Done) SEARCH calls MessageList, MailboxLock, and [[MailboxUnlock]] 
 
 (Done) FETCH calls OpenMessageFile, MessageUpdateFlags, MailboxLock, and MailboxUnlock
 
@@ -185,6 +185,7 @@ AsynchronousEvent?  Well, shoot.  I need to make sure I ignore errors and retrie
 Other tests required:
 Test to see if an orphaned mailbox is restored to non-orphaned status when the mail box is opened again
 (Done) Test to see if an orphaned mailbox finally gets closed
+Test to make sure that a lock in one session is honored by a different session
 
 
 ===========================================================================
