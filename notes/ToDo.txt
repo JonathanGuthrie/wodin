@@ -111,7 +111,9 @@ done)  Configurable home directory location
 
 done)  Rename the project to Wodin
 
-37)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf, dot lock)
+37) Refactor the command handlers.  The handler value should still be a function, but that function should have no parameters and should return a pointer to an object that will have a method that processes the data.  I will put each command in its own file along with the creation method.  That way, the state can be in the class and not have to be maintained by the ImapSession class.
+
+38)  Locking for multiple simultaneous access to mbox mailboxes.  (flock, lockf, dot lock)
   [[LockingTests]]
   done)  Reformulate the handlers to get rid of the huge switch
   done)  Add a "cannot_complete" result to Mail store
@@ -130,32 +132,32 @@ done)  Rename the project to Wodin
 
 done)  Figure out how to not have SocketBindErrorException
 
-39)  Fix a defect:  If it doesn't receive whole lines, it doesn't work.  This is because WantsToReceive is only called in
+40)  Fix a defect:  If it doesn't receive whole lines, it doesn't work.  This is because WantsToReceive is only called in
   the HandleOneLine method of ImapSession.  It needs to be called in ReceiveData.
 
-40)  Fix a defect:  The namespace mailboxOpen method doesn't apparently care about whether or not the mailbox was previously
+41)  Fix a defect:  The namespace mailboxOpen method doesn't apparently care about whether or not the mailbox was previously
   opened in read/write or read-only mode when opening a mail box.  The namespace should always open the mailbox in read-write
   mode and simulate read-only when that's what the client asks for.
 
-41)  Really add the support for STARTTLS
+42)  Really add the support for STARTTLS
 
-42)  Support listening on multiple ports, and support ports that require SSL.
+43)  Support listening on multiple ports, and support ports that require SSL.
 
-43)  Re-do the boyer-moore-pratt search so it's not downloaded code
+44)  Re-do the boyer-moore-pratt search so it's not downloaded code
 
-44)  Add support user-defined flags to the initial mailstore
+45)  Add support user-defined flags to the initial mailstore
 
-45)  Add the logic required to forbid logins outside of tls sessions
+46)  Add the logic required to forbid logins outside of tls sessions
 
-46)  Compile without warnings with -Wall
+47)  Compile without warnings with -Wall
 
-47)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
+48)  Restore the rest of the SASL authentication modes.  Include varying the CAPABILITY string if the user base has plaintext passwords or not.
 
-48)  Test the SASL authentication modes
+49)  Test the SASL authentication modes
 
-49)  Overwrite the strings that hold passwords
+50)  Overwrite the strings that hold passwords
 
-50)  Handle search charsets other than US-ASCII
+51)  Handle search charsets other than US-ASCII
 
 )  Add anonymous authentication to the capability string (availability should be known by the server class--make that so as well)
 
