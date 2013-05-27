@@ -22,7 +22,11 @@
 #include "imapsession.hpp"
 #include "imapmaster.hpp"
 #include "sasl.hpp"
+#include "unimplementedhandler.hpp"
 #include "capabilityhandler.hpp"
+#include "noophandler.hpp"
+#include "logouthandler.hpp"
+#include "authenticatehandler.hpp"
 
 #ifndef MIN
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
@@ -148,10 +152,9 @@ void ImapSession::buildSymbolTables() {
   symbolToInsert.sendUpdatedStatus = true;
   symbolToInsert.handler = capabilityHandler;
   m_symbols.insert(IMAPSYMBOLS::value_type("CAPABILITY", symbolToInsert));
-#if 0
-  symbolToInsert.handler = &ImapSession::noopHandler;
+  symbolToInsert.handler = noopHandler;
   m_symbols.insert(IMAPSYMBOLS::value_type("NOOP", symbolToInsert));
-  symbolToInsert.handler = &ImapSession::logoutHandler;
+  symbolToInsert.handler = logoutHandler;
   m_symbols.insert(IMAPSYMBOLS::value_type("LOGOUT", symbolToInsert));
 
   symbolToInsert.levels[0] = true;
@@ -159,10 +162,11 @@ void ImapSession::buildSymbolTables() {
   symbolToInsert.levels[2] = false;
   symbolToInsert.levels[3] = false;
   symbolToInsert.sendUpdatedStatus = true;
-  symbolToInsert.handler = &ImapSession::starttlsHandler;
+  symbolToInsert.handler = unimplementedHandler;
   m_symbols.insert(IMAPSYMBOLS::value_type("STARTTTLS", symbolToInsert));
-  symbolToInsert.handler = &ImapSession::authenticateHandler;
+  symbolToInsert.handler = authenticateHandler;
   m_symbols.insert(IMAPSYMBOLS::value_type("AUTHENTICATE", symbolToInsert));
+#if 0
   symbolToInsert.handler = &ImapSession::loginHandler;
   m_symbols.insert(IMAPSYMBOLS::value_type("LOGIN", symbolToInsert));
 
@@ -804,6 +808,7 @@ void ImapSession::handleOneLine(uint8_t *data, size_t dataLen) {
     m_savedParsingAt = i;
     response = formatTaggedResponse(status, m_sendUpdatedStatus);
     if ((IMAP_NOTDONE != status) && (IMAP_IN_LITERAL != status) && (IMAP_TRY_AGAIN != status)) {
+      delete m_currentHandler;
       m_currentHandler = NULL;
     }
     switch (status) {
@@ -823,6 +828,7 @@ void ImapSession::handleOneLine(uint8_t *data, size_t dataLen) {
 	m_driver->wantsToSend(response);
 	m_retries = 0;
 	m_driver->wantsToReceive();
+	delete m_currentHandler;
 	m_currentHandler = NULL;
       }
       break;
@@ -865,18 +871,6 @@ void ImapSession::handleOneLine(uint8_t *data, size_t dataLen) {
 }
 
 
-/*--------------------------------------------------------------------------------------*/
-/* ImapSession::unimplementedHandler													*/
-/*--------------------------------------------------------------------------------------*/
-/* Gets called whenever the system doesn't know what else to do.  It signals the client */
-/* that the command was not recognized													*/
-/*--------------------------------------------------------------------------------------*/
-IMAP_RESULTS ImapSession::unimplementedHandler() {
-  strncpy(m_responseText, "Unrecognized Command",  MAX_RESPONSE_STRING_LENGTH);
-  return IMAP_BAD;
-}
-
-
 std::string ImapSession::capabilityString() {
   std::string capability;
 #if 0 // SYZYGY AUTH ANONYMOUS LOGINDISABLED all are determined by the server state as much as the session
@@ -891,43 +885,7 @@ std::string ImapSession::capabilityString() {
 }
 
 
-#if 0
-/*
- * The capability handler looks simple, but there's some complexity lurking
- * there.  For starters, I'm going to return a constant string with not very
- * much in it.  However, later on the string might change depending on the
- * context.  Further, since the capability string might be sent by multiple
- * different commands, that actual work will be done by a worker function.
- */
-IMAP_RESULTS ImapSession::capabilityHandler(uint8_t *pData, size_t dataLen, size_t &r_dwParsingAt, bool unused) {
-  std::string response("* ");
-  response += capabilityString() + "\r\n";
-  m_driver->wantsToSend(response);
-  return IMAP_OK;
-}
-#endif // 0
-
-/*
- * The NOOP may be used by the server to trigger things like checking for
- * new messages although the server doesn't have to wait for this to do
- * things like that
- */
-IMAP_RESULTS ImapSession::noopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused) {
-  // This command literally doesn't do anything.  If there was an update, it was found
-  // asynchronously and the updated info will be printed in formatTaggedResponse
-
-  return IMAP_OK;
-}
-
-
-/*
- * The LOGOUT indicates that the session may be closed.  The main command
- * processor gets the word about this because the state is set to "4" which
- * means "logout state"
- */
-IMAP_RESULTS ImapSession::logoutHandler(uint8_t *pData, size_t dataLen, size_t &r_dwParsingAt, bool unused) {
-  // If the mailbox is open, close it
-  // In IMAP, deleted messages are always purged before a close
+void ImapSession::closeMailbox(ImapState newState) {
   if (ImapSelected == m_state) {
     m_store->mailboxClose();
   }
@@ -937,15 +895,15 @@ IMAP_RESULTS ImapSession::logoutHandler(uint8_t *pData, size_t dataLen, size_t &
       m_store = NULL;
     }
   }
-  m_state = ImapLogoff;
-  m_driver->wantsToSend("* BYE IMAP4rev1 server closing\r\n");
-  return IMAP_OK;
+  m_state = newState;
 }
 
-IMAP_RESULTS ImapSession::starttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused) {
-  return unimplementedHandler();
+
+void ImapSession::responseText(const std::string &msg) {
+  strncpy(m_responseText, msg.c_str(),  MAX_RESPONSE_STRING_LENGTH);
 }
 
+#if 0
 IMAP_RESULTS ImapSession::authenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused) {
   IMAP_RESULTS result; 
   switch (m_parseStage) {
@@ -1002,7 +960,7 @@ IMAP_RESULTS ImapSession::authenticateHandler(uint8_t *data, size_t dataLen, siz
   }
   return result;
 }
-
+#endif // 0
 
 IMAP_RESULTS ImapSession::loginHandlerExecute() {
   IMAP_RESULTS result;

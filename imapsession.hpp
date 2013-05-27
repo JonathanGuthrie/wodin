@@ -86,6 +86,10 @@ public:
   // This creates a properly formatted capability string based on the current state and configuration
   // of the IMAP server 
   std::string capabilityString(void);
+  // Close the mailbox and set the state to the passed value
+  void closeMailbox(ImapState newState);
+  // Set the response text to the passed string
+  void responseText(const std::string &msg);
 
 private:
   // These are configuration items
@@ -131,6 +135,8 @@ private:
   // This appends data to the Parse Buffer, extending the parse buffer as necessary.
   void addToParseBuffer(const uint8_t *data, size_t length, bool bNulTerminate = true);
 
+#if 0
+#endif // 0
   IMAP_RESULTS loginHandlerExecute();
   IMAP_RESULTS searchKeyParse(uint8_t *data, size_t dataLen, size_t &parsingAt);
   IMAP_RESULTS searchHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid);
@@ -161,20 +167,9 @@ private:
 			       const char *additionalChars);
   std::string formatTaggedResponse(IMAP_RESULTS status, bool sendUpdatedStatus);
 
-  // This is what is called if a command is unrecognized or if a command is not implemented
-  IMAP_RESULTS unimplementedHandler();
-
-  // What follows are the handlers for the various IMAP command.  These are grouped similarly to the
-  // way the commands are grouped in RFC-3501.  They all have identical function signatures so that
-  // they can be called indirectly through a function pointer returned from the command map.
 #if 0
-  IMAP_RESULTS capabilityHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-#endif // 0
-  IMAP_RESULTS noopHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-  IMAP_RESULTS logoutHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-
-  IMAP_RESULTS starttlsHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
   IMAP_RESULTS authenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
+#endif //0
   IMAP_RESULTS loginHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
  
   IMAP_RESULTS namespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
