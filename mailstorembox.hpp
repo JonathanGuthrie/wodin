@@ -15,9 +15,9 @@ public:
   virtual MailStore::MAIL_STORE_RESULT renameMailbox(const std::string &SourceName, const std::string &DestinationName);
   virtual MailStore::MAIL_STORE_RESULT mailboxClose();
   virtual MailStore::MAIL_STORE_RESULT subscribeMailbox(const std::string &MailboxName, bool isSubscribe);
-  virtual MailStore::MAIL_STORE_RESULT addMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+  virtual MailStore::MAIL_STORE_RESULT addMessageToMailbox(const std::string &MailboxName, const uint8_t *data, size_t length,
 							   DateTime &createTime, uint32_t messageFlags, size_t *newUid = NULL);
-  virtual MailStore::MAIL_STORE_RESULT appendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length);
+  virtual MailStore::MAIL_STORE_RESULT appendDataToMessage(const std::string &MailboxName, size_t uid, const uint8_t *data, size_t length);
   virtual MailStore::MAIL_STORE_RESULT doneAppendingDataToMessage(const std::string &MailboxName, size_t uid);
   virtual unsigned serialNumber();
   virtual unsigned uidValidityNumber() { return m_uidValidity; }
@@ -93,7 +93,7 @@ private:
   bool isMailboxInteresting(const std::string path);
   bool listAllHelper(const regex_t *compiled_regex, const char *home_directory, const char *working_dir, MAILBOX_LIST *result, int maxdepth);
   bool parseMessage(std::ifstream &inFile, bool firstMessage, bool &countMessage, unsigned &uidValidity, unsigned &uidNext, MessageIndex_t &messageMetaData);
-  void addDataToMessageFile(uint8_t *data, size_t length);
+  void addDataToMessageFile(const uint8_t *data, size_t length);
   MailStore::MAIL_STORE_RESULT flush(void);
   std::ifstream m_inFile;
   unsigned long m_readingMsn;

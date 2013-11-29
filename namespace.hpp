@@ -31,9 +31,9 @@ public:
   virtual MailStore::MAIL_STORE_RESULT renameMailbox(const std::string &SourceName, const std::string &DestinationName);
   virtual MailStore::MAIL_STORE_RESULT mailboxClose();
   virtual MailStore::MAIL_STORE_RESULT subscribeMailbox(const std::string &MailboxName, bool isSubscribe);
-  virtual MailStore::MAIL_STORE_RESULT addMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+  virtual MailStore::MAIL_STORE_RESULT addMessageToMailbox(const std::string &MailboxName, const uint8_t *data, size_t length,
 							   DateTime &createTime, uint32_t messageFlags, size_t *newUid = NULL);
-  virtual MailStore::MAIL_STORE_RESULT appendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length);
+  virtual MailStore::MAIL_STORE_RESULT appendDataToMessage(const std::string &MailboxName, size_t uid, const uint8_t *data, size_t length);
   virtual MailStore::MAIL_STORE_RESULT doneAppendingDataToMessage(const std::string &MailboxName, size_t uid);
   virtual unsigned serialNumber();
   virtual unsigned uidValidityNumber();

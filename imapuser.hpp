@@ -20,8 +20,8 @@ class ImapUser {
 public:
   ImapUser(const char *user, const ImapMaster *server);
   virtual ~ImapUser();
-  virtual bool havePlaintextPassword() = 0;
-  virtual bool checkCredentials(const char *password) = 0;
+  virtual bool havePlaintextPassword() const = 0;
+  virtual bool checkCredentials(const char *password) const = 0;
   virtual char *password(void) const = 0;
   virtual char *homeDir(void) const = 0;
   const char *name(void) const { return m_name->c_str(); }

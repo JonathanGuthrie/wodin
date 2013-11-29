@@ -26,12 +26,12 @@ void MailStoreInvalid::mailboxList(const std::string &pattern, MAILBOX_LIST *res
 MailStore::MAIL_STORE_RESULT MailStoreInvalid::subscribeMailbox(const std::string &MailboxName, bool isSubscribe) {
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreInvalid::addMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::addMessageToMailbox(const std::string &MailboxName, const uint8_t *data, size_t length,
 								   DateTime &createTime, uint32_t messageFlags, size_t *newUid ) {
   return GENERAL_FAILURE;
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreInvalid::appendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
+MailStore::MAIL_STORE_RESULT MailStoreInvalid::appendDataToMessage(const std::string &MailboxName, size_t uid, const uint8_t *data, size_t length) {
   return GENERAL_FAILURE;
 }
 

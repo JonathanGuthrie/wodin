@@ -7,6 +7,7 @@
 
 class ImapMaster;
 
+// SASL is defined in RFC 4422
 class Sasl {
 public:
   typedef enum {
@@ -26,6 +27,7 @@ protected:
   ImapMaster *m_master;
 };
 
+// ANONYMOUS is defined in RFC 4505
 class SaslAnonymous : public Sasl {
 public:
   SaslAnonymous(ImapMaster *myMaster) : Sasl(myMaster) {};
@@ -33,6 +35,7 @@ public:
   Sasl::status receiveResponse(const std::string &csLine2);
 };
 
+// PLAIN is defined in RFC 4616
 class SaslPlain : public Sasl {
 public:
   SaslPlain(ImapMaster *myMaster) : Sasl(myMaster) {};
@@ -42,6 +45,7 @@ public:
 
 // SYZYGY -- if the user data has access to the plaintext password, the rest of these can work
 #if 0
+// DIGEST-MD5 is defined in RFC 2831
 class SaslDigestMD5 : public CSasl {
 public:
   SaslDigestMD5(ImapMaster *master) : Sasl(master) {};
@@ -52,6 +56,7 @@ private:
   std::string m_nonce;
 };
 
+// CRAM-MD5 is defined in RFC 2195
 class SaslCramMD5 : public CSasl {
 public:
   SaslCramMD5(ImapMaster *master) : Sasl(master) {};

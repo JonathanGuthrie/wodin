@@ -142,6 +142,9 @@ Sasl::status SaslPlain::receiveResponse(const std::string &csLine2) {
     m_currentStatus = bad;
   }
   else  {
+    m_authorizationEntity = "";
+    m_currentStatus = no;
+
     std::string line = base64_decode(csLine2);
     // Here, 'line' contains a login which may has three parts separated
     // by NULL characters.  The parts are the authorization entity, the
@@ -153,16 +156,14 @@ Sasl::status SaslPlain::receiveResponse(const std::string &csLine2) {
     // the authorization field has zero length.
     if ('\0' == line[0]) {
       int pos = line.find('\0', 1);
-      std::string author = line.substr(1, pos);
-      std::string password = line.substr(pos+1);
-      ImapUser *userData = m_master->userInfo(author.c_str());
-      if (userData->checkCredentials(password.c_str())) { // Note: Assuming "not secure"
-	m_authorizationEntity = author;
-	m_currentStatus = ok;
-      }
-      else {
-	m_authorizationEntity = "";
-	m_currentStatus = no;
+      if (0 < pos) {
+	std::string author = line.substr(1, pos);
+	std::string password = line.substr(pos+1);
+	ImapUser *userData = m_master->userInfo(author.c_str());
+	if (userData->checkCredentials(password.c_str())) { // Note: Assuming "not secure"
+	  m_authorizationEntity = author;
+	  m_currentStatus = ok;
+	}
       }
     }
     else {

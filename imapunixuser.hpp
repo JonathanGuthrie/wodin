@@ -9,8 +9,8 @@ class ImapUnixUser : ImapUser {
 public:
   ImapUnixUser(const char *user, const ImapMaster *Master);
   virtual ~ImapUnixUser();
-  virtual bool havePlaintextPassword();
-  virtual bool checkCredentials(const char *password);
+  virtual bool havePlaintextPassword() const;
+  virtual bool checkCredentials(const char *password) const;
   virtual char *password(void) const;
   virtual char *homeDir(void) const { return m_home; };
 

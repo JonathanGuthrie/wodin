@@ -172,7 +172,7 @@ MailStore::MAIL_STORE_RESULT Namespace::subscribeMailbox(const std::string &Mail
   return result;
 }
 
-MailStore::MAIL_STORE_RESULT Namespace::addMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+MailStore::MAIL_STORE_RESULT Namespace::addMessageToMailbox(const std::string &MailboxName, const uint8_t *data, size_t length,
 							    DateTime &createTime, uint32_t messageFlags, size_t *newUid) {
   MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
   std::string changeableName = MailboxName;
@@ -183,7 +183,7 @@ MailStore::MAIL_STORE_RESULT Namespace::addMessageToMailbox(const std::string &M
   return result;
 }
 
-MailStore::MAIL_STORE_RESULT Namespace::appendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
+MailStore::MAIL_STORE_RESULT Namespace::appendDataToMessage(const std::string &MailboxName, size_t uid, const uint8_t *data, size_t length) {
   MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
   std::string changeableName = MailboxName;
   MailStore *store = nameSpace(changeableName);

@@ -375,7 +375,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::mailboxClose() {
   return MailStore::SUCCESS;
 }
 
-void MailStoreMbox::addDataToMessageFile(uint8_t *data, size_t length) {
+void MailStoreMbox::addDataToMessageFile(const uint8_t *data, size_t length) {
   uid_t savedUserId = geteuid();
   seteuid(m_session->user()->uid());
 
@@ -537,7 +537,7 @@ void MailStoreMbox::addDataToMessageFile(uint8_t *data, size_t length) {
   seteuid(savedUserId);
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::addMessageToMailbox(const std::string &FullName, uint8_t *data, size_t length,
+MailStore::MAIL_STORE_RESULT MailStoreMbox::addMessageToMailbox(const std::string &FullName, const uint8_t *data, size_t length,
 								DateTime &createTime, uint32_t messageFlags, size_t *newUid) {
   std::string MailboxName = FullName;
   std::string fullPath;
@@ -660,7 +660,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::addMessageToMailbox(const std::strin
   return result;
 }
 
-MailStore::MAIL_STORE_RESULT MailStoreMbox::appendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) {
+MailStore::MAIL_STORE_RESULT MailStoreMbox::appendDataToMessage(const std::string &MailboxName, size_t uid, const uint8_t *data, size_t length) {
   addDataToMessageFile(data, length);
   return MailStore::SUCCESS; // SYZYGY 
 }

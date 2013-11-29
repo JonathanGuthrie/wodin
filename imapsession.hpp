@@ -14,12 +14,10 @@
 #include "imapuser.hpp"
 #include "namespace.hpp"
 #include "sasl.hpp"
-#include "mailsearch.hpp"
 #include "mailmessage.hpp"
 
 class ImapMaster;
 class SessionDriver;
-class MailSearch;
 class MailMessage;
 
 enum ImapState {
@@ -35,12 +33,58 @@ enum ImapStringState {
   ImapStringPending
 };
 
+typedef struct {
+  uint8_t* data;
+  size_t dataLen;
+  size_t parsingAt;
+} INPUT_DATA_STRUCT;
+
 /*--------------------------------------------------------------------------------------*/
-//* Imap											*/
+/* Imap											*/
 /*--------------------------------------------------------------------------------------*/
 
 class ImapSession;
 class ImapHandler;
+
+class ParseBuffer {
+private:
+  uint8_t  *m_parseBuffer;
+  uint32_t m_parseBuffLen;
+  uint32_t m_parsePointer; 			// This points past the end o
+  uint32_t m_literalLength;
+  uint32_t m_argumentPtr;
+  uint32_t m_argument2Ptr;
+  uint32_t m_argument3Ptr;
+  uint32_t m_commandPtr;
+  uint32_t m_executePtr;
+
+public:
+  ParseBuffer(size_t initial_size);
+  ~ParseBuffer();
+
+  uint32_t literalLength() const { return m_literalLength; }
+  void literalLength(uint32_t length) { m_literalLength = length; }
+  const char *arguments() const;
+  void argumentsHere();
+  const char *argument2() const;
+  void argument2Here();
+  const char *argument3() const;
+  void argument3Here();
+  const char *tag() const { return (char *) m_parseBuffer; }
+  const char *command() const { return (char *) &m_parseBuffer[m_commandPtr]; }
+  void commandHere() { m_commandPtr = m_parsePointer; }
+  const char *parsingAt() const { return (char *)&m_parseBuffer[m_parsePointer]; }
+  char parseChar(size_t tokenPointer = 0) const { return (char)m_parseBuffer[tokenPointer]; }
+  char *parseStr(size_t tokenPointer = 0) const { return (char *)&m_parseBuffer[tokenPointer]; }
+  const size_t parsePointer() const { return m_parsePointer; }
+  // This appends data to the Parse Buffer, extending the parse buffer as necessary.
+  void addToParseBuffer(INPUT_DATA_STRUCT &input, size_t length, bool bNulTerminate = true);
+  uint32_t addLiteralToParseBuffer(INPUT_DATA_STRUCT &input);
+  void atom(INPUT_DATA_STRUCT &input); 
+  enum ImapStringState astring(INPUT_DATA_STRUCT &input, bool makeUppercase, const char *additionalChars);
+  size_t readEmailFlags(INPUT_DATA_STRUCT &input, bool &okay);
+  static void buildSymbolTable(void);
+};
 
 typedef enum {
   IMAP_OK,
@@ -59,7 +103,7 @@ typedef enum {
 typedef struct {
   bool levels[ImapLogoff+1];
   bool sendUpdatedStatus;
-  ImapHandler  *(*handler)(ImapSession *);
+  ImapHandler  *(*handler)(ImapSession *, INPUT_DATA_STRUCT &input);
 } symbol;
 
 typedef std::map<insensitiveString, symbol> IMAPSYMBOLS;
@@ -78,22 +122,48 @@ public:
   time_t lastCommandTime() const { return m_lastCommandTime; }
   ImapState state(void) const { return m_state; }
   const ImapUser *user(void) const { return m_userData; }
+  void user(ImapUser *userData) { delete m_userData; m_userData = userData; }
+
   // ReceiveData processes data as it comes it.  It's primary job is to chop the incoming data into
   // lines and to pass each line to HandleOneLine, which is the core command processor for the system
-  void handleOneLine(uint8_t *pData, size_t dwDataLen);
+  void handleOneLine(INPUT_DATA_STRUCT &input);
   void doRetry(void);
   void idleTimeout(void);
   // This creates a properly formatted capability string based on the current state and configuration
   // of the IMAP server 
   std::string capabilityString(void);
   // Close the mailbox and set the state to the passed value
+  void state(ImapState newState) { m_state = newState; }
   void closeMailbox(ImapState newState);
   // Set the response text to the passed string
   void responseText(const std::string &msg);
+  void responseText(void);
+  // NOT a const char because it's used to set the response code
+  char *responseCode(void) { return m_responseCode; }
+  void responseCode(const std::string &msg);
+  // Get/set the namespace
+  Namespace *store(void) const { return m_store; }
+  void store(Namespace *mailstore) { m_store = mailstore; }
+  ParseBuffer *parseBuffer(void) const { return m_parseBuffer; }
+  bool loginDisabled(void) const { return m_loginDisabled; }
+  MailStore::MAIL_STORE_RESULT mboxErrorCode(MailStore::MAIL_STORE_RESULT code) { m_mboxErrorCode = code; return code; }
+  MailStore::MAIL_STORE_RESULT mboxErrorCode(void) const { return m_mboxErrorCode; }
+  const uint8_t *lineBuffer(void) const { return m_lineBuffer; }
+  void purgedMessages(NUMBER_SET purgedMessages) { m_purgedMessages.insert(purgedMessages.begin(), purgedMessages.end()); }
+
+  // This sends the untagged responses associated with selecting a mailbox
+  void selectData(const std::string &mailbox, bool isReadWrite);
+  bool msnSequenceSet(SEARCH_RESULT &r_srVector, size_t &tokenPointer);
+  bool uidSequenceSet(SEARCH_RESULT &r_srVector, size_t &tokenPointer);
+
+  // These are used in two different sets of handlers, and I don't want one to depend on
+  // the other, so I put them here.
+  void fetchResponseUid(unsigned long uid);
+  void fetchResponseFlags(uint32_t flags);
 
 private:
   // These are configuration items
-  bool m_LoginDisabled;
+  bool m_loginDisabled;
   static bool m_anonymousEnabled;
   unsigned m_failedLoginPause;
   SessionDriver *m_driver;
@@ -110,19 +180,13 @@ private:
   // As lines come in from the outside world, they are processed into m_bBuffer, which holds
   // them until the entire command has been received at which point it can be processed, often
   // by the *Execute() methods.
-  uint8_t  *m_parseBuffer;
-  uint32_t m_parseBuffLen;
-  uint32_t m_parsePointer; 			// This points past the end of what's been put into the parse buffer
+  ParseBuffer *m_parseBuffer;
 
-  // This is associated with handling appends
-  size_t m_appendingUid;
   Namespace *m_store;
   char m_responseCode[MAX_RESPONSE_STRING_LENGTH+1];
   char m_responseText[MAX_RESPONSE_STRING_LENGTH+1];
   uint32_t m_commandString, m_arguments;
   uint32_t m_parseStage;
-  uint32_t m_literalLength;
-  bool m_usesUid;
 
   // These are used to send live updates in case the mailbox is accessed by multiple client simultaneously
   uint32_t m_currentNextUid, m_currentMessageCount;
@@ -130,90 +194,24 @@ private:
 
   static IMAPSYMBOLS m_symbols;
 
-  // This sends the untagged responses associated with selecting a mailbox
-  void selectData(const std::string &mailbox, bool isReadWrite);
-  // This appends data to the Parse Buffer, extending the parse buffer as necessary.
-  void addToParseBuffer(const uint8_t *data, size_t length, bool bNulTerminate = true);
-
-#if 0
-#endif // 0
-  IMAP_RESULTS loginHandlerExecute();
-  IMAP_RESULTS searchKeyParse(uint8_t *data, size_t dataLen, size_t &parsingAt);
-  IMAP_RESULTS searchHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid);
-  IMAP_RESULTS storeHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid);
-  IMAP_RESULTS fetchHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid);
-  IMAP_RESULTS copyHandlerInternal(uint8_t *data, size_t dataLen, size_t &parsingAt, bool usingUid);
-
-  size_t readEmailFlags(uint8_t *data, const size_t dataLen, size_t &parsingAt, bool &okay);
-  bool updateSearchTerms(MailSearch &searchTerm, size_t &tokenPointer, bool isSubExpression);
-  bool msnSequenceSet(SEARCH_RESULT &r_srVector, size_t &tokenPointer);
-  bool uidSequenceSet(SEARCH_RESULT &r_srVector, size_t &tokenPointer);
-  bool updateSearchTerm(MailSearch &searchTerm, size_t &tokenPointer);
-
-  IMAP_RESULTS selectHandlerExecute(bool isReadWrite = true);
-  IMAP_RESULTS createHandlerExecute();
-  IMAP_RESULTS deleteHandlerExecute();
-  IMAP_RESULTS renameHandlerExecute();
-  IMAP_RESULTS subscribeHandlerExecute(bool isSubscribe);
-  IMAP_RESULTS listHandlerExecute(bool listAll);
-  IMAP_RESULTS statusHandlerExecute(uint8_t *data, size_t dataLen, size_t parsingAt);
-  IMAP_RESULTS appendHandlerExecute(uint8_t *data, size_t dataLen, size_t &parsingAt);
-  IMAP_RESULTS searchHandlerExecute(bool usingUid);
-  IMAP_RESULTS fetchHandlerExecute(bool usingUid);
-  IMAP_RESULTS copyHandlerExecute(bool usingUid);
-
-  void atom(uint8_t *data, const size_t dataLen, size_t &parsingAt); 
-  enum ImapStringState astring(uint8_t *pData, const size_t dataLen, size_t &parsingAt, bool makeUppercase,
-			       const char *additionalChars);
   std::string formatTaggedResponse(IMAP_RESULTS status, bool sendUpdatedStatus);
 
-#if 0
-  IMAP_RESULTS authenticateHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-#endif //0
-  IMAP_RESULTS loginHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
- 
-  IMAP_RESULTS namespaceHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-  IMAP_RESULTS selectHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool isReadOnly);
-  IMAP_RESULTS createHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-  IMAP_RESULTS deleteHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-  IMAP_RESULTS renameHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-  IMAP_RESULTS subscribeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool isSubscribe);
-  IMAP_RESULTS listHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool listAll);
-  IMAP_RESULTS statusHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-  IMAP_RESULTS appendHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-
-  IMAP_RESULTS checkHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-  IMAP_RESULTS closeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-  IMAP_RESULTS expungeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-  IMAP_RESULTS searchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool useUid);
-  IMAP_RESULTS fetchHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool useUid);
-  IMAP_RESULTS storeHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool useUid);
-  IMAP_RESULTS copyHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool useUid);
-  IMAP_RESULTS uidHandler(uint8_t *data, size_t dataLen, size_t &parsingAt, bool unused);
-
-  // These are for fetches, which are special because they can generate arbitrarily large responses
-  void fetchResponseFlags(uint32_t flags);
-  void fetchResponseInternalDate(const MailMessage *message);
-  void fetchResponseRfc822(unsigned long uid, const MailMessage *message);
-  void fetchResponseRfc822Header(unsigned long uid, const MailMessage *message);
-  void fetchResponseRfc822Size(const MailMessage *message);
-  void fetchResponseRfc822Text(unsigned long uid, const MailMessage *message);
-  void fetchResponseEnvelope(const MailMessage *message);
-  void fetchResponseBodyStructure(const MailMessage *message);
-  void fetchResponseBody(const MailMessage *message);
-  void fetchResponseUid(unsigned long uid);
-  void messageChunk(unsigned long uid, size_t offset, size_t length);
   ImapUser *m_userData;
   ImapMaster *m_master;
   Server *m_server;
-  Sasl *m_auth;
   time_t m_lastCommandTime;
   NUMBER_SET m_purgedMessages;
   bool m_sendUpdatedStatus;
   unsigned m_retries;
   unsigned m_maxRetries;
   unsigned m_retryDelay;
-  std::string m_tempMailboxName;
 };
+
+#ifndef MIN
+#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
+#endif
+
+typedef std::map<insensitiveString, MailStore::MAIL_STORE_FLAGS> FLAG_SYMBOL_T;
+extern FLAG_SYMBOL_T flagSymbolTable;
 
 #endif //_IMAPSESSION_HPP_INCLUDED_

@@ -76,9 +76,9 @@ public:
   // This function subscribes to the specified mailbox if isSubscribe is true, otherwise it 
   // unsubscribes from the mailbox
   virtual MAIL_STORE_RESULT subscribeMailbox(const std::string &MailboxName, bool isSubscribe) = 0;
-  virtual MAIL_STORE_RESULT addMessageToMailbox(const std::string &MailboxName, uint8_t *data, size_t length,
+  virtual MAIL_STORE_RESULT addMessageToMailbox(const std::string &MailboxName, const uint8_t *data, size_t length,
 						DateTime &createTime, uint32_t messageFlags, size_t *newUid = NULL) = 0;
-  virtual MAIL_STORE_RESULT appendDataToMessage(const std::string &MailboxName, size_t uid, uint8_t *data, size_t length) = 0;
+  virtual MAIL_STORE_RESULT appendDataToMessage(const std::string &MailboxName, size_t uid, const uint8_t *data, size_t length) = 0;
   virtual MAIL_STORE_RESULT doneAppendingDataToMessage(const std::string &MailboxName, size_t uid) = 0;
   virtual unsigned serialNumber() = 0;
   virtual unsigned uidValidityNumber() = 0;

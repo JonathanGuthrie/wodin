@@ -43,11 +43,11 @@ ImapUnixUser::~ImapUnixUser() {
   }
 }
 
-bool ImapUnixUser::havePlaintextPassword() {
+bool ImapUnixUser::havePlaintextPassword() const {
   return false;
 }
 
-bool ImapUnixUser::checkCredentials(const char *password) {
+bool ImapUnixUser::checkCredentials(const char *password) const {
   if (m_userFound) {
     struct spwd *shadow =  getspnam(m_name->c_str());
     bool result = false;
