@@ -1,7 +1,7 @@
 CC=g++
 CXXFLAGS=-g
 CXXTESTFLAGS=$(CXXFLAGS) -DTEST
-LDFLAGS=-lpthread -lcrypt -lclotho
+LDFLAGS=-lpthread -lcrypt -lclotho -lboost_system
 
 %.d: %.cpp
 	@set -e; rm -f $@; \
