@@ -14,7 +14,7 @@
 # limitations under the License.
 
 CC=g++
-CXXFLAGS=-g
+CXXFLAGS=-g -Wall -Wextra -pthread
 CXXTESTFLAGS=$(CXXFLAGS) -DTEST
 LDFLAGS=-lpthread -lcrypt -lclotho -lboost_system
 

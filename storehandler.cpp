@@ -166,7 +166,7 @@ IMAP_RESULTS StoreHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	      orMask = flagSet;
 	      break;
 	    }
-	    for (int i=0; i < srVector.size(); ++i) {
+	    for (unsigned i=0; i < srVector.size(); ++i) {
 	      if (0 != srVector[i]) {
 		uint32_t flags;
 		if (MailStore::SUCCESS == m_session->store()->messageUpdateFlags(srVector[i], andMask, orMask, flags)) {
