@@ -92,7 +92,7 @@ public:
   const char *parsingAt() const { return (char *)&m_parseBuffer[m_parsePointer]; }
   char parseChar(size_t tokenPointer = 0) const { return (char)m_parseBuffer[tokenPointer]; }
   char *parseStr(size_t tokenPointer = 0) const { return (char *)&m_parseBuffer[tokenPointer]; }
-  const size_t parsePointer() const { return m_parsePointer; }
+  size_t parsePointer() const { return m_parsePointer; }
   // This appends data to the Parse Buffer, extending the parse buffer as necessary.
   void addToParseBuffer(INPUT_DATA_STRUCT &input, size_t length, bool bNulTerminate = true);
   uint32_t addLiteralToParseBuffer(INPUT_DATA_STRUCT &input);
@@ -152,8 +152,8 @@ public:
   void state(ImapState newState) { m_state = newState; }
   void closeMailbox(ImapState newState);
   // Set the response text to the passed string
-  void responseText(const std::string &msg);
-  void responseText(void);
+  virtual void responseText(const std::string &msg);
+  virtual void responseText(void);
   // NOT a const char because it's used to set the response code
   char *responseCode(void) { return m_responseCode; }
   void responseCode(const std::string &msg);

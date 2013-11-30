@@ -469,20 +469,22 @@ ImapSession::ImapSession(ImapMaster *master, SessionDriver *driver, Server *serv
   m_lineBuffLen = 0;
   m_store = NULL;
 
-  std::string response("* OK [");
-  response += capabilityString() + "] IMAP4rev1 server ready\r\n";
-  m_driver->wantsToSend(response);
-  m_lastCommandTime = time(NULL);
-  m_purgedMessages.clear();
-  m_retries = 0;
+  if ((NULL != master) && (NULL != driver) && (NULL != server)) {
+    std::string response("* OK [");
+    response += capabilityString() + "] IMAP4rev1 server ready\r\n";
+    m_driver->wantsToSend(response);
+    m_lastCommandTime = time(NULL);
+    m_purgedMessages.clear();
+    m_retries = 0;
 
-  m_failedLoginPause = m_master->badLoginPause();
-  m_maxRetries = m_master->maxRetries();
-  m_retryDelay = m_master->retryDelaySeconds();
+    m_failedLoginPause = m_master->badLoginPause();
+    m_maxRetries = m_master->maxRetries();
+    m_retryDelay = m_master->retryDelaySeconds();
 
-  m_server->addTimerAction(new DeltaQueueIdleTimer(m_master->loginTimeout(), this));
-  m_server->addTimerAction(new DeltaQueueAsynchronousAction(m_master->asynchronousEventTime(), this));
-  m_driver->wantsToReceive();
+    m_server->addTimerAction(new DeltaQueueIdleTimer(m_master->loginTimeout(), this));
+    m_server->addTimerAction(new DeltaQueueAsynchronousAction(m_master->asynchronousEventTime(), this));
+    m_driver->wantsToReceive();
+  }
   m_currentHandler = NULL;
   m_savedParsingAt = 0;
 }
@@ -499,7 +501,7 @@ ImapSession::~ImapSession() {
     delete m_userData;
   }
   m_userData = NULL;
-  if (ImapLogoff != m_state) {
+  if ((NULL != m_driver) && (ImapLogoff != m_state)) {
     m_driver->wantsToSend("* BYE Wodin IMAP4rev1 server shutting down\r\n");
   }
 }
@@ -937,7 +939,6 @@ void ImapSession::closeMailbox(ImapState newState) {
   }
   m_state = newState;
 }
-
 
 void ImapSession::responseText(void) {
   m_responseText[0] = '\0';
