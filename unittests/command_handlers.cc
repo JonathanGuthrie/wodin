@@ -15,6 +15,7 @@
  */
 
 #include "unimplementedhandler.hpp"
+#include "noophandler.hpp"
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 
@@ -26,13 +27,22 @@ public:
   
 
 // There should also be a response text test, which will require mocking
+TEST(NoopHandler, AllTests) {
+  MockSession test_session;
+  INPUT_DATA_STRUCT input;
+
+  EXPECT_CALL(test_session, responseText(::testing::_)).Times(0);
+  ImapHandler *handler = noopHandler(&test_session, input);
+  ASSERT_TRUE(NULL != handler);
+  ASSERT_EQ(IMAP_OK, handler->receiveData(input));
+}
+
 TEST(UnimplementedHandler, AllTests) {
   MockSession test_session;
-  MockSession *temp_session = &test_session;
   INPUT_DATA_STRUCT input;
 
   EXPECT_CALL(test_session, responseText("Unrecognized Command")).Times(1);
-  ImapHandler *handler = unimplementedHandler(temp_session, input);
+  ImapHandler *handler = unimplementedHandler(&test_session, input);
   ASSERT_TRUE(NULL != handler);
   ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
 }
