@@ -337,7 +337,7 @@ void MailSearch::addLargestSize(size_t limit) {
   }
 }
 
-#define MAX(a, b) ((a>b) ? a : b)
+#define MAX(a, b) (((a)>(b)) ? (a) : (b))
 
 // Recursive body search searches for the substring through all the body parts
 // it does not search any of the headers
