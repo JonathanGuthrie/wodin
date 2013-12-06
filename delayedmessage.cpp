@@ -23,9 +23,9 @@ DeltaQueueDelayedMessage::DeltaQueueDelayedMessage(int delta, InternetSession *s
 
 
 void DeltaQueueDelayedMessage::handleTimeout(bool isPurge) {
-  if (!isPurge) {
-    const ImapSession *imap_session = dynamic_cast<const ImapSession *>(m_session);
-    imap_session->driver()->wantsToSend(message);
-    imap_session->driver()->wantsToReceive();
-  }
+    if (!isPurge) {
+	const ImapSession *imap_session = dynamic_cast<const ImapSession *>(m_session);
+	imap_session->driver()->wantsToSend(message);
+	imap_session->driver()->wantsToReceive();
+    }
 }

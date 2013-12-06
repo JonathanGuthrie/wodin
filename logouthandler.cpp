@@ -17,8 +17,8 @@
 #include "logouthandler.hpp"
 
 ImapHandler *logoutHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
-  (void) input;
-  return new LogoutHandler(session);
+    (void) input;
+    return new LogoutHandler(session);
 }
 
 /*
@@ -27,9 +27,9 @@ ImapHandler *logoutHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
  * means "logout state"
  */
 IMAP_RESULTS LogoutHandler::receiveData(INPUT_DATA_STRUCT &input) {
-  // If the mailbox is open, close it
-  // In IMAP, deleted messages are always purged before a close
-  m_session->closeMailbox(ImapLogoff);
-  m_session->driver()->wantsToSend("* BYE IMAP4rev1 server closing\r\n");
-  return IMAP_OK;
+    // If the mailbox is open, close it
+    // In IMAP, deleted messages are always purged before a close
+    m_session->closeMailbox(ImapLogoff);
+    m_session->driver()->wantsToSend("* BYE IMAP4rev1 server closing\r\n");
+    return IMAP_OK;
 }

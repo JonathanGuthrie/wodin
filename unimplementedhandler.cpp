@@ -17,8 +17,8 @@
 #include "unimplementedhandler.hpp"
 
 ImapHandler *unimplementedHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
-  (void) input;
-  return new UnimplementedHandler(session);
+    (void) input;
+    return new UnimplementedHandler(session);
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -26,7 +26,7 @@ ImapHandler *unimplementedHandler(ImapSession *session, INPUT_DATA_STRUCT &input
 /* that the command was not recognized							*/
 /*--------------------------------------------------------------------------------------*/
 IMAP_RESULTS UnimplementedHandler::receiveData(INPUT_DATA_STRUCT &input) {
-  (void) input;
-  m_session->responseText("Unrecognized Command");
-  return IMAP_BAD;
+    (void) input;
+    m_session->responseText("Unrecognized Command");
+    return IMAP_BAD;
 }
