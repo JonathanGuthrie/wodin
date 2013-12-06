@@ -23,9 +23,9 @@ ImapHandler *expungeHandler(ImapSession *, INPUT_DATA_STRUCT &input);
 
 class ExpungeHandler : public ImapHandler {
 public:
-  ExpungeHandler(ImapSession *session)  : ImapHandler(session) {}
-  virtual ~ExpungeHandler() {}
-  virtual IMAP_RESULTS receiveData(INPUT_DATA_STRUCT &input);
+    ExpungeHandler(ImapSession *session)  : ImapHandler(session) {}
+    virtual ~ExpungeHandler() {}
+    virtual IMAP_RESULTS receiveData(INPUT_DATA_STRUCT &input);
 };
 
 #endif // !defined(_EXPUNGEHANDLER_HPP_INCLUDED)

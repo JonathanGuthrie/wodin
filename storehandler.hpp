@@ -24,13 +24,13 @@ ImapHandler *uidStoreHandler(ImapSession *, INPUT_DATA_STRUCT &input);
 
 class StoreHandler : public ImapHandler {
 private:
-  ParseBuffer *m_parseBuffer;
-  bool m_usingUid;
+    ParseBuffer *m_parseBuffer;
+    bool m_usingUid;
 
 public:
-  StoreHandler(ImapSession *session, ParseBuffer *parseBuffer, bool usingUid)  : ImapHandler(session), m_parseBuffer(parseBuffer), m_usingUid(usingUid)  {}
-  virtual ~StoreHandler() {}
-  virtual IMAP_RESULTS receiveData(INPUT_DATA_STRUCT &input);
+    StoreHandler(ImapSession *session, ParseBuffer *parseBuffer, bool usingUid)  : ImapHandler(session), m_parseBuffer(parseBuffer), m_usingUid(usingUid)  {}
+    virtual ~StoreHandler() {}
+    virtual IMAP_RESULTS receiveData(INPUT_DATA_STRUCT &input);
 };
 
 #endif // !defined(_STOREHANDLER_HPP_INCLUDED)

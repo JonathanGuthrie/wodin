@@ -21,12 +21,12 @@
 
 class ImapHandler {
 protected:
-  ImapSession *m_session;
+    ImapSession *m_session;
 
 public:
-  ImapHandler(ImapSession *session) : m_session(session) {};
-  virtual ~ImapHandler() {};
-  virtual IMAP_RESULTS receiveData(INPUT_DATA_STRUCT &input) = 0;
+    ImapHandler(ImapSession *session) : m_session(session) {};
+    virtual ~ImapHandler() {};
+    virtual IMAP_RESULTS receiveData(INPUT_DATA_STRUCT &input) = 0;
 };
 
 #endif // !defined(_IMAPHANDLER_HPP_INCLUDED)

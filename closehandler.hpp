@@ -23,9 +23,9 @@ ImapHandler *closeHandler(ImapSession *, INPUT_DATA_STRUCT &input);
 
 class CloseHandler : public ImapHandler {
 public:
-  CloseHandler(ImapSession *session)  : ImapHandler(session) {}
-  virtual ~CloseHandler() {}
-  virtual IMAP_RESULTS receiveData(INPUT_DATA_STRUCT &input);
+    CloseHandler(ImapSession *session)  : ImapHandler(session) {}
+    virtual ~CloseHandler() {}
+    virtual IMAP_RESULTS receiveData(INPUT_DATA_STRUCT &input);
 };
 
 #endif // !defined(_CLOSEHANDLER_HPP_INCLUDED)

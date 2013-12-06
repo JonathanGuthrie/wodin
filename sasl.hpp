@@ -26,37 +26,37 @@ class ImapMaster;
 // SASL is defined in RFC 4422
 class Sasl {
 public:
-  typedef enum {
-    ok, // user is logged in
-    no, // user is not logged in due to bad password or invalid auth mechanism
-    bad // authentication exchange cancelled
-  } status;
-  Sasl(ImapMaster *myMaster);
-  status isAuthenticated() { return m_currentStatus;}
-  const std::string getUser() const { return m_authorizationEntity;}
-  virtual void sendChallenge(char *challenge_buff) = 0;
-  virtual status receiveResponse(const std::string &csLine2) = 0;
+    typedef enum {
+	ok, // user is logged in
+	no, // user is not logged in due to bad password or invalid auth mechanism
+	bad // authentication exchange cancelled
+    } status;
+    Sasl(ImapMaster *myMaster);
+    status isAuthenticated() { return m_currentStatus;}
+    const std::string getUser() const { return m_authorizationEntity;}
+    virtual void sendChallenge(char *challenge_buff) = 0;
+    virtual status receiveResponse(const std::string &csLine2) = 0;
 
 protected:
-  status m_currentStatus;
-  std::string m_authorizationEntity;
-  ImapMaster *m_master;
+    status m_currentStatus;
+    std::string m_authorizationEntity;
+    ImapMaster *m_master;
 };
 
 // ANONYMOUS is defined in RFC 4505
 class SaslAnonymous : public Sasl {
 public:
-  SaslAnonymous(ImapMaster *myMaster) : Sasl(myMaster) {};
-  void sendChallenge(char *challenge_buff);
-  Sasl::status receiveResponse(const std::string &csLine2);
+    SaslAnonymous(ImapMaster *myMaster) : Sasl(myMaster) {};
+    void sendChallenge(char *challenge_buff);
+    Sasl::status receiveResponse(const std::string &csLine2);
 };
 
 // PLAIN is defined in RFC 4616
 class SaslPlain : public Sasl {
 public:
-  SaslPlain(ImapMaster *myMaster) : Sasl(myMaster) {};
-  void sendChallenge(char *challenge_buff);
-  Sasl::status receiveResponse(const std::string &csLine2);
+    SaslPlain(ImapMaster *myMaster) : Sasl(myMaster) {};
+    void sendChallenge(char *challenge_buff);
+    Sasl::status receiveResponse(const std::string &csLine2);
 };
 
 // SYZYGY -- if the user data has access to the plaintext password, the rest of these can work
@@ -64,23 +64,23 @@ public:
 // DIGEST-MD5 is defined in RFC 2831
 class SaslDigestMD5 : public CSasl {
 public:
-  SaslDigestMD5(ImapMaster *master) : Sasl(master) {};
-  void sendChallenge();
-  Sasl::status receiveResponse(const CStdString &csLine2);
+    SaslDigestMD5(ImapMaster *master) : Sasl(master) {};
+    void sendChallenge();
+    Sasl::status receiveResponse(const CStdString &csLine2);
 
 private:
-  std::string m_nonce;
+    std::string m_nonce;
 };
 
 // CRAM-MD5 is defined in RFC 2195
 class SaslCramMD5 : public CSasl {
 public:
-  SaslCramMD5(ImapMaster *master) : Sasl(master) {};
-  std::string sendChallenge();
-  Sasl::status receiveResponse(CStdString &csLine2);
+    SaslCramMD5(ImapMaster *master) : Sasl(master) {};
+    std::string sendChallenge();
+    Sasl::status receiveResponse(CStdString &csLine2);
 
 private:
-  std::string m_challenge;
+    std::string m_challenge;
 };
 #endif /* 0 */
 

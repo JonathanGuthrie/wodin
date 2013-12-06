@@ -23,15 +23,15 @@
 
 class ImapUnixUser : ImapUser {
 public:
-  ImapUnixUser(const char *user, const ImapMaster *Master);
-  virtual ~ImapUnixUser();
-  virtual bool havePlaintextPassword() const;
-  virtual bool checkCredentials(const char *password) const;
-  virtual char *password(void) const;
-  virtual char *homeDir(void) const { return m_home; };
+    ImapUnixUser(const char *user, const ImapMaster *Master);
+    virtual ~ImapUnixUser();
+    virtual bool havePlaintextPassword() const;
+    virtual bool checkCredentials(const char *password) const;
+    virtual char *password(void) const;
+    virtual char *homeDir(void) const { return m_home; };
 
 private:
-  char *m_home;
+    char *m_home;
 };
 
 #endif // _IMAPUNIXUSER_HPP_INCLUDED_

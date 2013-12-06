@@ -25,8 +25,8 @@
 // mail store.
 class DeltaQueueAsynchronousAction : public DeltaQueueAction {
 public:
-  DeltaQueueAsynchronousAction(int delta, InternetSession *session);
-  virtual void handleTimeout(bool isPurge);
+    DeltaQueueAsynchronousAction(int delta, InternetSession *session);
+    virtual void handleTimeout(bool isPurge);
 };
 
 
