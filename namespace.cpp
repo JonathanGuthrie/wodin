@@ -724,7 +724,7 @@ MailStore::MAIL_STORE_RESULT Namespace::lock(void) {
 }
 
 
-MailStore::MAIL_STORE_RESULT Namespace::lock(std::string &mailboxName) {
+MailStore::MAIL_STORE_RESULT Namespace::lock(const std::string &mailboxName) {
   MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
   std::string changeableName = mailboxName;
   MailStore *store = nameSpace(changeableName);
@@ -746,7 +746,7 @@ MailStore::MAIL_STORE_RESULT Namespace::unlock(void) {
 }
 
 
-MailStore::MAIL_STORE_RESULT Namespace::unlock(std::string &mailboxName) {
+MailStore::MAIL_STORE_RESULT Namespace::unlock(const std::string &mailboxName) {
   MailStore::MAIL_STORE_RESULT result = GENERAL_FAILURE;
   std::string changeableName = mailboxName;
   MailStore *store = nameSpace(changeableName);
