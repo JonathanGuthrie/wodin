@@ -78,11 +78,11 @@ static int writeMailboxMetadataFile(const char *filename, const char *fqdn, uid_
 	strftime(timestring, 1023, "%c", tm_now);
 	outFile << "From MAILER-DAEMON " << timestring << std::endl;
 	strftime(timestring, 1023, "%d %b %Y %X ", tm_now);
-	sprintf(tz_string, "% 03d%02d", zone_east / 60, zone_east % 60);
+	sprintf(tz_string, "% 03ld%02ld", zone_east / 60, zone_east % 60);
 	outFile << "Date: " << timestring << tz_string << std::endl;
 	outFile << "From: Mail Daemon <MAILER-DAEMON@" << fqdn << ">" << std::endl;
 	outFile << "Subject: DO NOT DELETE THIS MESSAGE -- IT CONTAINS INTERNAL FOLDER DATA" << std::endl;
-	sprintf(timestring, "%010u %010u", now, 0);
+	sprintf(timestring, "%010ld %010u", now, 0);
 	outFile << "X-IMAP: " << timestring << std::endl;
 	outFile << "Status: RO" << std::endl << std::endl;
 	outFile << "This message contains metadata for this mail box and is not a real" << std::endl;
@@ -222,7 +222,6 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::deleteMailbox(const std::string &Ful
 	struct stat sb;
 
 	std::string fullPath = *m_homeDirectory;
-	bool isDirectory = MailboxName.at(MailboxName.size()-1) == '/';
 
 	while ('/' == MailboxName.at(MailboxName.size()-1)) {
 	    MailboxName.erase(MailboxName.size()-1);
@@ -395,7 +394,7 @@ void MailStoreMbox::addDataToMessageFile(const uint8_t *data, size_t length) {
     uid_t savedUserId = geteuid();
     seteuid(m_session->user()->uid());
 
-    for (int i=0; i<length; ++i) {
+    for (size_t i=0; i<length; ++i) {
 	switch(m_appendState) {
 	case 0:
 	default:
@@ -677,11 +676,17 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::addMessageToMailbox(const std::strin
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::appendDataToMessage(const std::string &MailboxName, size_t uid, const uint8_t *data, size_t length) {
+    (void) MailboxName;
+    (void) uid;
+
     addDataToMessageFile(data, length);
     return MailStore::SUCCESS; // SYZYGY 
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::doneAppendingDataToMessage(const std::string &MailboxName, size_t uid) {
+    (void) MailboxName;
+    (void) uid;
+
     uid_t savedUserId = geteuid();
     seteuid(m_session->user()->uid());
     m_outFile->write("\n", 1);
@@ -710,7 +715,7 @@ bool MailStoreMbox::parseMessage(std::ifstream &inFile, bool firstMessage, bool 
 
     messageMetaData.start = inFile.tellg();
     getline(inFile, line);  // Parse the "From " line for the internal date
-    int pos = line.find_first_of(' ');
+    size_t pos = line.find_first_of(' ');
     if (std::string::npos != pos) {
 	pos = line.find_first_of(' ', pos+1);
 	if (std::string::npos != pos) {
@@ -841,6 +846,8 @@ bool MailStoreMbox::parseMessage(std::ifstream &inFile, bool firstMessage, bool 
 // the results of that parsing for things like message sequence numbers, UID's, and offsets in the
 // file
 MailStore::MAIL_STORE_RESULT MailStoreMbox::mailboxOpen(const std::string &FullName, bool readWrite) {
+    (void) readWrite;
+
     std::string MailboxName = FullName;
     std::string fullPath;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
@@ -1007,6 +1014,8 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::expungeThisUid(unsigned long uid) {
 MailStore::MAIL_STORE_RESULT MailStoreMbox::getMailboxCounts(const std::string &FullName, uint32_t which, unsigned &messageCount,
 							     unsigned &recentCount, unsigned &uidLast, unsigned &uidValidity,
 							     unsigned &firstUnseen) {
+    (void) which;
+
     std::string MailboxName = FullName;
     std::string fullPath;
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
@@ -1127,6 +1136,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::messageUpdateFlags(unsigned long uid
 
 std::string MailStoreMbox::mailboxUserPath() const {
     // SYZYGY -- what is this for?
+    return "";
 }
 
 
@@ -1189,7 +1199,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::mailboxFlushBuffers(void) {
 		updateFile.clear();
 		buff1.count = updateFile.gcount();
 		bool notDone = true;
-		int messageIndex;
+		size_t messageIndex;
 		unsigned parseState = 0;
 		lastGetPos = updateFile.tellg();
 		bool isXheader;

@@ -243,7 +243,7 @@ unsigned Namespace::uidValidityNumber() {
 }
 
 // This needs to be called ONLY when the m_selectedMailbox->mutex has been locked
-bool Namespace::addSession(int refCount, expunged_message_t &message) {
+bool Namespace::addSession(size_t refCount, expunged_message_t &message) {
     bool result = false;
     SessionList::iterator i = std::find(message.expungedSessions.begin(), message.expungedSessions.end(), m_session);
     if (message.expungedSessions.end() == i) {
@@ -466,6 +466,7 @@ NUMBER_LIST Namespace::mailboxUidToMsn(const NUMBER_LIST &uids) {
     for (NUMBER_LIST::const_iterator i=uids.begin(); i!=uids.end(); ++i) {
 	result.push_back(mailboxUidToMsn(*i));
     }
+    return result;
 }
 
 unsigned long Namespace::mailboxUidToMsn(unsigned long uid) {
@@ -527,6 +528,7 @@ MailStore::MAIL_STORE_RESULT Namespace::mailboxUpdateStatsInternal(NUMBER_SET *n
 	    nowGone->insert(nowGone->begin(), i->first);
 	}
     }
+    return result;
 }
 
 MailStore::MAIL_STORE_RESULT Namespace::mailboxUpdateStats(NUMBER_SET *nowGone) {

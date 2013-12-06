@@ -35,7 +35,7 @@ std::string qstring(std::string &source) {
 	/* It looks like a quoted string */
 	bool notdone = true;
 	bool escape_flag = false;
-	int pos = 1;
+	size_t pos = 1;
 	do {
 	    // std::cout << "pos = " << pos << "\n";
 	    pos = (int)source.find_first_of("\"\\", pos);
@@ -139,6 +139,8 @@ void SaslAnonymous::sendChallenge(char *challenge_buff) {
 }
 
 Sasl::status SaslAnonymous::receiveResponse(const std::string &csLine2) {
+    (void) csLine2;
+
     // RFC 2245 says that the response is optional, but that it can contain
     // tracking stuff.  I just ignore it until I have a use for it.
     m_authorizationEntity = "";

@@ -142,7 +142,7 @@ private:
     MailStore *m_defaultNamespace;
     char m_defaultSeparator;
     void removeUid(unsigned long uid);
-    bool addSession(int refCount, expunged_message_t &message);
+    bool addSession(size_t refCount, expunged_message_t &message);
     unsigned m_mailboxMessageCount;
     void dump_message_session_info(const char *s, ExpungedMessageMap &m);
     MailStore::MAIL_STORE_RESULT mailboxUpdateStatsInternal(NUMBER_SET *uidsToBeExpunged);

@@ -56,6 +56,10 @@ IMAP_RESULTS SelectHandler::execute(void) {
 	case MailStore::CANNOT_COMPLETE_ACTION:
 	    result = IMAP_TRY_AGAIN;
 	    break;
+
+	default:
+	    result = IMAP_NO;
+	    break;
 	}
     }
 

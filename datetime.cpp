@@ -149,6 +149,8 @@ void DateTime::addDays(int days) {
 // DOW MMM DD hh:mm:ss YYYY
 // Note, no time zone.
 bool DateTime::parseCtime(const uint8_t *data, size_t dataLen, size_t &parsingAt) {
+    (void) dataLen;
+
     m_valid = false;
     // Day of week
     // tuesday and thursday
@@ -366,7 +368,7 @@ bool DateTime::parseCtime(const uint8_t *data, size_t dataLen, size_t &parsingAt
     if (1 == m_tm.tm_mon) {
 	if ((29 < m_tm.tm_mday) ||
 	    ((29 == m_tm.tm_mday) &&
-	     (0 != (m_tm.tm_year % 4)) || ((0 == m_tm.tm_year % 100) && (0 != m_tm.tm_year % 400)))) {
+	     ((0 != (m_tm.tm_year % 4)) || ((0 == m_tm.tm_year % 100) && (0 != m_tm.tm_year % 400))))) {
 	    return false;
 	}
     }
@@ -514,7 +516,7 @@ bool DateTime::parseImap(const uint8_t *data, size_t dataLen, size_t &parsingAt)
 
     // If I'm looking at Feb 29, then it needs to be a leap year
     if ((1 == m_tm.tm_mon) && (29 == m_tm.tm_mday) &&
-	(0 != (m_tm.tm_year % 4)) || ((0 == m_tm.tm_year % 100) && (0 != m_tm.tm_year % 400))) {
+	((0 != (m_tm.tm_year % 4)) || ((0 == m_tm.tm_year % 100) && (0 != m_tm.tm_year % 400)))) {
 	return false;
     }
 
@@ -571,7 +573,7 @@ bool DateTime::parseImap(const uint8_t *data, size_t dataLen, size_t &parsingAt)
 
     // Use Zeller's Congruence to calculate the day of the week
     // See, for example http://en.wikipedia.org/wiki/Zeller's_congruence
-    int zMonth, zYear;
+    int zYear;
     int table[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
     zYear = (m_tm.tm_mon < 2) ? m_tm.tm_year - 1 : m_tm.tm_year;
     m_tm.tm_wday = (zYear + zYear / 4 - zYear / 100 + zYear / 400 + table[m_tm.tm_mon] + m_tm.tm_mday) % 7;
@@ -645,6 +647,8 @@ bool DateTime::parseImap(const uint8_t *data, size_t dataLen, size_t &parsingAt)
  * the obsolete fields are the same as the current fields.
  */
 bool DateTime::parseRfc822(const uint8_t *data, size_t dataLen, size_t &parsingAt) {
+    (void) dataLen;
+
     m_valid = false;
     // Day of week
     // tuesday and thursday
@@ -849,7 +853,7 @@ bool DateTime::parseRfc822(const uint8_t *data, size_t dataLen, size_t &parsingA
     if (1 == m_tm.tm_mon) {
 	if ((29 < m_tm.tm_mday) ||
 	    ((29 == m_tm.tm_mday) &&
-	     (0 != (m_tm.tm_year % 4)) || ((0 == m_tm.tm_year % 100) && (0 != m_tm.tm_year % 400)))) {
+	     ((0 != (m_tm.tm_year % 4)) || ((0 == m_tm.tm_year % 100) && (0 != m_tm.tm_year % 400))))) {
 	    return false;
 	}
     }
@@ -1054,6 +1058,8 @@ bool DateTime::parseRfc822(const uint8_t *data, size_t dataLen, size_t &parsingA
  */
 
 bool DateTime::parseFromLine(const uint8_t *data, size_t dataLen, size_t &parsingAt) {
+    (void) dataLen;
+
     m_valid = false;
 
     // It appears as if PostFix puts an extra space before the date
@@ -1368,7 +1374,7 @@ bool DateTime::parseFromLine(const uint8_t *data, size_t dataLen, size_t &parsin
     if (1 == m_tm.tm_mon) {
 	if ((29 < m_tm.tm_mday) ||
 	    ((29 == m_tm.tm_mday) &&
-	     (0 != (m_tm.tm_year % 4)) || ((0 == m_tm.tm_year % 100) && (0 != m_tm.tm_year % 400)))) {
+	     ((0 != (m_tm.tm_year % 4)) || ((0 == m_tm.tm_year % 100) && (0 != m_tm.tm_year % 400))))) {
 	    return false;
 	}
     }

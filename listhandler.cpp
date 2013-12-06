@@ -28,7 +28,7 @@ ImapHandler *listHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
 
 static std::string imapQuoteString(const std::string &to_be_quoted) {
     std::string result("\"");
-    for (int i=0; i<to_be_quoted.size(); ++i) {
+    for (size_t i=0; i<to_be_quoted.size(); ++i) {
 	if ('\\' == to_be_quoted[i]) {
 	    result += '\\';
 	}
@@ -74,8 +74,6 @@ static std::string genMailboxFlags(const uint32_t attr) {
 }
 
 IMAP_RESULTS ListHandler::execute(void) {
-    IMAP_RESULTS result = IMAP_MBOX_ERROR;
-
     std::string reference = m_parseBuffer->arguments();
     std::string mailbox = m_parseBuffer->arguments()+(strlen(m_parseBuffer->arguments())+1);
 

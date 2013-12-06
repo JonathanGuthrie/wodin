@@ -361,7 +361,7 @@ static bool recursiveBodySearch(MESSAGE_BODY root, const MailSearch::TEXT_SEARCH
     }
     if (!result) {
 	if (NULL != root.subparts) {
-	    for (int i = 0; i < root.subparts->size(); i++) {
+	    for (size_t i = 0; i < root.subparts->size(); i++) {
 		result = recursiveBodySearch((*root.subparts)[i], target, bigBuffer);
 	    }
 	}
@@ -380,7 +380,7 @@ MailStore::MAIL_STORE_RESULT MailSearch::evaluate(MailStore *where) {
 	}
 	else {
 	    if ((0 != (m_includeMask | m_excludeMask)) ||
-		(0 < m_smallestSize) || ((~0) > m_largestSize) ||
+		(0 < m_smallestSize) || (LONG_MAX > m_largestSize) ||
 		(NULL != m_beginInternalDate) || (NULL != m_endInternalDate)) {
 		if ((0 == (m_includeMask & m_excludeMask)) &&
 		    (m_smallestSize <= m_largestSize) && 
@@ -466,6 +466,9 @@ MailStore::MAIL_STORE_RESULT MailSearch::evaluate(MailStore *where) {
 				itIsIn = (std::string::npos != line.find(target));
 			    }
 			    break;
+			    
+			    default:
+				break;
 			    }
 			}
 

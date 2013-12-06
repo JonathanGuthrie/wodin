@@ -19,6 +19,7 @@
 #include "imapuser.hpp"
 
 ImapUser::ImapUser(const char *user, const ImapMaster *master) {
+    (void) master;
     m_name = new std::string(user);
     m_userFound = false;
 }

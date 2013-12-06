@@ -953,6 +953,8 @@ void ImapSession::responseCode(const std::string &msg) {
 }
 
 void ImapSession::selectData(const std::string &mailbox, bool isReadWrite) {
+    (void) mailbox;
+
     std::ostringstream ss;
     m_currentNextUid = m_store->serialNumber();
     m_currentUidValidity = m_store->uidValidityNumber();

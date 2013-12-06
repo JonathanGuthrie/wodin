@@ -170,7 +170,7 @@ static MIME_MEDIA_TYPES GetMediaType(const insensitiveString &contentTypeLine) {
 
     if (0 < contentTypeLine.size()) {
 	insensitiveString work = contentTypeLine;
-	int pos = work.find('/');
+	size_t pos = work.find('/');
 	if (std::string::npos != pos) {
 	    int end = work.find_last_not_of(SPACE, pos-1);
 	    int begin = work.find_first_not_of(SPACE);
@@ -204,10 +204,10 @@ std::string GetMediaBoundary(const insensitiveString &contentTypeLine) {
     std::string result;
     insensitiveString work = contentTypeLine;
 
-    int pos = work.find("boundary=");
+    size_t pos = work.find("boundary=");
     if (std::string::npos != pos) {
-	int end = work.find_last_not_of(SPACE);
-	int begin = work.find_first_not_of(SPACE, pos+9);
+	size_t end = work.find_last_not_of(SPACE);
+	size_t begin = work.find_first_not_of(SPACE, pos+9);
 
 	result = contentTypeLine.substr(begin, end-begin+1).c_str();
 	pos = result.find(';');
@@ -231,11 +231,11 @@ bool MailMessage::processHeaderLine(const insensitiveString &line) {
     bool result = true;
 
     if (0 != line.size()) {
-	int colon = line.find(':');
+	size_t colon = line.find(':');
 
 	if (std::string::npos != colon) {
-	    int end = line.find_last_not_of(SPACE);
-	    int begin = line.find_first_not_of(SPACE, colon+1);
+	    size_t end = line.find_last_not_of(SPACE);
+	    size_t begin = line.find_first_not_of(SPACE, colon+1);
 	    insensitiveString right;
 	    if (std::string::npos != begin) {
 		right = line.substr(begin, end-begin+1);

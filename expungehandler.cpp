@@ -22,6 +22,8 @@ ImapHandler *expungeHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
 }
 
 IMAP_RESULTS ExpungeHandler::receiveData(INPUT_DATA_STRUCT &input) {
+    (void) input;
+
     IMAP_RESULTS result = IMAP_MBOX_ERROR;
     NUMBER_SET purgedMessages;
 
@@ -33,6 +35,10 @@ IMAP_RESULTS ExpungeHandler::receiveData(INPUT_DATA_STRUCT &input) {
 
     case MailStore::CANNOT_COMPLETE_ACTION:
 	result = IMAP_TRY_AGAIN;
+	break;
+
+    default:
+	result = IMAP_NO;
 	break;
     }
 

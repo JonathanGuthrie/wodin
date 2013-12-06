@@ -22,6 +22,8 @@ ImapHandler *closeHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
 }
 
 IMAP_RESULTS CloseHandler::receiveData(INPUT_DATA_STRUCT &input) {
+    (void) input;
+
     // If the mailbox is open, close it
     // In IMAP, deleted messages are always purged before a close
     IMAP_RESULTS result = IMAP_TRY_AGAIN;

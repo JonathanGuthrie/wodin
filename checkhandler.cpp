@@ -22,6 +22,8 @@ ImapHandler *checkHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
 }
 
 IMAP_RESULTS CheckHandler::receiveData(INPUT_DATA_STRUCT &input) {
+    (void) input;
+
     // Unlike NOOP, I always call mailboxFlushBuffers because that recalculates the the cached data.
     // That may be the only way to find out that the number of messages or the UIDNEXT value has
     // changed.
