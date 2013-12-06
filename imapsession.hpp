@@ -177,6 +177,9 @@ public:
   void fetchResponseUid(unsigned long uid);
   void fetchResponseFlags(uint32_t flags);
 
+protected:
+  ParseBuffer *m_parseBuffer;
+
 private:
   // These are configuration items
   bool m_loginDisabled;
@@ -196,7 +199,6 @@ private:
   // As lines come in from the outside world, they are processed into m_bBuffer, which holds
   // them until the entire command has been received at which point it can be processed, often
   // by the *Execute() methods.
-  ParseBuffer *m_parseBuffer;
 
   Namespace *m_store;
   char m_responseCode[MAX_RESPONSE_STRING_LENGTH+1];

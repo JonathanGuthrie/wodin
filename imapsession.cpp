@@ -469,13 +469,13 @@ ImapSession::ImapSession(ImapMaster *master, SessionDriver *driver, Server *serv
   m_lineBuffLen = 0;
   m_store = NULL;
 
+  m_lastCommandTime = time(NULL);
+  m_purgedMessages.clear();
+  m_retries = 0;
   if ((NULL != master) && (NULL != driver) && (NULL != server)) {
     std::string response("* OK [");
     response += capabilityString() + "] IMAP4rev1 server ready\r\n";
     m_driver->wantsToSend(response);
-    m_lastCommandTime = time(NULL);
-    m_purgedMessages.clear();
-    m_retries = 0;
 
     m_failedLoginPause = m_master->badLoginPause();
     m_maxRetries = m_master->maxRetries();
