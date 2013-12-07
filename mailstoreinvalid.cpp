@@ -51,6 +51,8 @@ void MailStoreInvalid::mailboxList(const std::string &pattern, MAILBOX_LIST *res
 MailStore::MAIL_STORE_RESULT MailStoreInvalid::subscribeMailbox(const std::string &MailboxName, bool isSubscribe) {
     (void) MailboxName;
     (void) isSubscribe;
+
+    return GENERAL_FAILURE;
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreInvalid::addMessageToMailbox(const std::string &MailboxName, const uint8_t *data, size_t length,

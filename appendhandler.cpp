@@ -185,6 +185,7 @@ IMAP_RESULTS AppendHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	else {
 	    residue = 0;
 	}
+	m_parseBuffer->literalLength(residue);
 	std::string mailbox(m_parseBuffer->arguments());
 	switch (m_store->appendDataToMessage(mailbox, m_appendingUid, input.data, len)) {
 	case MailStore::SUCCESS:

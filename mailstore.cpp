@@ -82,6 +82,7 @@ NUMBER_LIST MailStore::mailboxUidToMsn(const NUMBER_LIST &uids) {
     for (NUMBER_LIST::const_iterator i=uids.begin(); i!=uids.end(); ++i) {
 	result.push_back(mailboxUidToMsn(*i));
     }
+    return result;
 }
 
 unsigned long MailStore::mailboxUidToMsn(unsigned long uid) {
@@ -99,7 +100,7 @@ MailStore::MAIL_STORE_RESULT MailStore::messageList(SEARCH_RESULT &msns) const {
     MailStore::MAIL_STORE_RESULT result = MailStore::SUCCESS;
     msns.clear(); 
     if (NULL != m_openMailboxName) {
-	for (int i=0; i<m_uidGivenMsn.size(); ++i) {
+	for (size_t i=0; i<m_uidGivenMsn.size(); ++i) {
 	    msns.push_back(m_uidGivenMsn[i]);
 	}
     }

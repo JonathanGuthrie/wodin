@@ -321,10 +321,10 @@ bool ProcessSubpartHeaderLine(const insensitiveString &line, MESSAGE_BODY &body)
     bool result = true;
 
     if (0 != line.size()) {
-	int colon = line.find(':');
+	size_t colon = line.find(':');
 	if (std::string::npos != colon) {
-	    int begin = line.find_first_not_of(SPACE, colon+1);
-	    int end = line.find_last_not_of(SPACE);
+	    size_t begin = line.find_first_not_of(SPACE, colon+1);
+	    size_t end = line.find_last_not_of(SPACE);
 	    insensitiveString right;
 	    if (std::string::npos != begin) {
 		right = line.substr(begin, end-begin+1);
@@ -391,7 +391,7 @@ void MailMessage::parseBodyParts(bool loadBinaryParts, MESSAGE_BODY &parentBody,
 	    while (notdone) {
 		notdone = false;
 		if ((NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1]))) {
-		    int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+		    size_t lineLength = 2 + (eol - &messageBuffer[parsePointer]);
 		    parentBody.bodyOctets += lineLength;
 		    parentBody.bodyLines++;
 		    if (('-' != messageBuffer[parsePointer]) ||
@@ -410,7 +410,7 @@ void MailMessage::parseBodyParts(bool loadBinaryParts, MESSAGE_BODY &parentBody,
 	    notdone = (NULL != (eol = strchr(&messageBuffer[parsePointer], '\r')) && ('\n' == eol[1]));
 	    while (notdone) {
 		// std::cout << "Parsing at at octet " << parsePointer << std::endl;
-		int lineLength = 2 + (eol - &messageBuffer[parsePointer]);
+		size_t lineLength = 2 + (eol - &messageBuffer[parsePointer]);
 		if ((6 + separator.size() != lineLength) ||
 		    ('-' != messageBuffer[parsePointer+2+separator.size()]) ||
 		    ('-' != messageBuffer[parsePointer+3+separator.size()])) {
@@ -786,7 +786,7 @@ MailMessage::MAIL_MESSAGE_RESULT MailMessage::parse(MailStore *store, bool readB
 void
 subpart_destructor(BODY_PARTS partsList) {
     if (NULL != partsList) {
-	for (int i=0; i<partsList->size(); ++i) {
+	for (size_t i=0; i<partsList->size(); ++i) {
 	    subpart_destructor((*partsList)[i].subparts);
 	}
 	delete partsList;

@@ -27,6 +27,8 @@ ImapHandler *noopHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
  * things like that
  */
 IMAP_RESULTS NoopHandler::receiveData(INPUT_DATA_STRUCT &input) {
+    (void) input;
+
     // This command literally doesn't do anything.  If there was an update, it was found
     // asynchronously and the updated info will be printed in formatTaggedResponse
 

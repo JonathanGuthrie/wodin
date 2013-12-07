@@ -23,6 +23,8 @@
 #include "imapmaster.hpp"
 
 ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_timeout, unsigned asynchronous_event_time, unsigned bad_login_pause, unsigned max_retries, unsigned retry_seconds) {
+    (void) fqdn;
+
     m_useConfiguredUid = false;
     m_configuredUid = 0;
     m_useConfiguredGid = false;

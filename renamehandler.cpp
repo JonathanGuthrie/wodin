@@ -85,6 +85,10 @@ IMAP_RESULTS RenameHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	    case MailStore::CANNOT_COMPLETE_ACTION:
 		result = IMAP_TRY_AGAIN;
 		break;
+
+	    default:
+		result = IMAP_MBOX_ERROR;
+		break;
 	    }
 	}
 	    break;

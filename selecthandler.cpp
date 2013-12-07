@@ -58,7 +58,6 @@ IMAP_RESULTS SelectHandler::execute(void) {
 	    break;
 
 	default:
-	    result = IMAP_NO;
 	    break;
 	}
     }

@@ -1199,7 +1199,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::mailboxFlushBuffers(void) {
 		updateFile.clear();
 		buff1.count = updateFile.gcount();
 		bool notDone = true;
-		size_t messageIndex;
+		int messageIndex;
 		unsigned parseState = 0;
 		lastGetPos = updateFile.tellg();
 		bool isXheader;
@@ -2348,6 +2348,7 @@ MailStore::MAIL_STORE_RESULT MailStoreMbox::mailboxFlushBuffers(void) {
 }
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::mailboxUpdateStats(NUMBER_SET *nowGone) {
+    (void) nowGone;
     // This function has to check for new messages arriving.  It doesn't have to check for
     // expunged messages because the mail stores don't handle multiple simultaneous access
     // because that's the job of the namespace class.
@@ -2487,7 +2488,6 @@ static void ConvertPatternToRegex(const char *pattern, char *regex, char isForLs
 
 
 void MailStoreMbox::listAll(const std::string &pattern, MAILBOX_LIST *result) {
-    struct stat buff;
     regex_t compiled_regex;
     char *regex = new char[3+5*pattern.size()];
 
@@ -2565,7 +2565,7 @@ void MailStoreMbox::listAll(const std::string &pattern, MAILBOX_LIST *result) {
 		break;
 	    }
 	}
-	sprintf(base_path, "%s/%.*s", m_homeDirectory->c_str(), static_len, pattern.c_str());
+	sprintf(base_path, "%s/%.*s", m_homeDirectory->c_str(), (int) static_len, pattern.c_str());
 	DIR *directory = opendir(base_path);
 	if (NULL != directory) {
 	    struct dirent *entry;
@@ -2576,7 +2576,7 @@ void MailStoreMbox::listAll(const std::string &pattern, MAILBOX_LIST *result) {
 		    char full_path[PATH_MAX];
 
 		    if (static_len > 0) {
-			sprintf(short_path, "%.*s/%s", static_len, pattern.c_str(), entry->d_name);
+			sprintf(short_path, "%.*s/%s", (int) static_len, pattern.c_str(), entry->d_name);
 		    }
 		    else {
 			strcpy(short_path, entry->d_name);
@@ -2792,6 +2792,9 @@ MailStoreMbox::~MailStoreMbox() {
 
 
 MailStore::MAIL_STORE_RESULT MailStoreMbox::deleteMessage(const std::string &MailboxName, unsigned long uid) {
+    (void) MailboxName;
+    (void) uid;
+
     return MailStore::SUCCESS;
 }
 

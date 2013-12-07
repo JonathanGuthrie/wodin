@@ -34,6 +34,9 @@ IMAP_RESULTS DeleteHandler::execute(void) {
     case MailStore::CANNOT_COMPLETE_ACTION:
 	result = IMAP_TRY_AGAIN;
 	break;
+
+    default:
+	break;
     }
     return result;
 }

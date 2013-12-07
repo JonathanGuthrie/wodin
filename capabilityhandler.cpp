@@ -22,6 +22,8 @@ ImapHandler *capabilityHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
 }
 
 IMAP_RESULTS CapabilityHandler::receiveData(INPUT_DATA_STRUCT &input) {
+    (void) input;
+
     std::string response("* ");
     response += m_session->capabilityString() + "\r\n";
     m_session->driver()->wantsToSend(response);

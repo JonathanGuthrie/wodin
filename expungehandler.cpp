@@ -38,7 +38,6 @@ IMAP_RESULTS ExpungeHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	break;
 
     default:
-	result = IMAP_NO;
 	break;
     }
 

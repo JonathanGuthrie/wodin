@@ -36,6 +36,7 @@ public:
     const std::string getUser() const { return m_authorizationEntity;}
     virtual void sendChallenge(char *challenge_buff) = 0;
     virtual status receiveResponse(const std::string &csLine2) = 0;
+    virtual ~Sasl() {};
 
 protected:
     status m_currentStatus;
@@ -49,6 +50,7 @@ public:
     SaslAnonymous(ImapMaster *myMaster) : Sasl(myMaster) {};
     void sendChallenge(char *challenge_buff);
     Sasl::status receiveResponse(const std::string &csLine2);
+    virtual ~SaslAnonymous() {};
 };
 
 // PLAIN is defined in RFC 4616
@@ -57,6 +59,7 @@ public:
     SaslPlain(ImapMaster *myMaster) : Sasl(myMaster) {};
     void sendChallenge(char *challenge_buff);
     Sasl::status receiveResponse(const std::string &csLine2);
+    virtual ~SaslPlain() {};
 };
 
 // SYZYGY -- if the user data has access to the plaintext password, the rest of these can work
@@ -65,6 +68,7 @@ public:
 class SaslDigestMD5 : public CSasl {
 public:
     SaslDigestMD5(ImapMaster *master) : Sasl(master) {};
+    virtual ~SaslDigestMD5() {};
     void sendChallenge();
     Sasl::status receiveResponse(const CStdString &csLine2);
 
@@ -76,6 +80,7 @@ private:
 class SaslCramMD5 : public CSasl {
 public:
     SaslCramMD5(ImapMaster *master) : Sasl(master) {};
+    virtual ~SaslCramMD5() {};
     std::string sendChallenge();
     Sasl::status receiveResponse(CStdString &csLine2);
 

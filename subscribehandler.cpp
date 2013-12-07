@@ -40,6 +40,9 @@ IMAP_RESULTS SubscribeHandler::execute(void) {
     case MailStore::CANNOT_COMPLETE_ACTION:
 	result = IMAP_TRY_AGAIN;
 	break;
+
+    default:
+	break;
     }
     return result;
 }

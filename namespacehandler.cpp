@@ -22,6 +22,8 @@ ImapHandler *namespaceHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
 }
 
 IMAP_RESULTS NamespaceHandler::receiveData(INPUT_DATA_STRUCT &input) {
+    (void) input;
+
     std::string response("* NAMESPACE ");
     response += m_session->store()->listNamespaces() + "\r\n";
     m_session->driver()->wantsToSend(response);
