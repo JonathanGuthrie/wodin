@@ -148,6 +148,7 @@ enum ImapStringState ParseBuffer::astring(INPUT_DATA_STRUCT &input, bool makeUpp
 		    }
 		    else {
 			addToParseBuffer(t, 0);
+			input.parsingAt++;
 			notdone = false;
 		    }
 		    break;

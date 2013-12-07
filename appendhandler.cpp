@@ -178,7 +178,7 @@ IMAP_RESULTS AppendHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	size_t residue;
 	// It's the message body that's arrived
 	size_t len = MIN(m_parseBuffer->literalLength(), input.dataLen);
-	if (m_parseBuffer->literalLength() < input.dataLen) {
+	if (m_parseBuffer->literalLength() > input.dataLen) {
 	    result = IMAP_IN_LITERAL;
 	    residue = input.dataLen - m_parseBuffer->literalLength();
 	}
@@ -190,7 +190,7 @@ IMAP_RESULTS AppendHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	switch (m_store->appendDataToMessage(mailbox, m_appendingUid, input.data, len)) {
 	case MailStore::SUCCESS:
 	    result = IMAP_MBOX_ERROR;
-	    m_parseBuffer->literalLength(m_parseBuffer->literalLength() - len);
+
 	    if (0 == m_parseBuffer->literalLength()) {
 		m_parseStage = 4;
 		switch(m_store->doneAppendingDataToMessage(mailbox, m_appendingUid)) {
