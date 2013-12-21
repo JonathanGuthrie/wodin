@@ -32,7 +32,7 @@ private:
     Namespace *m_store;
 
 public:
-    AppendHandler(ImapSession *session, ParseBuffer *parseBuffer, Namespace *store)  : ImapHandler(session), m_parseBuffer(parseBuffer), m_parseStage(0), m_tempMailboxName(""),m_appendingUid(-1),m_store(store) {}
+    AppendHandler(ImapSession *session, ParseBuffer *parseBuffer, Namespace *store)  : ImapHandler(session), m_parseBuffer(parseBuffer), m_parseStage(0), m_mailFlags(0), m_tempMailboxName(""), m_appendingUid(-1), m_store(store) {}
     virtual ~AppendHandler() {}
     virtual IMAP_RESULTS receiveData(INPUT_DATA_STRUCT &input);
 };
