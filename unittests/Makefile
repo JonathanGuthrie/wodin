@@ -47,9 +47,11 @@ SOURCES = 	../imapsession.cpp \
 	../fetchhandler.cpp \
 	../storehandler.cpp
 
-TESTS = command_handlers
+TESTS = misc_command_handlers \
+	append_handler
 
-TEST_SOURCES = command_handlers.cc
+TEST_SOURCES = misc_command_handlers.cc \
+	append_handler.cc
 
 # All Google Test headers.  Usually you shouldn't change this
 # definition.
@@ -104,7 +106,9 @@ gtest_main.a : gtest-all.o gmock-all.o gtest_main.o
 %.o: ../%.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<
 
-command_handlers: command_handlers.o $(SOURCES:../%.cpp=%.o) gtest_main.a
+misc_command_handlers: misc_command_handlers.o $(SOURCES:../%.cpp=%.o) gtest_main.a
+
+append_handler: append_handler.o $(SOURCES:../%.cpp=%.o) gtest_main.a
 
 include $(TEST_SOURCES:.cc=.d)
 
