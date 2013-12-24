@@ -64,7 +64,7 @@ public:
 // No, more than that because this has to test the locking logic
 
 // There should also be a response text test, which will require mocking
-TEST_F(AppendHandlerTest, AtomNoOtherArgs) {
+TEST_F(AppendHandlerTest, AtomNoOtherArgsShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -83,7 +83,7 @@ TEST_F(AppendHandlerTest, AtomNoOtherArgs) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST_F(AppendHandlerTest, QstringNoOtherArgs) {
+TEST_F(AppendHandlerTest, QstringNoOtherArgsShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -102,7 +102,7 @@ TEST_F(AppendHandlerTest, QstringNoOtherArgs) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST_F(AppendHandlerTest, LiteralNoOtherArgs) {
+TEST_F(AppendHandlerTest, LiteralNoOtherArgsShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -128,7 +128,7 @@ TEST_F(AppendHandlerTest, LiteralNoOtherArgs) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST_F(AppendHandlerTest, AtomFlagsNoDate) {
+TEST_F(AppendHandlerTest, AtomFlagsNoDateShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,MailStore::IMAP_MESSAGE_DELETED|MailStore::IMAP_MESSAGE_DRAFT,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -147,7 +147,7 @@ TEST_F(AppendHandlerTest, AtomFlagsNoDate) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST_F(AppendHandlerTest, QstringFlagsNoDate) {
+TEST_F(AppendHandlerTest, QstringFlagsNoDateShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,MailStore::IMAP_MESSAGE_DELETED|MailStore::IMAP_MESSAGE_FLAGGED,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -166,7 +166,7 @@ TEST_F(AppendHandlerTest, QstringFlagsNoDate) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST_F(AppendHandlerTest, LiteralFlagsNoDate) {
+TEST_F(AppendHandlerTest, LiteralFlagsNoDateShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,MailStore::IMAP_MESSAGE_SEEN|MailStore::IMAP_MESSAGE_ANSWERED,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -193,7 +193,7 @@ TEST_F(AppendHandlerTest, LiteralFlagsNoDate) {
 }
 
 
-TEST_F(AppendHandlerTest, AtomDateNoFlags) {
+TEST_F(AppendHandlerTest, AtomDateNoFlagsShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -212,7 +212,7 @@ TEST_F(AppendHandlerTest, AtomDateNoFlags) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST_F(AppendHandlerTest, QstringDateNoFlags) {
+TEST_F(AppendHandlerTest, QstringDateNoFlagsShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -231,7 +231,7 @@ TEST_F(AppendHandlerTest, QstringDateNoFlags) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST_F(AppendHandlerTest, LiteralDateNoFlags) {
+TEST_F(AppendHandlerTest, LiteralDateNoFlagsShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,/* DateTime object here */::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -256,4 +256,70 @@ TEST_F(AppendHandlerTest, LiteralDateNoFlags) {
     input.parsingAt = 0;
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
+
+// SYZYGY
+TEST_F(AppendHandlerTest, AtomFlagsAndDateShouldWork) {
+    EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,MailStore::IMAP_MESSAGE_DELETED|MailStore::IMAP_MESSAGE_DRAFT,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"inbox (\\DELETED \\DRAFT) \"06-jun-1983 12:23:58 -0600\" {1}";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_NOTDONE, handler->receiveData(input));
+    input.data = (uint8_t *)"         ";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_OK, handler->receiveData(input));
+}
+
+TEST_F(AppendHandlerTest, QstringFlagsAndDateShouldWork) {
+    EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,MailStore::IMAP_MESSAGE_DELETED|MailStore::IMAP_MESSAGE_FLAGGED,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"\"inbox\" (\\DELETED \\FLAGGED) \"12-JUN-1987 08:44:06 -0600\" {1}";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_NOTDONE, handler->receiveData(input));
+    input.data = (uint8_t *)"         ";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_OK, handler->receiveData(input));
+}
+
+TEST_F(AppendHandlerTest, LiteralFlagsAndDateShouldWork) {
+    EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,MailStore::IMAP_MESSAGE_SEEN|MailStore::IMAP_MESSAGE_ANSWERED,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"{5}";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_NOTDONE, handler->receiveData(input));
+    // This needs to have the CRLF appended to it because it won't be stripped by 
+    // ImapSession::handleOneLine as it would be if it were not in a literal string
+    strcpy((char *)buffer, "inbox (\\SEEN \\ANSWERED) \"18-Feb-1991 07:58:12 -0600\" {1}\r\n");
+    input.data = buffer;
+    input.dataLen = strlen((const char *)buffer);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_NOTDONE, handler->receiveData(input));
+    input.data = (uint8_t *)" ";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_OK, handler->receiveData(input));
+}
+
 
