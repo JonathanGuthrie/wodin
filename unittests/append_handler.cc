@@ -22,6 +22,31 @@
 #include "mock_mailstore.h"
 #include "mock_session.h"
 
+class AppendHandlerTest : public ::testing::Test {
+public:
+    virtual void SetUp() {
+	ParseBuffer::buildSymbolTable();  // Or the flag processing isn't going to work.
+	test_store = new MockMailstore;
+	test_session = new MockSession("append", test_store);
+
+	EXPECT_CALL((*test_store), lock(::testing::_)).Times(0);
+	EXPECT_CALL((*test_session), responseText(::testing::_)).Times(0);
+	EXPECT_CALL((*test_store), addMessageToMailbox(::testing::_,::testing::_,::testing::_,::testing::_,::testing::_,::testing::_)).Times(0);
+	EXPECT_CALL((*test_store), appendDataToMessage(::testing::_,::testing::_,::testing::_,::testing::_)).Times(0);
+	EXPECT_CALL((*test_store), doneAppendingDataToMessage(::testing::_,::testing::_)).Times(0);
+	EXPECT_CALL((*test_store), unlock(::testing::_)).Times(0);
+    }
+
+    virtual void TearDown() {
+	delete test_session;
+    }
+
+    MockMailstore *test_store;
+    MockSession *test_session;
+    INPUT_DATA_STRUCT input;
+    uint8_t buffer[100];
+};
+
 // What does an append command look like?  Well, 
 // "APPEND" SP mailbox [SP flag-list] [SP date-time] SP literal
 // the mailbox is an atom, a quoted string, or a literal string.
@@ -39,17 +64,14 @@
 // No, more than that because this has to test the locking logic
 
 // There should also be a response text test, which will require mocking
-TEST(AppendHandler, AtomNoOtherArgs) {
-    MockMailstore *test_store = new MockMailstore;
-    MockSession test_session("append", test_store);
-    INPUT_DATA_STRUCT input;
-
+TEST_F(AppendHandlerTest, AtomNoOtherArgs) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL(test_session, responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    ImapHandler *handler = appendHandler(&test_session, input);
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
     input.data = (uint8_t *)"inbox {1}";
     input.dataLen = strlen((const char *)input.data);
@@ -61,17 +83,14 @@ TEST(AppendHandler, AtomNoOtherArgs) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST(AppendHandler, QstringNoOtherArgs) {
-    MockMailstore *test_store = new MockMailstore;
-    MockSession test_session("append", test_store);
-    INPUT_DATA_STRUCT input;
-
+TEST_F(AppendHandlerTest, QstringNoOtherArgs) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL(test_session, responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    ImapHandler *handler = appendHandler(&test_session, input);
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
     input.data = (uint8_t *)"\"inbox\" {1}";
     input.dataLen = strlen((const char *)input.data);
@@ -83,18 +102,14 @@ TEST(AppendHandler, QstringNoOtherArgs) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST(AppendHandler, LiteralNoOtherArgs) {
-    MockMailstore *test_store = new MockMailstore;
-    MockSession test_session("append", test_store);
-    INPUT_DATA_STRUCT input;
-    uint8_t buffer[100];
-
+TEST_F(AppendHandlerTest, LiteralNoOtherArgs) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL(test_session, responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    ImapHandler *handler = appendHandler(&test_session, input);
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
     input.data = (uint8_t *)"{5}";
     input.dataLen = strlen((const char *)input.data);
@@ -113,18 +128,14 @@ TEST(AppendHandler, LiteralNoOtherArgs) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST(AppendHandler, AtomFlagsNoDate) {
-    MockMailstore *test_store = new MockMailstore;
-    MockSession test_session("append", test_store);
-    INPUT_DATA_STRUCT input;
-
-    ParseBuffer::buildSymbolTable();  // Or the flag processing isn't going to work.
+TEST_F(AppendHandlerTest, AtomFlagsNoDate) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL(test_session, responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,MailStore::IMAP_MESSAGE_DELETED|MailStore::IMAP_MESSAGE_DRAFT,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    ImapHandler *handler = appendHandler(&test_session, input);
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
     input.data = (uint8_t *)"inbox (\\DELETED \\DRAFT) {1}";
     input.dataLen = strlen((const char *)input.data);
@@ -136,18 +147,14 @@ TEST(AppendHandler, AtomFlagsNoDate) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST(AppendHandler, QstringFlagsNoDate) {
-    MockMailstore *test_store = new MockMailstore;
-    MockSession test_session("append", test_store);
-    INPUT_DATA_STRUCT input;
-
-    ParseBuffer::buildSymbolTable();  // Or the flag processing isn't going to work.
+TEST_F(AppendHandlerTest, QstringFlagsNoDate) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL(test_session, responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,MailStore::IMAP_MESSAGE_DELETED|MailStore::IMAP_MESSAGE_FLAGGED,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    ImapHandler *handler = appendHandler(&test_session, input);
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
     input.data = (uint8_t *)"\"inbox\" (\\DELETED \\FLAGGED) {1}";
     input.dataLen = strlen((const char *)input.data);
@@ -159,19 +166,14 @@ TEST(AppendHandler, QstringFlagsNoDate) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST(AppendHandler, LiteralFlagsNoDate) {
-    MockMailstore *test_store = new MockMailstore;
-    MockSession test_session("append", test_store);
-    INPUT_DATA_STRUCT input;
-    uint8_t buffer[100];
-
-    ParseBuffer::buildSymbolTable();  // Or the flag processing isn't going to work.
+TEST_F(AppendHandlerTest, LiteralFlagsNoDate) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL(test_session, responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,MailStore::IMAP_MESSAGE_SEEN|MailStore::IMAP_MESSAGE_ANSWERED,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    ImapHandler *handler = appendHandler(&test_session, input);
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
     input.data = (uint8_t *)"{5}";
     input.dataLen = strlen((const char *)input.data);
@@ -191,18 +193,14 @@ TEST(AppendHandler, LiteralFlagsNoDate) {
 }
 
 
-TEST(AppendHandler, AtomDateNoFlags) {
-    MockMailstore *test_store = new MockMailstore;
-    MockSession test_session("append", test_store);
-    INPUT_DATA_STRUCT input;
-
-    ParseBuffer::buildSymbolTable();  // Or the flag processing isn't going to work.
+TEST_F(AppendHandlerTest, AtomDateNoFlags) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL(test_session, responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    ImapHandler *handler = appendHandler(&test_session, input);
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
     input.data = (uint8_t *)"inbox \"06-jun-1983 12:23:58 -0600\" {1}";
     input.dataLen = strlen((const char *)input.data);
@@ -214,18 +212,14 @@ TEST(AppendHandler, AtomDateNoFlags) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST(AppendHandler, QstringDateNoFlags) {
-    MockMailstore *test_store = new MockMailstore;
-    MockSession test_session("append", test_store);
-    INPUT_DATA_STRUCT input;
-
-    ParseBuffer::buildSymbolTable();  // Or the flag processing isn't going to work.
+TEST_F(AppendHandlerTest, QstringDateNoFlags) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL(test_session, responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    ImapHandler *handler = appendHandler(&test_session, input);
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
     input.data = (uint8_t *)"\"inbox\" \"12-JUN-1987 08:44:06 -0600\" {1}";
     input.dataLen = strlen((const char *)input.data);
@@ -237,19 +231,14 @@ TEST(AppendHandler, QstringDateNoFlags) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
-TEST(AppendHandler, LiteralDateNoFlags) {
-    MockMailstore *test_store = new MockMailstore;
-    MockSession test_session("append", test_store);
-    INPUT_DATA_STRUCT input;
-    uint8_t buffer[100];
-
-    ParseBuffer::buildSymbolTable();  // Or the flag processing isn't going to work.
+TEST_F(AppendHandlerTest, LiteralDateNoFlags) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL(test_session, responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,/* DateTime object here */::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    ImapHandler *handler = appendHandler(&test_session, input);
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
     input.data = (uint8_t *)"{5}";
     input.dataLen = strlen((const char *)input.data);

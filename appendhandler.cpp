@@ -195,6 +195,13 @@ IMAP_RESULTS AppendHandler::receiveData(INPUT_DATA_STRUCT &input) {
 		m_parseStage = 4;
 		switch(m_store->doneAppendingDataToMessage(mailbox, m_appendingUid)) {
 		case MailStore::SUCCESS:
+		    if (MailStore::SUCCESS == m_store->unlock(m_tempMailboxName)) {
+			result = IMAP_OK;
+		    }
+		    else {
+			m_store->deleteMessage(mailbox, m_appendingUid);
+			result = IMAP_MBOX_ERROR;
+		    }
 		    m_appendingUid = 0;
 		    result = IMAP_OK;
 		    break;
@@ -218,6 +225,7 @@ IMAP_RESULTS AppendHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	default:
 	    m_store->doneAppendingDataToMessage(mailbox, m_appendingUid);
 	    m_store->deleteMessage(mailbox, m_appendingUid);
+	    m_store->unlock(m_tempMailboxName);
 	    result = IMAP_MBOX_ERROR;
 	    m_appendingUid = 0;
 	    m_parseBuffer->literalLength(0);
