@@ -23,7 +23,7 @@ ImapHandler *appendHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
 }
 
 
-// Parse stage is 0 if it doesn't have a mailbox name, and 1 if it does.  There are no other significant states
+// Parse stage is 0 if it doesn't have a mailbox name, and 1 if it is waiting for one, 2 if the name has arrived, and 3 if it's receiving message data.
 IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
     IMAP_RESULTS result = IMAP_BAD;
     DateTime messageDateTime;
