@@ -20,6 +20,7 @@
 #include "gmock/gmock.h"
 
 #include "mock_mailstore.h"
+#include "mock_session.h"
 
 // What does an append command look like?  Well, 
 // "APPEND" SP mailbox [SP flag-list] [SP date-time] SP literal

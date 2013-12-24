@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-#if defined(MOCK_SESSION_INCLUDED)
+#if !defined(MOCK_SESSION_INCLUDED)
 #define MOCK_SESSION_INCLUDED
+
+#include "mock_mailstore.h"
 
 class MockSession : public ImapSession {
 public:
@@ -44,4 +46,4 @@ public:
     MOCK_METHOD1(responseText, void(const std::string &));
 };
 
-#endif // defined(MOCK_SESSION_INCLUDED)
+#endif // !defined(MOCK_SESSION_INCLUDED)

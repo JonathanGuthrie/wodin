@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-#if defined(MOCK_MAILSTORE_INCLUDED)
+#if !defined(MOCK_MAILSTORE_INCLUDED)
 #define MOCK_MAILSTORE_INCLUDED
-
-#include "mock_session.h"
 
 class MockMailstore : public Namespace {
 public:
@@ -40,4 +38,4 @@ public:
 		 MailStore::MAIL_STORE_RESULT(const std::string &MailboxName, size_t uid));
 };
 
-#endif // defined(MOCK_MAILSTORE_INCLUDED)
+#endif // !defined(MOCK_MAILSTORE_INCLUDED)
