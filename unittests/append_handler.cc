@@ -323,3 +323,29 @@ TEST_F(AppendHandlerTest, LiteralFlagsAndDateShouldWork) {
 }
 
 
+TEST_F(AppendHandlerTest, ParseErrorShouldCallNeitherLockNorUnlock) {
+    EXPECT_CALL((*test_session), responseText("Malformed Command")).Times(1);
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"inbox ++ {1}";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
+}
+
+
+TEST_F(AppendHandlerTest, ParseErrorShouldCallNeitherLockNorUnlock2) {
+    EXPECT_CALL((*test_session), responseText("Malformed Command")).Times(1);
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"{5}";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_NOTDONE, handler->receiveData(input));
+    strcpy((char *)buffer, "inbox ++ {1}\r\n");
+    input.data = buffer;
+    input.dataLen = strlen((const char *)buffer);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
+}
+
