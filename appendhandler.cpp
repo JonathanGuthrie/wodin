@@ -40,6 +40,7 @@ IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
 		}
 		else {
 		    m_session->responseText("Malformed Command");
+		    return IMAP_BAD;
 		}
 	    }
 	    else {
@@ -57,6 +58,7 @@ IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
 		}
 		else {
 		    m_session->responseText("Malformed Command");
+		    return IMAP_BAD;
 		}
 	    }
 
@@ -79,42 +81,42 @@ IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
 	    }
 	    else {
 		m_session->responseText("Malformed Command");
+		return IMAP_BAD;
 	    }
 	}
 	else {
 	    m_session->responseText("Malformed Command");
+	    return IMAP_BAD;
 	}
     }
     else {
 	result = IMAP_OK;
     }
 
-    if (IMAP_OK == result) {
-	MailStore::MAIL_STORE_RESULT mlr;
-	m_tempMailboxName = m_parseBuffer->arguments();
-	if (MailStore::SUCCESS == (mlr = m_store->lock(m_tempMailboxName))) {
+    MailStore::MAIL_STORE_RESULT mlr;
+    m_tempMailboxName = m_parseBuffer->arguments();
+    if (MailStore::SUCCESS == (mlr = m_store->lock(m_tempMailboxName))) {
 		
-	    switch (m_store->addMessageToMailbox(m_tempMailboxName, m_session->lineBuffer(), 0, messageDateTime, m_mailFlags, &m_appendingUid)) {
-	    case MailStore::SUCCESS:
-		m_session->responseText("Ready for the Message Data");
-		m_parseStage = 3;
-		result = IMAP_NOTDONE;
-		break;
+	switch (m_store->addMessageToMailbox(m_tempMailboxName, m_session->lineBuffer(), 0, messageDateTime, m_mailFlags, &m_appendingUid)) {
+	case MailStore::SUCCESS:
+	    m_session->responseText("Ready for the Message Data");
+	    m_parseStage = 3;
+	    result = IMAP_NOTDONE;
+	    break;
 
-	    case MailStore::CANNOT_COMPLETE_ACTION:
-		result = IMAP_TRY_AGAIN;
-		break;
+	case MailStore::CANNOT_COMPLETE_ACTION:
+	    result = IMAP_TRY_AGAIN;
+	    break;
 
-	    default:
-		result = IMAP_MBOX_ERROR;
-		break;
-	    }
-	}
-	else {
+	default:
 	    result = IMAP_MBOX_ERROR;
-	    if (MailStore::CANNOT_COMPLETE_ACTION == mlr) {
-		result = IMAP_TRY_AGAIN;
-	    }
+	    break;
+	}
+    }
+    else {
+	result = IMAP_MBOX_ERROR;
+	if (MailStore::CANNOT_COMPLETE_ACTION == mlr) {
+	    result = IMAP_TRY_AGAIN;
 	}
     }
     return result;
