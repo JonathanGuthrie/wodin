@@ -349,3 +349,42 @@ TEST_F(AppendHandlerTest, ParseErrorShouldCallNeitherLockNorUnlock2) {
     ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
 }
 
+TEST_F(AppendHandlerTest, ShouldBeASpaceBetweenMailboxNameAndData) {
+    EXPECT_CALL((*test_session), responseText("Malformed Command")).Times(1);
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"{5}";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_NOTDONE, handler->receiveData(input));
+    strcpy((char *)buffer, "12345{1}\r\n");
+    input.data = buffer;
+    input.dataLen = strlen((const char *)buffer);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
+}
+
+TEST_F(AppendHandlerTest, ShouldBeMoreThanMailboxName) {
+    EXPECT_CALL((*test_session), responseText("Malformed Command")).Times(1);
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"{5}";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_NOTDONE, handler->receiveData(input));
+    strcpy((char *)buffer, "12345{1}\r\n");
+    input.data = buffer;
+    input.dataLen = strlen((const char *)buffer);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
+}
+
+TEST_F(AppendHandlerTest, FlagsShouldEndInCloseParen) {
+    EXPECT_CALL((*test_session), responseText("Malformed Command")).Times(1);
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"inbox (\\seen";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
+}

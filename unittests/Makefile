@@ -5,7 +5,7 @@ CPPFLAGS += -isystem $(GTEST_DIR)/include -I..
 CC=g++
 CXXFLAGS=-g -Wall -Wextra -pthread
 CXXTESTFLAGS=$(CXXFLAGS) -DTEST
-LDFLAGS=-lpthread -lcrypt -lclotho -lboost_system gtest_main.a
+LDFLAGS=-lpthread -lcrypt -lclotho -lboost_system -fprofile-arcs -ftest-coverage gtest_main.a
 
 SOURCES = 	../imapsession.cpp \
 	../imapunixuser.cpp \
@@ -67,7 +67,7 @@ all: gtest.a gtest_main.a $(TESTS)
 
 .PHONY: clean
 clean:
-	rm -f $(TESTS) gtest.a gtest_main.a *.o *.d
+	rm -f $(TESTS) gtest.a gtest_main.a *.o *.d *.gcda *.gcno *.gcov
 
 # For simplicity and to avoid depending on Google Test's
 # implementation details, the dependencies specified below are
@@ -104,7 +104,7 @@ gtest_main.a : gtest-all.o gmock-all.o gtest_main.o
 	rm -f $@.$$$$
 
 %.o: ../%.cpp
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fprofile-arcs -ftest-coverage -c $<
 
 misc_command_handlers: misc_command_handlers.o $(SOURCES:../%.cpp=%.o) gtest_main.a
 
