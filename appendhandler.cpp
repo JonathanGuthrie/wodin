@@ -93,7 +93,8 @@ IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
     MailStore::MAIL_STORE_RESULT mlr;
     m_tempMailboxName = m_parseBuffer->arguments();
     if (MailStore::SUCCESS == (mlr = m_store->lock(m_tempMailboxName))) {
-		
+	// Because lock has been called on the destination mailbox, it should not be possible for this command to return CANNOT_COMPLETE_ACTION so issuing an error
+	// is appropriate
 	switch (m_store->addMessageToMailbox(m_tempMailboxName, m_session->lineBuffer(), 0, messageDateTime, m_mailFlags, &m_appendingUid)) {
 	case MailStore::SUCCESS:
 	    m_session->responseText("Ready for the Message Data");
@@ -101,11 +102,9 @@ IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
 	    result = IMAP_NOTDONE;
 	    break;
 
-	case MailStore::CANNOT_COMPLETE_ACTION:
-	    result = IMAP_TRY_AGAIN;
-	    break;
-
 	default:
+	    m_store->unlock(m_tempMailboxName);
+	    m_session->responseText("Failed -- internal error");
 	    result = IMAP_MBOX_ERROR;
 	    break;
 	}
