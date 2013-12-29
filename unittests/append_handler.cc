@@ -128,6 +128,37 @@ TEST_F(AppendHandlerTest, LiteralNoOtherArgsShouldWork) {
     ASSERT_EQ(IMAP_OK, handler->receiveData(input));
 }
 
+TEST_F(AppendHandlerTest, LiteralNoOtherArgsShouldWork2) {
+    EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
+    EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), appendDataToMessage("inbox",::testing::_,::testing::_,::testing::_)).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), doneAppendingDataToMessage("inbox",::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"{5}";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_NOTDONE, handler->receiveData(input));
+    // This needs to have the CRLF appended to it because it won't be stripped by 
+    // ImapSession::handleOneLine as it would be if it were not in a literal string
+    strcpy((char *)buffer, "in");
+    input.data = buffer;
+    input.dataLen = strlen((const char *)buffer);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_IN_LITERAL, handler->receiveData(input));
+    strcpy((char *)buffer, "box {1}\r\n");
+    input.data = buffer;
+    input.dataLen = strlen((const char *)buffer);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_NOTDONE, handler->receiveData(input));
+    input.data = (uint8_t *)" ";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_OK, handler->receiveData(input));
+}
+
 TEST_F(AppendHandlerTest, AtomFlagsNoDateShouldWork) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_session), responseText("Ready for the Message Data")).Times(1);
