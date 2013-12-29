@@ -130,6 +130,7 @@ IMAP_RESULTS AppendHandler::receiveData(INPUT_DATA_STRUCT &input) {
     case 0:
 	switch (m_parseBuffer->astring(input, false, NULL)) {
 	case ImapStringGood:
+	    m_parseStage = 2;
 	    result = execute(input);
 	    break;
 
@@ -154,7 +155,7 @@ IMAP_RESULTS AppendHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	// It's the mailbox name that's arrived
     {
 	size_t dataUsed = m_parseBuffer->addLiteralToParseBuffer(input);
-	if (dataUsed <= input.dataLen) {
+	if (0 == m_parseBuffer->literalLength()) {
 	    m_parseStage = 2;
 	    if (2 < (input.dataLen - dataUsed)) {
 		// Get rid of the CRLF if I have it

@@ -273,7 +273,7 @@ uint32_t ParseBuffer::addLiteralToParseBuffer(INPUT_DATA_STRUCT &input) {
 	m_literalLength = 0;
     }
     else {
-	addToParseBuffer(input, input.dataLen);
+	addToParseBuffer(input, input.dataLen, false);
 	result = input.dataLen;
 	m_literalLength -= input.dataLen;
     }
