@@ -183,7 +183,7 @@ IMAP_RESULTS AppendHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	size_t len = MIN(m_parseBuffer->literalLength(), input.dataLen);
 	if (m_parseBuffer->literalLength() > input.dataLen) {
 	    result = IMAP_IN_LITERAL;
-	    residue = input.dataLen - m_parseBuffer->literalLength();
+	    residue = m_parseBuffer->literalLength() - input.dataLen;
 	}
 	else {
 	    residue = 0;
@@ -192,8 +192,6 @@ IMAP_RESULTS AppendHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	std::string mailbox(m_parseBuffer->arguments());
 	switch (m_store->appendDataToMessage(mailbox, m_appendingUid, input.data, len)) {
 	case MailStore::SUCCESS:
-	    result = IMAP_MBOX_ERROR;
-
 	    if (0 == m_parseBuffer->literalLength()) {
 		m_parseStage = 4;
 		switch(m_store->doneAppendingDataToMessage(mailbox, m_appendingUid)) {
