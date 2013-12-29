@@ -521,30 +521,17 @@ TEST_F(AppendHandlerTest, NeedLiteralStartAfterMailbox) {
     ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
 }
 
-TEST_F(AppendHandlerTest, NeedOnlyNumberInLiteral) {
-    EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
-    EXPECT_CALL((*test_session), responseText("Malformed Command")).Times(1);
-    ImapHandler *handler = appendHandler(test_session, input);
-    ASSERT_TRUE(NULL != handler);
-    input.data = (uint8_t *)"inbox {1foo}";
-    input.dataLen = strlen((const char *)input.data);
-    input.parsingAt = 0;
-    ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
-}
-
 TEST_F(AppendHandlerTest, AppendFailShouldCleanUpAndReportBad) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), addMessageToMailbox("inbox",::testing::_,::testing::_,::testing::_,0,::testing::_)).Times(1).WillRepeatedly(::testing::Return(MailStore::GENERAL_FAILURE));
-    EXPECT_CALL((*test_session), responseText("Malformed Command")).Times(1);
+    EXPECT_CALL((*test_session), responseText("Failed -- internal error")).Times(1);
     ImapHandler *handler = appendHandler(test_session, input);
     ASSERT_TRUE(NULL != handler);
-    input.data = (uint8_t *)"inbox {1foo}";
+    input.data = (uint8_t *)"inbox {1}";
     input.dataLen = strlen((const char *)input.data);
     input.parsingAt = 0;
-    ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
+    ASSERT_EQ(IMAP_MBOX_ERROR, handler->receiveData(input));
 }
 
 TEST_F(AppendHandlerTest, LockFailShouldCauseRetry) {
