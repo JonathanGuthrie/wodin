@@ -24,64 +24,60 @@ ImapHandler *appendHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
 
 
 // Parse stage is 0 if it doesn't have a mailbox name, and 1 if it is waiting for one, 2 if the name has arrived, and 3 if it's receiving message data.
+// The thing is, execute is only called when the parse stage is 2 because execute's job is to parse the date and flags, if any, and create a new message
+// to which to begin appending data
 IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
     IMAP_RESULTS result = IMAP_BAD;
     DateTime messageDateTime;
 
-    if (m_parseStage < 3) {
-	if ((2 < (input.dataLen - input.parsingAt)) && (' ' == input.data[input.parsingAt++])) {
-	    if ('(' == input.data[input.parsingAt]) {
-		++input.parsingAt;
-		bool flagsOk;
-		m_mailFlags = m_parseBuffer->readEmailFlags(input, flagsOk);
-		if (flagsOk && (2 < (input.dataLen - input.parsingAt)) &&
-		    (')' == input.data[input.parsingAt]) && (' ' == input.data[input.parsingAt+1])) {
-		    input.parsingAt += 2;
-		}
-		else {
-		    m_session->responseText("Malformed Command");
-		    return IMAP_BAD;
-		}
-	    }
-	    else {
-		m_mailFlags = 0;
-	    }
-
-	    if ('"' == input.data[input.parsingAt]) {
-		++input.parsingAt;
-		// The constructor for DateTime swallows both the leading and trailing
-		// double quote characters
-		if (messageDateTime.parse(input.data, input.dataLen, input.parsingAt, DateTime::IMAP) &&
-		    ('"' == input.data[input.parsingAt]) &&
-		    (' ' == input.data[input.parsingAt+1])) {
-		    input.parsingAt += 2;
-		}
-		else {
-		    m_session->responseText("Malformed Command");
-		    return IMAP_BAD;
-		}
-	    }
-
-	    if ((2 < (input.dataLen - input.parsingAt)) && ('{' == input.data[input.parsingAt])) {
-		// It's a literal string
-		input.parsingAt++; // Skip the curly brace
-		char *close;
-		// read the number
-		m_parseBuffer->literalLength(strtoul((char *)&input.data[input.parsingAt], &close, 10));
-		// check for the close curly brace and end of message and to see if I can fit all that data
-		// into the buffer
-		size_t lastChar = (size_t) (close - ((char *)input.data));
-		if ((NULL == close) || ('}' != close[0]) || (lastChar != (input.dataLen - 1))) {
-		    m_session->responseText("Malformed Command");
-		}
-		else {
-		    m_parseStage = 2;
-		    result = IMAP_OK;
-		}
+    if ((2 < (input.dataLen - input.parsingAt)) && (' ' == input.data[input.parsingAt++])) {
+	if ('(' == input.data[input.parsingAt]) {
+	    ++input.parsingAt;
+	    bool flagsOk;
+	    m_mailFlags = m_parseBuffer->readEmailFlags(input, flagsOk);
+	    if (flagsOk && (2 < (input.dataLen - input.parsingAt)) &&
+		(')' == input.data[input.parsingAt]) && (' ' == input.data[input.parsingAt+1])) {
+		input.parsingAt += 2;
 	    }
 	    else {
 		m_session->responseText("Malformed Command");
 		return IMAP_BAD;
+	    }
+	}
+	else {
+	    m_mailFlags = 0;
+	}
+
+	if ('"' == input.data[input.parsingAt]) {
+	    ++input.parsingAt;
+	    // The constructor for DateTime swallows both the leading and trailing
+	    // double quote characters
+	    if (messageDateTime.parse(input.data, input.dataLen, input.parsingAt, DateTime::IMAP) &&
+		('"' == input.data[input.parsingAt]) &&
+		(' ' == input.data[input.parsingAt+1])) {
+		input.parsingAt += 2;
+	    }
+	    else {
+		m_session->responseText("Malformed Command");
+		return IMAP_BAD;
+	    }
+	}
+
+	if ((2 < (input.dataLen - input.parsingAt)) && ('{' == input.data[input.parsingAt])) {
+	    // It's a literal string
+	    input.parsingAt++; // Skip the curly brace
+	    char *close;
+	    // read the number
+	    m_parseBuffer->literalLength(strtoul((char *)&input.data[input.parsingAt], &close, 10));
+	    // check for the close curly brace and end of message and to see if I can fit all that data
+	    // into the buffer
+	    size_t lastChar = (size_t) (close - ((char *)input.data));
+	    if ((NULL == close) || ('}' != close[0]) || (lastChar != (input.dataLen - 1))) {
+		m_session->responseText("Malformed Command");
+	    }
+	    else {
+		m_parseStage = 2;
+		result = IMAP_OK;
 	    }
 	}
 	else {
@@ -90,7 +86,8 @@ IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
 	}
     }
     else {
-	result = IMAP_OK;
+	m_session->responseText("Malformed Command");
+	return IMAP_BAD;
     }
 
     MailStore::MAIL_STORE_RESULT mlr;
