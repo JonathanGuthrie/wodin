@@ -27,7 +27,7 @@ ImapHandler *appendHandler(ImapSession *session, INPUT_DATA_STRUCT &input) {
 // The thing is, execute is only called when the parse stage is 2 because execute's job is to parse the date and flags, if any, and create a new message
 // to which to begin appending data
 IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
-    IMAP_RESULTS result = IMAP_BAD;
+    IMAP_RESULTS result = IMAP_OK;
     DateTime messageDateTime;
 
     if ((2 < (input.dataLen - input.parsingAt)) && (' ' == input.data[input.parsingAt++])) {
@@ -74,10 +74,10 @@ IMAP_RESULTS AppendHandler::execute(INPUT_DATA_STRUCT &input) {
 	    size_t lastChar = (size_t) (close - ((char *)input.data));
 	    if ((NULL == close) || ('}' != close[0]) || (lastChar != (input.dataLen - 1))) {
 		m_session->responseText("Malformed Command");
+		return IMAP_BAD;
 	    }
 	    else {
 		m_parseStage = 2;
-		result = IMAP_OK;
 	    }
 	}
 	else {
