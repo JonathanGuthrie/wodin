@@ -521,6 +521,16 @@ TEST_F(AppendHandlerTest, NeedLiteralStartAfterMailbox) {
     ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
 }
 
+TEST_F(AppendHandlerTest, LiteralShouldHaveANumberInIt) {
+    EXPECT_CALL((*test_session), responseText("Malformed Command")).Times(1);
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"inbox {foo}";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
+}
+
 TEST_F(AppendHandlerTest, AppendFailShouldCleanUpAndReportBad) {
     EXPECT_CALL((*test_store), lock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
     EXPECT_CALL((*test_store), unlock("inbox")).Times(1).WillRepeatedly(::testing::Return(MailStore::SUCCESS));
@@ -542,5 +552,15 @@ TEST_F(AppendHandlerTest, LockFailShouldCauseRetry) {
     input.dataLen = strlen((const char *)input.data);
     input.parsingAt = 0;
     ASSERT_EQ(IMAP_TRY_AGAIN, handler->receiveData(input));
+}
+
+TEST_F(AppendHandlerTest, BadAtomShouldFail) {
+    EXPECT_CALL((*test_session), responseText("Malformed Command")).Times(1);
+    ImapHandler *handler = appendHandler(test_session, input);
+    ASSERT_TRUE(NULL != handler);
+    input.data = (uint8_t *)"in%ox";
+    input.dataLen = strlen((const char *)input.data);
+    input.parsingAt = 0;
+    ASSERT_EQ(IMAP_BAD, handler->receiveData(input));
 }
 
