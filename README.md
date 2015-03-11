@@ -34,9 +34,6 @@ live mail system.  I also haven't yet got around to implementing user-defined fl
 and then I got busy doing other things.  They're on the list, though.  Not having user-defined flags doesn't seem to hurt
 much, but it's definitely a limitation.
 
-I also haven't gotten around to implementing the STARTTLS command.  This is important, and is another thing that needs
-to be done before I can use it myself.
-
 Lastly, I just finished a major reorganization and I would be shocked if I hadn't introduced some significant errors as
 part of that.  I'll be squashing those as time goes on.
 
