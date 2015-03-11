@@ -136,7 +136,7 @@ done)  Figure out how to not have SocketBindErrorException
   opened in read/write or read-only mode when opening a mail box.  The namespace should always open the mailbox in read-write
   mode and simulate read-only when that's what the client asks for.
 
-42)  Really add the support for STARTTLS
+done)  Really add the support for STARTTLS
 
 43)  Support listening on multiple ports, and support ports that require SSL.
 
@@ -156,7 +156,7 @@ done)  Figure out how to not have SocketBindErrorException
 
 51)  Handle search charsets other than US-ASCII
 
-)  Add anonymous authentication to the capability string (availability should be known by the server class--make that so as well)
+done)  Add anonymous authentication to the capability string (availability should be known by the server class--make that so as well)
 
 )  Deal with logging
 
