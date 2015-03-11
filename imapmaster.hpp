@@ -34,7 +34,8 @@ public:
 
     ImapUser *userInfo(const char *userid);
     Namespace *mailStore(ImapSession *session);
-    bool isAnonymousEnabled() { return false; } // SYZYGY ANONYMOUS
+    bool isAnonymousEnabled() { return false; }
+    bool isLoginEnabledByPolicy(void) const;
     // This will send the specified message out the specified socket
     // after the specified number of seconds and then set that session
     // up to receive again
@@ -50,6 +51,12 @@ public:
     unsigned badLoginPause(void) const { return m_badLoginPause; }
     unsigned maxRetries(void) const { return m_maxRetries; }
     unsigned retryDelaySeconds(void) const { return m_retryDelaySeconds; }
+
+    const std::string &keyfile(void) const { return m_keyfile; }
+    const std::string &certfile(void) const { return m_certfile; }
+    const std::string &cafile(void) const { return m_cafile; }
+    const std::string &crlfile(void) const { return m_crlfile; }
+
 #if 0
     void idleTimer(SessionDriver *driver, unsigned seconds);
     void scheduleAsynchronousAction(SessionDriver *driver, unsigned seconds);
@@ -69,6 +76,10 @@ private:
     unsigned m_badLoginPause;
     unsigned m_maxRetries;
     unsigned m_retryDelaySeconds;
+    std::string m_keyfile;
+    std::string m_certfile;
+    std::string m_cafile;
+    std::string m_crlfile;
 };
 
 #endif //_IMAPMASTER_HPP_INCLUDED_

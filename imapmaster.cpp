@@ -35,9 +35,12 @@ ImapMaster::ImapMaster(std::string fqdn, unsigned login_timeout, unsigned idle_t
     m_badLoginPause = bad_login_pause;
     m_maxRetries = max_retries;
     m_retryDelaySeconds = retry_seconds;
+    m_keyfile = "./test-priv.pem";
+    m_certfile = "./test-cert.pem";
+    m_cafile = "./test-cert.pem";
+    m_crlfile = "./test-crl.pem";
 
     ImapSession::buildSymbolTables();
-
 }
 
 ImapMaster::~ImapMaster(void) {
@@ -64,6 +67,11 @@ Namespace *ImapMaster::mailStore(ImapSession *session) {
     return result;
 }
 
+
+bool ImapMaster::isLoginEnabledByPolicy(void) const {
+    return true;  // Use this for testing
+    return false;
+}
 
 ImapSession *ImapMaster::newSession(SessionDriver *driver, Server *server) {
     return new ImapSession(this, driver, server);

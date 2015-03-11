@@ -161,7 +161,7 @@ public:
     Namespace *store(void) const { return m_store; }
     void store(Namespace *mailstore) { m_store = mailstore; }
     ParseBuffer *parseBuffer(void) const { return m_parseBuffer; }
-    bool loginDisabled(void) const { return m_loginDisabled; }
+    bool isLoginEnabled(void) const;
     MailStore::MAIL_STORE_RESULT mboxErrorCode(MailStore::MAIL_STORE_RESULT code) { m_mboxErrorCode = code; return code; }
     MailStore::MAIL_STORE_RESULT mboxErrorCode(void) const { return m_mboxErrorCode; }
     const uint8_t *lineBuffer(void) const { return m_lineBuffer; }
@@ -182,7 +182,6 @@ protected:
 
 private:
     // These are configuration items
-    bool m_loginDisabled;
     static bool m_anonymousEnabled;
     unsigned m_failedLoginPause;
     SessionDriver *m_driver;

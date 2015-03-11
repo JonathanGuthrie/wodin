@@ -60,6 +60,7 @@
 #include "searchhandler.hpp"
 #include "fetchhandler.hpp"
 #include "storehandler.hpp"
+#include "starttlshandler.hpp"
 
 #ifndef MAX
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
@@ -379,8 +380,8 @@ void ImapSession::buildSymbolTables() {
     symbolToInsert.levels[2] = false;
     symbolToInsert.levels[3] = false;
     symbolToInsert.sendUpdatedStatus = true;
-    symbolToInsert.handler = unimplementedHandler;
-    m_symbols.insert(IMAPSYMBOLS::value_type("STARTTTLS", symbolToInsert));
+    symbolToInsert.handler = startTlsHandler;
+    m_symbols.insert(IMAPSYMBOLS::value_type("STARTTLS", symbolToInsert));
     symbolToInsert.handler = authenticateHandler;
     m_symbols.insert(IMAPSYMBOLS::value_type("AUTHENTICATE", symbolToInsert));
     symbolToInsert.handler = loginHandler;
@@ -464,7 +465,6 @@ ImapSession::ImapSession(ImapMaster *master, SessionDriver *driver, Server *serv
     m_server = server;
     m_state = ImapNotAuthenticated;
     m_userData = NULL;
-    m_loginDisabled = false;
     m_lineBuffer = NULL;	// going with a static allocation for now
     m_lineBuffPtr = 0;
     m_lineBuffLen = 0;
@@ -915,16 +915,14 @@ void ImapSession::handleOneLine(INPUT_DATA_STRUCT &input) {
 
 
 std::string ImapSession::capabilityString() {
-    std::string capability;
-#if 0 // SYZYGY AUTH ANONYMOUS LOGINDISABLED all are determined by the server state as much as the session
-    capability.Format("CAPABILITY IMAP4rev1 CHILDREN NAMESPACE AUTH=PLAIN%s%s",
-		      m_AnonymousEnabled ? " AUTH=ANONYMOUS" : "",
-		      m_LoginDisabled ? " LOGINDISABLED" : "");
-#else // !0
-    capability = "CAPABILITY IMAP4rev1 CHILDREN NAMESPACE AUTH=PLAIN";
-#endif // !0
+    std::ostringstream capability;
+    // AUTH ANONYMOUS LOGINDISABLED all are determined by the server state as much as the session
+    
+    capability << "CAPABILITY IMAP4rev1 CHILDREN NAMESPACE" << 
+	(m_master->isAnonymousEnabled() ? " AUTH=ANONYMOUS" : "") <<
+	(isLoginEnabled() ? " AUTH=PLAIN" : " LOGINDISABLED");
 
-    return capability;
+    return capability.str();
 }
 
 
@@ -939,6 +937,10 @@ void ImapSession::closeMailbox(ImapState newState) {
 	}
     }
     m_state = newState;
+}
+
+bool ImapSession::isLoginEnabled(void) const {
+    return m_master->isLoginEnabledByPolicy() || m_driver->isConnectionEncrypted();
 }
 
 void ImapSession::responseText(void) {

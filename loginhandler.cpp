@@ -66,7 +66,7 @@ IMAP_RESULTS LoginHandler::execute(void) {
  */
 IMAP_RESULTS LoginHandler::receiveData(INPUT_DATA_STRUCT &input) {
     IMAP_RESULTS result = IMAP_OK;
-    if (m_session->loginDisabled()) {
+    if (!m_session->isLoginEnabled()) {
 	m_session->responseText("Login Disabled");
 	return IMAP_NO;
     }

@@ -16,7 +16,7 @@
 CC=g++
 CXXFLAGS=-g -Wall -Wextra -pthread
 CXXTESTFLAGS=$(CXXFLAGS) -DTEST
-LDFLAGS=-lpthread -lcrypt -lclotho -lboost_system
+LDFLAGS=-lpthread -lcrypt -lclotho -lboost_system -lgnutls
 
 %.d: %.cpp
 	@set -e; rm -f $@; \
@@ -68,7 +68,8 @@ SOURCES=imapd.cpp \
 	closehandler.cpp \
 	searchhandler.cpp \
 	fetchhandler.cpp \
-	storehandler.cpp
+	storehandler.cpp \
+	starttlshandler.cpp
 
 imapd: imapd.o imapsession.o imapunixuser.o imapuser.o sasl.o base64.o mailstorembox.o \
         mailstore.o idletimer.o asynchronousaction.o delayedmessage.o \
@@ -78,7 +79,7 @@ imapd: imapd.o imapsession.o imapunixuser.o imapuser.o sasl.o base64.o mailstore
 	createhandler.o deletehandler.o renamehandler.o subscribehandler.o \
 	listhandler.o statushandler.o appendhandler.o selecthandler.o checkhandler.o \
 	expungehandler.o copyhandler.o closehandler.o searchhandler.o fetchhandler.o \
-	storehandler.o
+	storehandler.o starttlshandler.o
 
 testidletimer.o:  idletimer.cpp Makefile
 	$(CC) $(CXXTESTFLAGS) -c -o $@ $<
@@ -95,7 +96,7 @@ locking-test: locking-test.o mailstorelocktest.o imapmasterlocktest.o locktestma
 	loginhandler.o namespacehandler.o createhandler.o deletehandler.o renamehandler.o \
 	 subscribehandler.o listhandler.o statushandler.o appendhandler.o selecthandler.o \
 	checkhandler.o expungehandler.o copyhandler.o closehandler.o searchhandler.o \
-	fetchhandler.o storehandler.o
+	fetchhandler.o storehandler.o starttlshandler.o
 
 include $(SOURCES:.cpp=.d)
 
