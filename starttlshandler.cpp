@@ -33,8 +33,8 @@ IMAP_RESULTS StartTlsHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	result = IMAP_BAD;
     }
     else {
-	m_session->driver()->startTls(m_session->master()->keyfile(), m_session->master()->certfile(), m_session->master()->cafile(), m_session->master()->crlfile());
-	result = IMAP_OK;
+	m_session->responseText("Begin TLS negotiation now.");
+	result = IMAP_STARTTLS;
     }
     return result;
 }

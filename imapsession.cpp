@@ -711,6 +711,7 @@ std::string ImapSession::formatTaggedResponse(IMAP_RESULTS status, bool sendUpda
 
     switch(status) {
     case IMAP_OK:
+    case IMAP_STARTTLS:
 	response = m_parseBuffer->tag();
 	response += " OK";
 	response += m_responseCode[0] == '\0' ? "" : " ";
@@ -883,8 +884,15 @@ void ImapSession::handleOneLine(INPUT_DATA_STRUCT &input) {
 	    if (IMAP_IN_LITERAL != status) {
 		m_driver->wantsToSend(response);
 	    }
-	    m_driver->wantsToReceive();
+	    if (IMAP_STARTTLS != status) {
+		m_driver->wantsToReceive();
+	    }
 	    break;
+	}
+
+	if (IMAP_STARTTLS == status) {
+	    m_driver->startTls(m_master->keyfile(), m_master->certfile(), m_master->cafile(), m_master->crlfile());
+	    m_driver->wantsToReceive();
 	}
     }
     else {
@@ -920,6 +928,7 @@ std::string ImapSession::capabilityString() {
     
     capability << "CAPABILITY IMAP4rev1 CHILDREN NAMESPACE" << 
 	(m_master->isAnonymousEnabled() ? " AUTH=ANONYMOUS" : "") <<
+	(m_driver->isConnectionEncrypted() ? "" : " STARTTLS") <<
 	(isLoginEnabled() ? " AUTH=PLAIN" : " LOGINDISABLED");
 
     return capability.str();
