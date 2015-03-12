@@ -648,6 +648,9 @@ void ImapSession::receiveData(uint8_t *data, size_t dataLen) {
 	    }
 	    notDone = (currentCommandStart < dataLen) && (newDataBase < dataLen);
 	}
+	if (notDone && (NULL == m_parseBuffer)) {
+	    m_parseBuffer = new ParseBuffer(dataLen);
+	}
     } while (notDone);
 
     // Lastly, save any leftover data from the current call to ReceiveData
