@@ -135,11 +135,11 @@ bool SearchHandler::updateSearchTerm(MailSearch &searchTerm, size_t &tokenPointe
 	    SEARCH_RESULT srVector;
 	    result = m_session->msnSequenceSet(srVector, tokenPointer);
 	    searchTerm.addUidVector(srVector);
-	    tokenPointer += strlen((char *)&m_parseBuffer[tokenPointer]) + 1;
+	    tokenPointer += strlen(m_parseBuffer->parseStr(tokenPointer)) + 1;
 	}
 	else {
-	    SEARCH_SYMBOL_T::iterator found = searchSymbolTable.find((char *)&m_parseBuffer[tokenPointer]);
-	    tokenPointer += strlen((char *)&m_parseBuffer[tokenPointer]) + 1;
+	    SEARCH_SYMBOL_T::iterator found = searchSymbolTable.find(m_parseBuffer->parseStr(tokenPointer));
+	    tokenPointer += strlen(m_parseBuffer->parseStr(tokenPointer)) + 1;
 	    if (found != searchSymbolTable.end()) {
 		switch (found->second) {
 		case SSV_ERROR:
@@ -558,7 +558,7 @@ bool SearchHandler::updateSearchTerm(MailSearch &searchTerm, size_t &tokenPointe
 
 			result = m_session->uidSequenceSet(srVector, tokenPointer);
 			searchTerm.addUidVector(srVector);
-			tokenPointer += strlen((char *)&m_parseBuffer[tokenPointer]) + 1;
+			tokenPointer += strlen(m_parseBuffer->parseStr(tokenPointer)) + 1;
 		    }
 		    else {
 			result = false;
@@ -610,12 +610,12 @@ IMAP_RESULTS SearchHandler::execute() {
 
     if (MailStore::SUCCESS == m_session->store()->lock()) {
 	// Skip the first two tokens that are the tag and the command
-	executePointer += (size_t) strlen((char *)m_parseBuffer) + 1;
-	executePointer += (size_t) strlen((char *)&m_parseBuffer[executePointer]) + 1;
+	executePointer += (size_t) strlen(m_parseBuffer->parseStr()) + 1;
+	executePointer += (size_t) strlen(m_parseBuffer->parseStr(executePointer)) + 1;
 
 	// I do this once again if m_UsingUid is set because the command in that case is UID
 	if (m_usingUid) {
-	    executePointer += (size_t) strlen((char *)&m_parseBuffer[executePointer]) + 1;
+	    executePointer += (size_t) strlen(m_parseBuffer->parseStr(executePointer)) + 1;
 	}
 
 	// This section turns the search spec into something that might work efficiently

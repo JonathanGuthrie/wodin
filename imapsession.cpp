@@ -1019,7 +1019,7 @@ bool ImapSession::msnSequenceSet(SEARCH_RESULT &uidVector, size_t &tokenPointer)
 
     size_t mboxCount = m_store->mailboxMessageCount();
     char *s, *e;
-    s = (char *)&m_parseBuffer[tokenPointer];
+    s = m_parseBuffer->parseStr(tokenPointer);
     do {
 	unsigned long first, second;
 	if ('*' != s[0]) {
@@ -1090,7 +1090,7 @@ bool ImapSession::uidSequenceSet(SEARCH_RESULT &uidVector, size_t &tokenPointer)
 	mboxMinUid = 0;
     }
     char *s, *e;
-    s = (char *)&m_parseBuffer[tokenPointer];
+    s = m_parseBuffer->parseStr(tokenPointer);
     do {
 	unsigned long first, second;
 	if ('*' != s[0]) {

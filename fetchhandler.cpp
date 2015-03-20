@@ -912,12 +912,12 @@ void FetchHandler::fetchResponseBody(const MailMessage *message) {
 IMAP_RESULTS FetchHandler::execute(void) {
     IMAP_RESULTS finalResult = IMAP_OK;
 
-    size_t executePointer = strlen((char *)m_parseBuffer) + 1;
-    executePointer += strlen((char *)&m_parseBuffer[executePointer]) + 1;
+    size_t executePointer = strlen(m_parseBuffer->parseStr()) + 1;
+    executePointer += strlen(m_parseBuffer->parseStr(executePointer)) + 1;
     SEARCH_RESULT srVector;
 
     if (m_usingUid) {
-	executePointer += strlen((char *)&m_parseBuffer[executePointer]) + 1;
+	executePointer += strlen(m_parseBuffer->parseStr(executePointer)) + 1;
 	m_session->uidSequenceSet(srVector, executePointer);
     }
     else {
@@ -952,7 +952,7 @@ IMAP_RESULTS FetchHandler::execute(void) {
 			temp = strchr(m_parseBuffer->parseStr(specificationBase), '[');
 			if (NULL != temp) {
 			    *temp = '\0';
-			    FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
+			    FETCH_NAME_T::iterator which = fetchSymbolTable.find(m_parseBuffer->parseStr(specificationBase));
 			    specificationBase += strlen(m_parseBuffer->parseStr(specificationBase)) + 1;
 			    *temp = '[';
 			    if (fetchSymbolTable.end() != which) {
@@ -1242,11 +1242,11 @@ IMAP_RESULTS FetchHandler::execute(void) {
 		    else {
 			// This may be an extended BODY name, so I have to check for that.
 			char *temp;
-			temp = strchr((char *)&m_parseBuffer[specificationBase], '[');
+			temp = strchr(m_parseBuffer->parseStr(specificationBase), '[');
 			if (NULL != temp) {
 			    *temp = '\0';
-			    FETCH_NAME_T::iterator which = fetchSymbolTable.find((char *)&m_parseBuffer[specificationBase]);
-			    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+			    FETCH_NAME_T::iterator which = fetchSymbolTable.find(m_parseBuffer->parseStr(specificationBase));
+			    specificationBase += strlen(m_parseBuffer->parseStr(specificationBase)) + 1;
 			    *temp = '[';
 			    if (fetchSymbolTable.end() != which) {
 				switch(which->second) {
@@ -1296,7 +1296,7 @@ IMAP_RESULTS FetchHandler::execute(void) {
 				    sectionString << section;
 				    m_session->driver()->wantsToSend(sectionString.str());
 				    body = (*body.subparts)[section-1];
-				    specificationBase += (end - ((char *)&m_parseBuffer[specificationBase]));
+				    specificationBase += (end - (m_parseBuffer->parseStr(specificationBase)));
 				    if ('.' == *end) {
 					m_session->driver()->wantsToSend(".");
 					++specificationBase;
@@ -1333,7 +1333,7 @@ IMAP_RESULTS FetchHandler::execute(void) {
 				}
 			    }
 			    else {
-				insensitiveString part((char *)&m_parseBuffer[specificationBase]);
+				insensitiveString part(m_parseBuffer->parseStr(specificationBase));
 				// I'm looking for HEADER[.FIELDS[.NOT]], TEXT, or MIME
 				if (part.substr(0, 6) == "header") {
 				    if (']' == part[6]) {
@@ -1344,13 +1344,13 @@ IMAP_RESULTS FetchHandler::execute(void) {
 				    else {
 					if (part.substr(6,7) == ".FIELDS") {
 					    if (13 == part.size()) {
-						specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+						specificationBase += strlen(m_parseBuffer->parseStr(specificationBase)) + 1;
 						m_session->driver()->wantsToSend("HEADER.FIELDS");
 						whichPart = FETCH_BODY_FIELDS;
 					    }
 					    else {
 						if (part.substr(13) == ".NOT") {
-						    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+						    specificationBase += strlen(m_parseBuffer->parseStr(specificationBase)) + 1;
 						    m_session->driver()->wantsToSend("HEADER.FIELDS.NOT");
 						    whichPart = FETCH_BODY_NOT_FIELDS;
 						}
@@ -1400,12 +1400,12 @@ IMAP_RESULTS FetchHandler::execute(void) {
 				    SendBlank();
 				    m_session->driver()->wantsToSend(m_parseBuffer->parseStr(specificationBase), len);
 				    blankLen = 1;
-				    fieldList.push_back((char*)&m_parseBuffer[specificationBase]);
+				    fieldList.push_back(m_parseBuffer->parseStr(specificationBase));
 				    specificationBase += len + 1;
 				}
-				if (0 == strcmp((char *)&m_parseBuffer[specificationBase], ")")) {
+				if (0 == strcmp(m_parseBuffer->parseStr(specificationBase), ")")) {
 				    m_session->driver()->wantsToSend(")");
-				    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+				    specificationBase += strlen(m_parseBuffer->parseStr(specificationBase)) + 1;
 				}
 				else {
 				    m_session->responseText("Malformed Command");
@@ -1434,7 +1434,7 @@ IMAP_RESULTS FetchHandler::execute(void) {
 			    if ('<' == m_parseBuffer->parseChar(specificationBase)) {
 				++specificationBase;
 				char *end;
-				firstByte = strtoul((char *)&m_parseBuffer[specificationBase], &end, 10);
+				firstByte = strtoul(m_parseBuffer->parseStr(specificationBase), &end, 10);
 				std::ostringstream limit;
 				limit << "<" << firstByte << ">";
 				m_session->driver()->wantsToSend(limit.str());
@@ -1599,9 +1599,9 @@ IMAP_RESULTS FetchHandler::execute(void) {
 			}
 		    }
 		    blankLen = 1;
-		    specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
-		    if (0 == strcmp(")", (char *)&m_parseBuffer[specificationBase])) {
-			specificationBase += strlen((char *)&m_parseBuffer[specificationBase]) + 1;
+		    specificationBase += strlen(m_parseBuffer->parseStr(specificationBase)) + 1;
+		    if (0 == strcmp(")", m_parseBuffer->parseStr(specificationBase))) {
+			specificationBase += strlen(m_parseBuffer->parseStr(specificationBase)) + 1;
 		    }
 		}
 		// Here, I update the SEEN flag, if that is necessary, and send the flags if that flag has

@@ -111,8 +111,8 @@ IMAP_RESULTS StoreHandler::receiveData(INPUT_DATA_STRUCT &input) {
 	    sequenceOk = m_session->msnSequenceSet(srVector, executePointer);
 	}
 	if (sequenceOk) {
-	    executePointer += strlen((char *)&m_parseBuffer[executePointer]) + 1;
-	    if (0 == strncmp((char *)&m_parseBuffer[executePointer], "FLAGS", 5)) {
+	    executePointer += strlen(m_parseBuffer->parseStr(executePointer)) + 1;
+	    if (0 == strncmp(m_parseBuffer->parseStr(executePointer), "FLAGS", 5)) {
 		bool silentFlag = false;
 		// I'm looking for "FLAGS.SILENT and the "+5" is because FLAGS is five characters long
 		if ('.' == m_parseBuffer->parseChar(executePointer+5)) {
@@ -130,7 +130,7 @@ IMAP_RESULTS StoreHandler::receiveData(INPUT_DATA_STRUCT &input) {
 		    executePointer += strlen(m_parseBuffer->parseStr(executePointer)) + 1;
 		    while((IMAP_OK == result) && (m_parseBuffer->parsePointer() > executePointer)) {
 			if ('\\' == m_parseBuffer->parseChar(executePointer)) {
-			    FLAG_SYMBOL_T::iterator found = flagSymbolTable.find((char *)&m_parseBuffer[executePointer+1]);
+			    FLAG_SYMBOL_T::iterator found = flagSymbolTable.find(m_parseBuffer->parseStr(executePointer+1));
 			    if (flagSymbolTable.end() != found) {
 				flagSet |= found->second;
 			    }
@@ -143,7 +143,7 @@ IMAP_RESULTS StoreHandler::receiveData(INPUT_DATA_STRUCT &input) {
 			    m_session->responseText("Malformed Command");
 			    result = IMAP_BAD;
 			}
-			executePointer += strlen((char *)&m_parseBuffer[executePointer]) + 1;
+			executePointer += strlen(m_parseBuffer->parseStr(executePointer)) + 1;
 		    }
 		    if (IMAP_OK == result) {
 			uint32_t andMask, orMask;

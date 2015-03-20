@@ -69,7 +69,7 @@ Namespace *ImapMaster::mailStore(ImapSession *session) {
 
 
 bool ImapMaster::isLoginEnabledByPolicy(void) const {
-    return true;  // Use this for testing
+    // return true;  // Use this for testing
     return false;
 }
 
